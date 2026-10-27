@@ -1,0 +1,3 @@
+import { createFileRoute } from '@tanstack/react-router';
+import { LegalNotice } from '@/components/learning/LegalNotice';
+export const Route=createFileRoute('/privacy')({head:()=>({meta:[{title:'StudySmart — Student Privacy Notice'},{name:'description',content:'How StudySmart handles student content, local storage and AI processing.'},{property:'og:title',content:'StudySmart — Student Privacy Notice'},{property:'og:description',content:'Student content, local storage and AI processing safeguards.'},{property:'og:type',content:'website'},{name:'twitter:card',content:'summary_large_image'}]}),component:()=> <LegalNotice privacy/>});

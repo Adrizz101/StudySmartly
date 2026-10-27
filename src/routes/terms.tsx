@@ -1,0 +1,3 @@
+import { createFileRoute } from '@tanstack/react-router';
+import { LegalNotice } from '@/components/learning/LegalNotice';
+export const Route=createFileRoute('/terms')({head:()=>({meta:[{title:'StudySmart — Terms of Use'},{name:'description',content:'Educational use, student safety, content ownership and AI limitations.'},{property:'og:title',content:'StudySmart — Terms of Use'},{property:'og:description',content:'Educational use, student safety, ownership and AI limitations.'},{property:'og:type',content:'website'},{name:'twitter:card',content:'summary_large_image'}]}),component:LegalNotice});
