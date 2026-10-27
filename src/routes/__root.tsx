@@ -9,7 +9,8 @@ import {
   ClientOnly,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 import appCss from "../styles.css?url";
 import { AppProvider } from '@/store';
@@ -112,8 +113,16 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function useSupabaseAuthRedirect() {
+  useEffect(() => {
+    // Touching auth on load makes the client exchange the ?code= from the Google redirect for a session.
+    supabase.auth.getSession().catch((error) => console.error('[auth]', error));
+  }, []);
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  useSupabaseAuthRedirect();
 
   return (
     <QueryClientProvider client={queryClient}>
