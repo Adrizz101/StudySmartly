@@ -115,7 +115,7 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function useSupabaseAuthRedirect() {
   useEffect(() => {
-    // Touching auth on load makes the client exchange the ?code= from the Google redirect for a session.
+    // Touching auth on load makes the client exchange the ?code= from the magic link redirect for a session.
     supabase.auth.getSession().catch((error) => console.error('[auth]', error));
   }, []);
 }
