@@ -28,11 +28,11 @@ export default function DrawingBoard() {
       const result=await explain({data:{prompt,board:JSON.stringify(selection.length?selection:elements),history:messages.slice(-6).map(m=>`${m.question}\n${m.answer}`).join('\n'),sources:[...sources,{name:'Student whiteboard',text:'Student drawing; inspect selected objects and image.',images:[image]}],consent:true}});
       const offset=selection.length?0:Math.max(0,...elements.map(e=>e.y+e.height))+60;
       const ink=getComputedStyle(document.documentElement).getPropertyValue('--board-tutor').trim();
-      const added=convertToExcalidrawElements(result.elements.map((e):any=>({type:e.type,x:e.x,y:e.y+offset,width:Math.max(1,Math.abs(e.width)),height:Math.max(1,Math.abs(e.height)),strokeColor:ink,...(e.type==='text'?{text:e.text,fontSize:22}:{}),...(e.type==='arrow'||e.type==='line'?{points:[[0,0],[e.width,e.height]] as [number,number][]}:{})})));
+      const added=convertToExcalidrawElements(result.elements.map((e):any=>{const text=e.type==='text'?e.text.replace(/[$\\]/g,'').replace(/\\\\?\((.*?)\\\\?\)/g,'$1').trim():'';const lineCount=Math.max(1,Math.ceil(text.length/28));const textWidth=Math.min(520,Math.max(180,Math.min(28,text.length)*10+36));const textHeight=Math.max(48,lineCount*28+20);return {type:e.type,x:e.x,y:e.y+offset,width:e.type==='text'?textWidth:Math.max(1,Math.abs(e.width)),height:e.type==='text'?textHeight:Math.max(1,Math.abs(e.height)),strokeColor:ink,...(e.type==='text'?{text,fontSize:20,autoResize:true}:{ }),...(e.type==='arrow'||e.type==='line'?{points:[[0,0],[e.width,e.height]] as [number,number][]}:{})};}));
       const all=[...elements];
       for(const element of added) {
         all.push(element);api.updateScene({elements:[...all]});
-        await new Promise(resolve=>setTimeout(resolve,window.matchMedia('(prefers-reduced-motion: reduce)').matches?0:160));
+        await new Promise(resolve=>setTimeout(resolve,window.matchMedia('(prefers-reduced-motion: reduce)').matches?0:80));
       }
       api.scrollToContent(added,{fitToContent:true});
       const next=[...messages,{question:prompt,answer:result.explanation,citations:result.citations}];setMessages(next);save('board-discussion',next);setPrompt('');

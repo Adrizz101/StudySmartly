@@ -216,7 +216,7 @@ body {
 .whiteboard-workspace { display: grid; grid-template-columns: minmax(0,1fr) 340px; gap: 1rem; height: calc(100vh - 190px); min-height: 560px; }
 .drawing-surface { border: 1px solid var(--border); border-radius: 1rem; overflow: hidden; background: var(--surface); }
 .board-copilot { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 1rem; padding: 1rem; overflow-y: auto; gap: .6rem; }
-.board-discussion { flex: 1; display: flex; flex-direction: column; gap: .6rem; min-height: 80px; }
+.board-discussion { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: .6rem; }
 .board-message { background: var(--surface-hover); border-radius: .75rem; padding: .7rem; font-size: .82rem; color: var(--text-muted); }
 .board-message strong { color: var(--text); display: block; margin-bottom: .3rem; }
 .board-message small { display: block; margin-top: .4rem; color: var(--accent-400); }
