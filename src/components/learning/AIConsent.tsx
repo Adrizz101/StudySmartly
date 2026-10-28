@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,6 +6,8 @@ import { supabase } from '@/integrations/supabase/client';
 export function AIConsent({ consent, onConsent }: { consent: boolean; onConsent: (value: boolean) => void }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [email, setEmail] = useState('');
+  const [sent, setSent] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
@@ -20,17 +22,20 @@ export function AIConsent({ consent, onConsent }: { consent: boolean; onConsent:
     };
   }, []);
 
-  async function signInWithGoogle() {
+  async function sendMagicLink(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmed = email.trim();
+    if (!trimmed) return;
     setError('');
+    setSent(false);
     setBusy(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin },
+    const { error } = await supabase.auth.signInWithOtp({
+      email: trimmed,
+      options: { emailRedirectTo: window.location.origin },
     });
-    if (error) {
-      setError(error.message);
-      setBusy(false);
-    }
+    setBusy(false);
+    if (error) setError(error.message);
+    else setSent(true);
   }
 
   return <div className="ai-consent">
@@ -42,11 +47,26 @@ export function AIConsent({ consent, onConsent }: { consent: boolean; onConsent:
     {session ? (
       <p className="mt-2 text-xs text-text-muted">Signed in as {session.user.email}</p>
     ) : (
-      <div className="mt-2 flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" disabled={busy} onClick={signInWithGoogle}>
-          {busy ? 'Redirecting to Google…' : 'Continue with Google'}
+      <form onSubmit={sendMagicLink} className="mt-2 flex flex-wrap items-center gap-2">
+        <label htmlFor="magic-link-email" className="sr-only">Email address</label>
+        <input
+          id="magic-link-email"
+          type="email"
+          required
+          autoComplete="email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          disabled={busy}
+          className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+        <Button type="submit" variant="outline" size="sm" disabled={busy || !email.trim()}>
+          {busy ? 'Sending…' : 'Send Magic Link'}
         </Button>
-      </div>
+      </form>
+    )}
+    {sent && !session && (
+      <p role="status" className="mt-2 text-xs text-text-muted">Check {email.trim()} for a sign-in link.</p>
     )}
     {error && <p role="alert" className="text-study-rose-500 text-xs">{error}</p>}
   </div>;
@@ -54,6 +74,6 @@ export function AIConsent({ consent, onConsent }: { consent: boolean; onConsent:
 
 export async function requireAISession() {
   const { data } = await supabase.auth.getSession();
-  if (!data.session) throw new Error('Sign in with Google before using AI.');
+  if (!data.session) throw new Error('Sign in with your email magic link before using AI.');
   return data.session;
 }
