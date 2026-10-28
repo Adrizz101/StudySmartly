@@ -1,7 +1,8 @@
 import { Button } from '@/components/ui/button';
 import { ViewKey } from '@/types';
-import { LayoutDashboard, Calendar, Bot, FileText, Mic, Settings, BookOpen, Menu, X, PenTool, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, Calendar, Bot, FileText, Mic, Settings, BookOpen, Menu, X, PenTool, ClipboardCheck, LogOut } from 'lucide-react';
 import { useApp } from '@/store';
+import { supabase } from '@/integrations/supabase/client';
 import { PomodoroTimer } from '@/components/PomodoroTimer';
 
 const NAV_ITEMS: { key: ViewKey; label: string; icon: typeof LayoutDashboard }[] = [
@@ -63,6 +64,14 @@ export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile }: Side
             {settings.userName ? `Hi, ${settings.userName}` : 'Welcome back'}
           </span>
         </div>
+        <Button
+          variant="source"
+          onClick={() => supabase.auth.signOut()}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-text-muted hover:bg-surface-hover hover:text-text"
+        >
+          <LogOut size={17} />
+          Sign Out
+        </Button>
         <div className="text-[10px] text-text-dim px-3 leading-relaxed">
           AI study companion. Not a substitute for your own work.
         </div>
