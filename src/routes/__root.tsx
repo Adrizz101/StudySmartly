@@ -9,8 +9,10 @@ import {
   ClientOnly,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { AuthScreen } from "@/components/AuthScreen";
 
 import appCss from "../styles.css?url";
 import { AppProvider } from '@/store';
@@ -88,7 +90,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&display=swap" },
     ],
@@ -120,6 +122,32 @@ function useSupabaseAuthRedirect() {
   }, []);
 }
 
+function AuthGate({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      setSession(data.session);
+      setLoading(false);
+    });
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setLoading(false);
+    });
+    return () => {
+      active = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  if (loading) return <div className="flex min-h-screen items-center justify-center bg-bg text-text">StudySmart</div>;
+  if (!session) return <AuthScreen />;
+  return <>{children}</>;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   useSupabaseAuthRedirect();
@@ -127,9 +155,11 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <ClientOnly fallback={<div className="flex min-h-screen items-center justify-center bg-bg text-text">StudySmart</div>}>
-        <AppProvider>
-          <StudyLayout><Outlet /></StudyLayout>
-        </AppProvider>
+        <AuthGate>
+          <AppProvider>
+            <StudyLayout><Outlet /></StudyLayout>
+          </AppProvider>
+        </AuthGate>
       </ClientOnly>
     </QueryClientProvider>
   );
