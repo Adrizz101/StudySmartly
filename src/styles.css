@@ -220,7 +220,7 @@ body {
 .board-message { background: var(--surface-hover); border-radius: .75rem; padding: .7rem; font-size: .82rem; color: var(--text-muted); }
 .board-message strong { color: var(--text); display: block; margin-bottom: .3rem; }
 .board-message small { display: block; margin-top: .4rem; color: var(--accent-400); }
-@media (max-width: 1024px) { .whiteboard-workspace { grid-template-columns: 1fr; height: auto; } .drawing-surface { height: 70vh; } }
+@media (max-width: 1024px) { .whiteboard-workspace { grid-template-columns: 1fr; height: auto; } .drawing-surface { height: 60vh; min-height: 400px; } .board-copilot { height: 60vh; overflow-y: auto; } }
 
 /* Exam arena */
 .exam-setup { display: grid; grid-template-columns: minmax(0,1.4fr) minmax(0,1fr); gap: 1.5rem; }
