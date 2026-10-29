@@ -10,7 +10,11 @@ export const deckSlideSchema = z.object({
 export const deckSchema = z.object({ title: z.string(), subject: z.string(), slides: z.array(deckSlideSchema) });
 export const boardSchema = z.object({
   explanation: z.string(), citations: z.array(z.string()),
-  elements: z.array(z.object({ type: z.enum(['text', 'rectangle', 'ellipse', 'arrow', 'line']), x: z.number(), y: z.number(), width: z.number(), height: z.number(), text: z.string() })),
+  elements: z.array(z.object({
+    type: z.enum(['text', 'rectangle', 'ellipse', 'arrow', 'line']),
+    x: z.number(), y: z.number(), width: z.number(), height: z.number(),
+    text: z.string().describe('Plain text only, no LaTeX, markdown, dollar signs, backslashes, or math delimiters. Maximum 4 to 5 words per box.'),
+  })),
 });
 export const questionSchema = z.object({
   question: z.string(), options: z.array(z.string()), correct: z.number().nullable(),
