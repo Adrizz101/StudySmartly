@@ -28,10 +28,10 @@ export async function structuredAI<T>(
       name: 'Google Gemini',
       apiKey: process.env['GEMINI_API_KEY'] || '',
       client: createOpenAI({
-        baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai',
+        baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
         apiKey: process.env['GEMINI_API_KEY'] || '',
       }),
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
     },
     {
       name: 'Groq Llama',
@@ -40,7 +40,7 @@ export async function structuredAI<T>(
         baseURL: 'https://api.groq.com/openai/v1',
         apiKey: process.env['GROQ_API_KEY'] || '',
       }),
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
     },
     {
       name: 'OpenRouter Backup',
@@ -49,7 +49,7 @@ export async function structuredAI<T>(
         baseURL: 'https://openrouter.ai/api/v1',
         apiKey: process.env['OPENROUTER_API_KEY'] || '',
       }),
-      model: 'google/gemini-2.0-flash-exp:free',
+      model: 'openrouter/free',
     },
   ];
 
