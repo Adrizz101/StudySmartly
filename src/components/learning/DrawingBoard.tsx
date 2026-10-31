@@ -335,7 +335,7 @@ export default function DrawingBoard() {
         normalized = sanitizeBoardElements(result.board_elements).map((element, index) => {
           const text = (typeof element.text === 'string' ? element.text : '').replace(/[$\\]/g, '').trim();
           const lineCount = Math.max(1, text.split(/\r?\n/).length);
-          const width = Math.max(300, text.length * 12);
+          const width = Math.max(450, text.length * 14, Math.abs(element.width));
           const height = Math.min(160, Math.max(72, lineCount * 28 + 28, Math.min(160, Math.abs(element.height))));
           return {
             ...element,
@@ -348,17 +348,70 @@ export default function DrawingBoard() {
             strokeColor: ink,
             backgroundColor: typeof element.backgroundColor === 'string' ? element.backgroundColor : DEFAULT_BACKGROUND,
             ...(element.type === 'text'
-              ? { text, fontSize: 20, autoResize: true }
+              ? { text, fontSize: 20, autoResize: true, width }
               : element.type === 'rectangle' || element.type === 'ellipse'
                 ? { label: { text, fontSize: 20, autoResize: true } }
                 : {}),
             ...(element.type === 'arrow' || element.type === 'line'
-              ? { points: [[0, 0], [element.width, element.height]] as [number, number][] }
+              ? { points: [[0, 0], [Math.max(1, width), Math.max(1, height)]] as [number, number][] }
               : {}),
           };
         });
       } catch (mappingError) {
         throw new Error(mappingError instanceof Error ? 'Could not prepare the tutor diagram: ' + mappingError.message : 'Could not prepare the tutor diagram.');
+      }
+      // Fetch a textbook-style illustration when the model requests one. If the
+      // image service is unavailable, continue with the AI-generated board labels.
+      let generatedImageElement: Record<string, any> | null = null;
+      if (typeof result.diagram_image_prompt === 'string' && result.diagram_image_prompt.trim()) {
+        try {
+          const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(result.diagram_image_prompt.trim())}?width=800&height=600&nologo=true`;
+          const response = await fetch(imageUrl);
+          if (!response.ok) throw new Error(`Image service returned HTTP ${response.status}`);
+          const blob = await response.blob();
+          if (!blob.type.startsWith('image/')) throw new Error('Image service did not return an image.');
+          const imageData = await dataURL(new File([blob], 'tutor-diagram.png', { type: blob.type }));
+          const fileId = createBoardElementId();
+          api.addFiles([{
+            id: fileId,
+            dataURL: imageData,
+            mimeType: blob.type,
+            created: Date.now(),
+            lastRetrieved: Date.now(),
+          }] as any);
+          generatedImageElement = {
+            id: createBoardElementId(),
+            type: 'image',
+            x: 250,
+            y: 200,
+            width: 800,
+            height: 600,
+            angle: 0,
+            strokeColor: DEFAULT_STROKE,
+            backgroundColor: DEFAULT_BACKGROUND,
+            fillStyle: 'solid',
+            strokeWidth: 1,
+            strokeStyle: 'solid',
+            roughness: 0,
+            opacity: 100,
+            groupIds: [],
+            frameId: null,
+            roundness: null,
+            seed: Math.floor(Math.random() * 2147483647),
+            version: 1,
+            versionNonce: Math.floor(Math.random() * 2147483647),
+            isDeleted: false,
+            boundElements: null,
+            updated: Date.now(),
+            link: null,
+            locked: false,
+            fileId,
+            status: 'saved',
+            scale: [1, 1],
+          };
+        } catch (imageError) {
+          console.error('Unable to generate textbook illustration; continuing with board labels:', imageError);
+        }
       }
       // Speak the explanation while the board is being drawn.
       let drawingFinished = false;
@@ -400,6 +453,11 @@ export default function DrawingBoard() {
         const safeInput = sanitizeBoardElements(normalized);
         added = sanitizeBoardElements(convertToExcalidrawElements(safeInput as any[])) as any;
         const all = [...elements];
+        if (generatedImageElement) {
+          all.push(generatedImageElement);
+          api.updateScene({ elements: sanitizeBoardElements(all) as any });
+          await wait(35, run);
+        }
         if (!api) throw new Error('Whiteboard is not ready yet. Please wait a moment and try again.');
         for (const element of added) {
           if (run !== runRef.current) return;
