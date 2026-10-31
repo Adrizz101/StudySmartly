@@ -10,45 +10,80 @@ export function AuthScreen() {
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  async function requestCode(address: string) {
+    setBusy(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const { error: authError } = await supabase.auth.signInWithOtp({
+        email: address,
+        options: {
+          // This app supports both first-time registration and returning users.
+          shouldCreateUser: true,
+        },
+      });
+
+      if (authError) {
+        setError(authError.message);
+        return false;
+      }
+
+      setNotice("A new verification code has been sent. Check your inbox and spam folder.");
+      return true;
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not send the verification code. Please try again.");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function sendCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const normalizedEmail = email.trim();
+    const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) return;
 
-    setBusy(true);
-    setError("");
-    const { error: authError } = await supabase.auth.signInWithOtp({
-      email: normalizedEmail,
-    });
-    setBusy(false);
-
-    if (authError) {
-      setError(authError.message);
-      return;
+    const sent = await requestCode(normalizedEmail);
+    if (sent) {
+      setEmail(normalizedEmail);
+      setToken("");
+      setStep("otp");
+      setNotice("Check your email for the 6-digit sign-in code.");
     }
+  }
 
-    setEmail(normalizedEmail);
-    setStep("otp");
+  async function resendCode() {
+    await requestCode(email);
   }
 
   async function verifyCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalizedToken = token.trim();
-    if (normalizedToken.length !== 6) return;
+    if (!/^\d{6}$/.test(normalizedToken)) {
+      setError("Enter the 6-digit code from your email.");
+      return;
+    }
 
     setBusy(true);
     setError("");
-    const { error: authError } = await supabase.auth.verifyOtp({
-      email,
-      token: normalizedToken,
-      type: "email",
-    });
-    setBusy(false);
+    setNotice("");
 
-    if (authError) {
-      setError(authError.message);
-      return;
+    try {
+      const { error: authError } = await supabase.auth.verifyOtp({
+        email,
+        token: normalizedToken,
+        type: "email",
+      });
+
+      if (authError) setError(authError.message);
+      // On success, AuthGate observes the new Supabase session and opens the app.
+    } catch (verificationError) {
+      setError(verificationError instanceof Error ? verificationError.message : "Could not verify the code. Please try again.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -56,6 +91,7 @@ export function AuthScreen() {
     setStep("email");
     setToken("");
     setError("");
+    setNotice("");
   }
 
   return (
@@ -65,7 +101,7 @@ export function AuthScreen() {
         {step === "email" ? (
           <>
             <p className="mt-2 text-sm text-text-muted">
-              Enter your email to receive a secure sign-in code.
+              Enter your email to receive a 6-digit sign-in code. No magic link is needed.
             </p>
             <form onSubmit={sendCode} className="mt-6 space-y-4">
               <label htmlFor="auth-email" className="sr-only">
@@ -89,7 +125,9 @@ export function AuthScreen() {
           </>
         ) : (
           <>
-            <p className="mt-2 text-sm text-text-muted">Enter the 6-digit code sent to {email}.</p>
+            <p className="mt-2 text-sm text-text-muted">
+              Enter the 6-digit code sent to <strong>{email}</strong>.
+            </p>
             <form onSubmit={verifyCode} className="mt-6 space-y-4">
               <label htmlFor="auth-otp" className="sr-only">
                 6-digit verification code
@@ -104,7 +142,7 @@ export function AuthScreen() {
                 required
                 placeholder="123456"
                 value={token}
-                onChange={(event) => setToken(event.target.value.replace(/\\D/g, "").slice(0, 6))}
+                onChange={(event) => setToken(event.target.value.replace(/\D/g, "").slice(0, 6))}
                 disabled={busy}
                 className="learning-input w-full text-center tracking-[0.4em]"
               />
@@ -113,15 +151,29 @@ export function AuthScreen() {
               </Button>
               <Button
                 type="button"
+                variant="outline"
+                className="w-full"
+                onClick={resendCode}
+                disabled={busy}
+              >
+                Resend code
+              </Button>
+              <Button
+                type="button"
                 variant="ghost"
                 className="w-full"
                 onClick={goBack}
                 disabled={busy}
               >
-                Back
+                Change email
               </Button>
             </form>
           </>
+        )}
+        {notice && (
+          <p role="status" className="mt-4 text-sm text-text-muted">
+            {notice}
+          </p>
         )}
         {error && (
           <p role="alert" className="mt-4 text-sm text-study-rose-500">
