@@ -60,7 +60,11 @@ export default function DrawingBoard() {
   const [dark, setDark] = useState(false);
   const [messages, setMessages] = useState<BoardMessage[]>(() => load('board-discussion', []));
   const [sessions, setSessions] = useState<BoardSession[]>(readSessions);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
+    const lastMessage = messages.at(-1);
+    if (!lastMessage) return null;
+    return sessions.find((session) => session.messages.length === messages.length && session.messages.at(-1)?.question === lastMessage.question)?.id ?? null;
+  });
   const [historyOpen, setHistoryOpen] = useState(false);
   const explain = useServerFn(explainBoard);
   const initial = useRef(load('whiteboard', null));
@@ -69,7 +73,7 @@ export default function DrawingBoard() {
   const cancelWaitsRef = useRef<(() => void)[]>([]);
   const sessionsRef = useRef(sessions);
   const messagesRef = useRef(messages);
-  const activeSessionRef = useRef<string | null>(null);
+  const activeSessionRef = useRef<string | null>(activeSessionId);
   const animatingRef = useRef(false);
 
   useEffect(() => () => {
@@ -205,8 +209,8 @@ export default function DrawingBoard() {
             type: element.type,
             x: Math.max(100, element.x),
             y: firstY + index * 180,
-            width: element.type === 'text' ? width : Math.max(1, Math.abs(element.width)),
-            height: element.type === 'text' ? height : Math.max(height, Math.abs(element.height)),
+            width: Math.max(width, Math.abs(element.width)),
+            height: Math.max(height, Math.abs(element.height)),
             strokeColor: ink,
             ...(element.type === 'text'
               ? { text, fontSize: 20, autoResize: true }
