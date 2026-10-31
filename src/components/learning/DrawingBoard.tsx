@@ -22,7 +22,6 @@ type BoardSession = {
 };
 
 
-const VALID_BOARD_TYPES = new Set(['text', 'rectangle', 'ellipse', 'arrow', 'line']);
 const DEFAULT_STROKE = '#1e1e1e';
 const DEFAULT_BACKGROUND = 'transparent';
 
@@ -45,7 +44,7 @@ function sanitizeBoardElements(input: unknown): Record<string, any>[] {
   return input.flatMap((raw) => {
     if (!raw || typeof raw !== 'object') return [];
     const source = raw as Record<string, any>;
-    if (!VALID_BOARD_TYPES.has(source.type)) return [];
+    if (typeof source.type !== 'string' || !source.type.trim()) return [];
     const width = Math.max(1, Math.abs(finiteNumber(source.width, 300)));
     const height = Math.max(1, Math.abs(finiteNumber(source.height, 80)));
     const text = typeof source.text === 'string' ? source.text : '';
@@ -376,8 +375,7 @@ export default function DrawingBoard() {
       try {
         const safeInput = sanitizeBoardElements(normalized);
         added = sanitizeBoardElements(convertToExcalidrawElements(safeInput as any[])) as any;
-        const existingSafe = sanitizeBoardElements(elements);
-        const all = [...existingSafe];
+        const all = [...elements];
         if (!api) throw new Error('Whiteboard is not ready yet. Please wait a moment and try again.');
         for (const element of added) {
           if (run !== runRef.current) return;
