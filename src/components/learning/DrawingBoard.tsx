@@ -302,6 +302,7 @@ export default function DrawingBoard() {
     messagesRef.current = session.messages;
     setMessages(session.messages);
     save('board-discussion', session.messages);
+    setError('');
     try {
       api?.updateScene({ elements: session.board_elements as any[] });
       save('whiteboard', { elements: session.board_elements, files: api?.getFiles() || {} });
@@ -309,7 +310,6 @@ export default function DrawingBoard() {
       setError(restoreError instanceof Error ? restoreError.message : 'Could not restore this session board.');
     }
     setPrompt('');
-    setError('');
     setHistoryOpen(false);
   }
 
