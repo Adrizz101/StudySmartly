@@ -23,18 +23,49 @@ type BoardSession = {
 
 const SESSIONS_KEY = 'studysmartly_sessions';
 
+function isBoardMessage(value: unknown): value is BoardMessage {
+  if (!value || typeof value !== 'object') return false;
+  const message = value as Record<string, unknown>;
+  return typeof message.question === 'string'
+    && typeof message.answer === 'string'
+    && Array.isArray(message.citations)
+    && message.citations.every((citation) => typeof citation === 'string');
+}
+
+function readMessages(): BoardMessage[] {
+  try {
+    const value: unknown = load<unknown>('board-discussion', []);
+    return Array.isArray(value) ? value.filter(isBoardMessage) : [];
+  } catch {
+    return [];
+  }
+}
+
+function readBoardInitial() {
+  try {
+    const value: unknown = load<unknown>('whiteboard', null);
+    if (!value || typeof value !== 'object') return null;
+    const board = value as Record<string, unknown>;
+    return Array.isArray(board.elements)
+      ? { elements: board.elements, files: board.files && typeof board.files === 'object' ? board.files : {} }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function readSessions(): BoardSession[] {
   if (typeof window === 'undefined') return [];
   try {
     const value: unknown = JSON.parse(window.localStorage.getItem(SESSIONS_KEY) || '[]');
     if (!Array.isArray(value)) return [];
     return value.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
-      .filter((item) => typeof item.id === 'string' && typeof item.title === 'string' && Array.isArray(item.messages))
+      .filter((item) => typeof item.id === 'string' && typeof item.title === 'string' && Array.isArray(item.messages) && item.messages.every(isBoardMessage))
       .map((item) => ({
         id: item.id as string,
         title: item.title as string,
         timestamp: typeof item.timestamp === 'string' ? item.timestamp : typeof item.updatedAt === 'string' ? item.updatedAt : new Date().toISOString(),
-        messages: item.messages as BoardMessage[],
+        messages: item.messages.filter(isBoardMessage),
         board_elements: (Array.isArray(item.board_elements) ? item.board_elements : Array.isArray(item.boardElements) ? item.boardElements : []) as unknown[],
       }));
   } catch {
@@ -58,7 +89,7 @@ export default function DrawingBoard() {
   const [isPaused, setIsPaused] = useState(false);
   const [error, setError] = useState('');
   const [dark, setDark] = useState(false);
-  const [messages, setMessages] = useState<BoardMessage[]>(() => load('board-discussion', []));
+  const [messages, setMessages] = useState<BoardMessage[]>(readMessages);
   const [sessions, setSessions] = useState<BoardSession[]>(readSessions);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
     const lastMessage = messages.at(-1);
@@ -67,7 +98,7 @@ export default function DrawingBoard() {
   });
   const [historyOpen, setHistoryOpen] = useState(false);
   const explain = useServerFn(explainBoard);
-  const initial = useRef(load('whiteboard', null));
+  const initial = useRef(readBoardInitial());
   const runRef = useRef(0);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const cancelWaitsRef = useRef<(() => void)[]>([]);
@@ -80,7 +111,7 @@ export default function DrawingBoard() {
     runRef.current += 1;
     timersRef.current.forEach(clearTimeout);
     cancelWaitsRef.current.forEach((cancel) => cancel());
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    try { try { if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel(); } catch { /* Speech APIs may be unavailable in embedded browsers. */ } } catch { /* Speech APIs may be unavailable in embedded browsers. */ }
   }, []);
 
   function commitSessions(next: BoardSession[]) {
@@ -227,11 +258,12 @@ export default function DrawingBoard() {
       }
       // Speak the explanation while the board is being drawn.
       let drawingFinished = false;
-      let speechFinished = !(typeof window !== 'undefined' && 'speechSynthesis' in window && result.spoken_script.trim());
+      let speechFinished = true;
       const finishIfDone = () => {
         if (drawingFinished && speechFinished && run === runRef.current) setBusy(false);
       };
-      if (!speechFinished) {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window && typeof result.spoken_script === 'string' && result.spoken_script.trim()) {
+        try {
         const utterance = new SpeechSynthesisUtterance(result.spoken_script);
         utterance.rate = 0.96;
         utterance.pitch = 1;
@@ -250,6 +282,12 @@ export default function DrawingBoard() {
         };
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(utterance);
+        speechFinished = false;
+        } catch {
+          speechFinished = true;
+          setIsSpeaking(false);
+          setIsPaused(false);
+        }
       }
 
       animatingRef.current = true;
@@ -260,6 +298,7 @@ export default function DrawingBoard() {
         for (const element of added) {
           if (run !== runRef.current) return;
           all.push(element);
+          if (!api) throw new Error('Whiteboard is not ready yet. Please wait a moment and try again.');
           api.updateScene({ elements: [...all] });
           await wait(35, run);
         }
@@ -267,6 +306,7 @@ export default function DrawingBoard() {
         throw new Error(renderError instanceof Error ? 'The tutor diagram could not be drawn: ' + renderError.message : 'The tutor diagram could not be drawn.');
       }
       if (run !== runRef.current) return;
+      if (!api) throw new Error('Whiteboard is no longer available. Please reopen the tutor.');
       api.scrollToContent(added, { fitToContent: true });
       drawingFinished = true;
       animatingRef.current = false;
@@ -279,6 +319,7 @@ export default function DrawingBoard() {
       messagesRef.current = nextMessages;
       setMessages(nextMessages);
       save('board-discussion', nextMessages);
+      if (!api) throw new Error('Whiteboard is no longer available. Please reopen the tutor.');
       const finalElements = api.getSceneElements();
       save('whiteboard', { elements: finalElements, files: api.getFiles() });
       persistSession(nextMessages, finalElements, activeSessionRef.current, result.session_title);
@@ -304,8 +345,9 @@ export default function DrawingBoard() {
     save('board-discussion', session.messages);
     setError('');
     try {
-      api?.updateScene({ elements: session.board_elements as any[] });
-      save('whiteboard', { elements: session.board_elements, files: api?.getFiles() || {} });
+      if (!api) throw new Error('Whiteboard is still loading. Please wait a moment, then select the session again.');
+      api.updateScene({ elements: session.board_elements as any[] });
+      save('whiteboard', { elements: session.board_elements, files: api.getFiles() });
     } catch (restoreError) {
       setError(restoreError instanceof Error ? restoreError.message : 'Could not restore this session board.');
     }
@@ -320,12 +362,16 @@ export default function DrawingBoard() {
         <div className="flex gap-2">
           <Button variant="outline" size="icon" aria-label="Toggle board theme" onClick={() => setDark(!dark)}>{dark ? <Sun /> : <Moon />}</Button>
           <Button variant="outline" size="icon" aria-label="Download board" onClick={async () => {
-            if (!api) return;
+            if (!api) { setError('Whiteboard is still loading. Please try again in a moment.'); return; }
+            try {
             const blob = await exportToBlob({ elements: api.getSceneElements(), appState: api.getAppState(), files: api.getFiles(), mimeType: 'image/png' });
             const url = URL.createObjectURL(blob);
             const anchor = document.createElement('a');
             anchor.href = url; anchor.download = 'StudySmart-whiteboard.png'; anchor.click();
             URL.revokeObjectURL(url);
+            } catch (downloadError) {
+              setError(downloadError instanceof Error ? downloadError.message : 'Could not export the whiteboard.');
+            }
           }}><Download /></Button>
           <Button variant="outline" size="icon" aria-label="New session" title="New session" onClick={() => {
             if (window.confirm('Start a new session? The current session will remain in Session History.')) {
