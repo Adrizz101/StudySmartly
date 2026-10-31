@@ -20,24 +20,27 @@ interface SidebarProps {
   onNavigate: (v: ViewKey) => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
-export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile }: SidebarProps) {
+export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile, collapsed, onToggleCollapse }: SidebarProps) {
+  const compact = collapsed && !mobileOpen;
   const { settings } = useApp();
 
   const content = (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-border">
+      <div className={`flex items-center gap-3 py-5 border-b border-border ${compact ? 'justify-center px-2' : 'px-5'}`}>
         <div className="w-10 h-10 rounded-xl bg-accent-600 flex items-center justify-center shadow-lg">
           <BookOpen className="text-study-white" size={22} />
         </div>
-        <div>
+        {!compact && <div>
           <h1 className="font-bold text-text text-lg leading-none">StudySmart</h1>
           <p className="text-xs text-text-dim mt-0.5">Student OS</p>
-        </div>
+        </div>}
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className={`flex-1 py-4 space-y-1 overflow-y-auto ${compact ? 'px-2' : 'px-3'}`}>
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const active = current === item.key;
@@ -45,37 +48,43 @@ export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile }: Side
             <Button variant="source"
               key={item.key}
               onClick={() => { onNavigate(item.key); onCloseMobile(); }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all min-h-[44px] ${
+              title={compact ? item.label : undefined}
+              aria-label={item.label}
+              className={`w-full flex items-center ${compact ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-xl text-sm font-medium transition-all min-h-[44px] ${
                 active
                   ? 'bg-accent-600 text-study-white shadow-md'
                   : 'text-text-muted hover:bg-surface-hover hover:text-text'
               }`}
             >
               <Icon size={19} className={active ? 'text-study-white' : ''} />
-              {item.label}
+              {!compact && item.label}
             </Button>
           );
         })}
       </nav>
 
-      <div className="px-3 py-4 border-t border-border space-y-2">
-        <div className="flex items-center justify-between px-3">
+      <div className={`py-4 border-t border-border space-y-2 ${compact ? 'px-2' : 'px-3'}`}>
+        {!compact && <div className="flex items-center justify-between px-3">
           <span className="text-xs text-text-dim">
             {settings.userName ? `Hi, ${settings.userName}` : 'Welcome back'}
           </span>
-        </div>
+        </div>}
         <Button
           variant="source"
           onClick={() => supabase.auth.signOut()}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-text-muted hover:bg-surface-hover hover:text-text"
+          title={compact ? 'Sign Out' : undefined}
+          aria-label="Sign Out"
+          className={`w-full flex items-center ${compact ? 'justify-center px-2' : 'gap-3 px-3'} py-2 rounded-xl text-sm text-text-muted hover:bg-surface-hover hover:text-text`}
         >
           <LogOut size={17} />
-          Sign Out
+          {!compact && 'Sign Out'}
         </Button>
-        <div className="text-[10px] text-text-dim px-3 leading-relaxed">
-          AI study companion. Not a substitute for your own work.
-        </div>
-        <div className="flex gap-3 px-3 text-[11px] text-text-muted"><a href="/privacy" className="underline">Privacy</a><a href="/terms" className="underline">Terms</a></div>
+        {!compact && <>
+          <div className="text-[10px] text-text-dim px-3 leading-relaxed">
+            AI study companion. Not a substitute for your own work.
+          </div>
+          <div className="flex gap-3 px-3 text-[11px] text-text-muted"><a href="/privacy" className="underline">Privacy</a><a href="/terms" className="underline">Terms</a></div>
+        </>}
       </div>
     </div>
   );
@@ -83,8 +92,15 @@ export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile }: Side
   return (
     <>
       {/* Desktop */}
-      <aside className="hidden lg:flex w-64 shrink-0 glass border-r border-border h-screen sticky top-0">
-        {content}
+      <aside className={`hidden lg:flex shrink-0 glass border-r border-border h-screen sticky top-0 transition-[width] duration-200 ${collapsed ? 'w-[4.5rem]' : 'w-64'}`}>
+        <div className="flex flex-col w-full min-w-0">
+          <div className={`flex ${collapsed ? 'justify-center' : 'justify-end'} px-2 pt-2`}>
+            <Button variant="source" size="icon" aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={onToggleCollapse}>
+              <Menu size={19} />
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1">{content}</div>
+        </div>
       </aside>
 
       {/* Mobile drawer */}
@@ -118,7 +134,7 @@ export function TopBar({ view, onMenuClick }: TopBarProps) {
       <div className="flex items-center gap-3">
         <Button variant="source"
           aria-label="Open menu" onClick={onMenuClick}
-          className="lg:hidden p-2 rounded-lg hover:bg-surface-hover text-text-muted"
+          className="p-2 rounded-lg hover:bg-surface-hover text-text-muted"
         >
           <Menu size={22} />
         </Button>
