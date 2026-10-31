@@ -111,7 +111,11 @@ export default function DrawingBoard() {
           width: element.type === 'text' ? Math.max(250, text.length * 12) : Math.max(1, Math.abs(element.width)),
           height: element.type === 'text' ? Math.max(60, element.height || 60) : Math.max(1, Math.abs(element.height)),
           strokeColor: ink,
-          ...(element.type === 'text' ? { text, fontSize: 20, autoResize: true } : {}),
+          ...(element.type === 'text'
+            ? { text, fontSize: 20, autoResize: true }
+            : element.type === 'rectangle' || element.type === 'ellipse'
+              ? { label: { text, fontSize: 20 } }
+              : {}),
           ...(element.type === 'arrow' || element.type === 'line'
             ? { points: [[0, 0], [element.width, element.height]] as [number, number][] }
             : {}),
