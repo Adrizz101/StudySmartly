@@ -3,7 +3,7 @@ import { Excalidraw, convertToExcalidrawElements, exportToBlob } from '@excalidr
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import '@excalidraw/excalidraw/index.css';
 import { useServerFn } from '@tanstack/react-start';
-import { Sparkles, Download, Moon, Sun, Trash2, Square, Pause, Play, History, MessageCircle, Plus } from 'lucide-react';
+import { Sparkles, Download, Moon, Sun, Square, Pause, Play, History, MessageCircle, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { explainBoard } from '@/lib/learning-ai.functions';
 import { load, save } from '@/lib/storage';
@@ -111,7 +111,11 @@ export default function DrawingBoard() {
     runRef.current += 1;
     timersRef.current.forEach(clearTimeout);
     cancelWaitsRef.current.forEach((cancel) => cancel());
-    try { try { if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel(); } catch { /* Speech APIs may be unavailable in embedded browsers. */ } } catch { /* Speech APIs may be unavailable in embedded browsers. */ }
+    try {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+    } catch {
+      /* Speech APIs may be unavailable in embedded browsers. */
+    }
   }, []);
 
   function commitSessions(next: BoardSession[]) {
@@ -148,7 +152,11 @@ export default function DrawingBoard() {
     cancelWaitsRef.current = [];
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+    try {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+    } catch {
+      /* Speech APIs may be unavailable in embedded browsers. */
+    }
     setIsSpeaking(false);
     setIsPaused(false);
     setBusy(false);
@@ -157,15 +165,25 @@ export default function DrawingBoard() {
 
   function pausePlayback() {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window && isSpeaking && !isPaused) {
-      window.speechSynthesis.pause();
-      setIsPaused(true);
+      try {
+        window.speechSynthesis.pause();
+        setIsPaused(true);
+      } catch {
+        setIsSpeaking(false);
+        setIsPaused(false);
+      }
     }
   }
 
   function resumePlayback() {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window && isPaused) {
-      window.speechSynthesis.resume();
-      setIsPaused(false);
+      try {
+        window.speechSynthesis.resume();
+        setIsPaused(false);
+      } catch {
+        setIsSpeaking(false);
+        setIsPaused(false);
+      }
     }
   }
 
