@@ -12,7 +12,6 @@ export const generateDeck = createServerFn({ method: 'POST' }).middleware([requi
     const { structuredAI } = await import('./learning-ai.server');
     const slides: z.infer<typeof deckSchema>['slides'] = [];
     let title = '', subject = '', runId: string | undefined;
-    // Small batches preserve the student's exact count without imposing a fixed deck limit.
     for (let start = 0; start < count; start += 6) {
       const length = Math.min(6, count - start);
       const result = await structuredAI(deckSchema,
@@ -38,7 +37,12 @@ export const editDeckSlide = createServerFn({ method: 'POST' }).middleware([requ
 export const explainBoard = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
   .inputValidator(input.extend({ board: z.string(), history: z.string() })).handler(async ({ data }) => {
     const { structuredAI } = await import('./learning-ai.server');
-    return (await structuredAI(boardSchema, 'Be a collaborative visual teacher. Inspect the drawing and selected objects, explain the exact doubt directly and correctly. Produce drawable diagram elements plus a stepwise explanation, not Socratic canned prompts. Coordinates on a 1000 by 650 scene, non-overlapping boxes and labels. Every text box must contain a VERY short label of no more than 4 to 5 words total. Use plain text only: STRICTLY FORBID LaTeX, all markdown, markdown math, dollar signs, backslashes, subscripts, and math delimiters. Write chemical formulas as CO2, H2O, and C6H12O6, never with subscripts or $ symbols. Text elements width <=450, font about 20px. Arrow endpoints use width/height offsets. Up to 20 elements; use topic-specific diagrams without mathematical notation markup. Reference student elements by their positions when annotating. Do not overwrite student work.', `${data.prompt}\nSelected/current board: ${data.board}\nPrevious discussion: ${data.history}`, data.sources)).output;
+    return (await structuredAI(
+      boardSchema,
+      'You are a live, collaborative classroom teacher. Respond directly to the student question and the current drawing. Return three things: spoken_script (a natural, friendly but precise explanation suitable for speech, with no markdown), board_elements (an ordered sequence of Excalidraw-compatible text, rectangle, ellipse, arrow, or line elements), and chat_response (a concise 1-3 sentence chat reply). Coordinates use a 1000 by 650 scene. Keep elements non-overlapping, labels short (4-5 words maximum), and use plain text only: no LaTeX, markdown, dollar signs, backslashes, subscripts, or math delimiters. Chemical formulas use normal digits. Use up to 20 elements. Do not overwrite student work. Treat previous discussion as context and answer follow-up questions coherently.',
+      `${data.prompt}\nSelected/current board: ${data.board}\nPrevious classroom chat context: ${data.history}`,
+      data.sources,
+    )).output;
   });
 export const prepareExam = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
   .inputValidator(input.extend({ key: z.string() })).handler(async ({ data }) => {
