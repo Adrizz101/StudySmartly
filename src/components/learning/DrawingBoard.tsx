@@ -19,6 +19,8 @@ type BoardSession = {
   timestamp: string;
   messages: BoardMessage[];
   board_elements: unknown[];
+  board_files?: Record<string, any>;
+  session_title?: string;
 };
 
 
@@ -121,6 +123,8 @@ function readSessions(): BoardSession[] {
         timestamp: typeof item.timestamp === 'string' ? item.timestamp : typeof item.updatedAt === 'string' ? item.updatedAt : new Date().toISOString(),
         messages: item.messages.filter(isBoardMessage),
         board_elements: (Array.isArray(item.board_elements) ? item.board_elements : Array.isArray(item.boardElements) ? item.boardElements : []) as unknown[],
+        board_files: item.board_files && typeof item.board_files === 'object' ? item.board_files as Record<string, any> : {},
+        session_title: typeof item.session_title === 'string' ? item.session_title : item.title as string,
       }));
   } catch {
     return [];
@@ -182,16 +186,18 @@ export default function DrawingBoard() {
     }
   }
 
-  function persistSession(nextMessages: BoardMessage[], elements: unknown[], preferredId = activeSessionRef.current, generatedTitle?: string) {
+  function persistSession(nextMessages: BoardMessage[], elements: unknown[], preferredId = activeSessionRef.current, generatedTitle?: string, files: Record<string, any> = api?.getFiles() as Record<string, any> ?? {}) {
     const id = preferredId || createSessionId();
     const firstQuestion = nextMessages[0]?.question;
     const existing = sessionsRef.current.find((session) => session.id === id);
     const session: BoardSession = {
       id,
-      title: generatedTitle || existing?.title || firstQuestion?.slice(0, 48) || 'New doubt session',
+      title: generatedTitle || existing?.session_title || existing?.title || firstQuestion?.slice(0, 48) || 'New doubt session',
+      session_title: generatedTitle || existing?.session_title || existing?.title || firstQuestion?.slice(0, 48) || 'New doubt session',
       timestamp: new Date().toISOString(),
       messages: nextMessages,
       board_elements: elements,
+      board_files: files,
     };
     const next = [session, ...sessionsRef.current.filter((item) => item.id !== id)]
       .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
@@ -203,7 +209,7 @@ export default function DrawingBoard() {
   // Persist manual canvas edits without scheduling React state updates from Excalidraw's onChange.
   // Updating sessions state here would re-render Excalidraw for every scene change and can
   // create a maximum-update-depth loop while updateScene() is applying AI elements.
-  function persistSessionSnapshot(elements: unknown[]) {
+  function persistSessionSnapshot(elements: unknown[], files: Record<string, any>) {
     const id = activeSessionRef.current;
     if (!id) return;
     const existing = sessionsRef.current.find((session) => session.id === id);
@@ -213,6 +219,7 @@ export default function DrawingBoard() {
       timestamp: new Date().toISOString(),
       messages: messagesRef.current,
       board_elements: elements,
+      board_files: files,
     };
     const next = [nextSession, ...sessionsRef.current.filter((session) => session.id !== id)]
       .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
@@ -487,7 +494,7 @@ export default function DrawingBoard() {
       if (!api) throw new Error('Whiteboard is no longer available. Please reopen the tutor.');
       const finalElements = api.getSceneElements();
       save('whiteboard', { elements: finalElements, files: api.getFiles() });
-      persistSession(nextMessages, finalElements, activeSessionRef.current, result.session_title);
+      persistSession(nextMessages, finalElements, activeSessionRef.current, result.session_title, api.getFiles() as Record<string, any>);
       setPrompt('');
       finishIfDone();
     } catch (cause) {
@@ -512,8 +519,9 @@ export default function DrawingBoard() {
     try {
       if (!api) throw new Error('Whiteboard is still loading. Please wait a moment, then select the session again.');
       const safeElements = sanitizeBoardElements(session.board_elements);
+      if (session.board_files && Object.keys(session.board_files).length) api.addFiles(Object.values(session.board_files) as any);
       api.updateScene({ elements: safeElements as any });
-      save('whiteboard', { elements: safeElements, files: api.getFiles() });
+      save('whiteboard', { elements: safeElements, files: session.board_files || api.getFiles() });
     } catch (restoreError) {
       setError(restoreError instanceof Error ? restoreError.message : 'Could not restore this session board.');
     }
@@ -562,7 +570,7 @@ export default function DrawingBoard() {
               try {
                 save('whiteboard', { elements, files });
                 if (activeSessionRef.current && !animatingRef.current) {
-                  persistSessionSnapshot(elements);
+                  persistSessionSnapshot(elements, files as Record<string, any>);
                 }
               } catch (changeError) {
                 console.error('Unable to save Excalidraw scene changes:', changeError);
