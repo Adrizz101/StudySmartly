@@ -306,3 +306,31 @@ body {
 .deck-layout-stats .deck-card { background: transparent; border: none; border-left: 2px solid var(--a); border-radius: 0; }
 .deck-layout-summary .deck-card { background: transparent; border-color: var(--a); }
 
+
+
+/* Interactive classroom whiteboard */
+.whiteboard-workspace { grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); height: calc(100vh - 190px); min-height: 560px; }
+.drawing-surface { min-width: 0; min-height: 0; }
+.board-copilot { min-height: 0; overflow: hidden; }
+.board-chat-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex: 0 0 auto; }
+.board-discussion { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding-right: .15rem; }
+.board-message { display: flex; flex-direction: column; gap: .65rem; }
+.board-user-message, .board-assistant-message { min-width: 0; }
+.board-user-message strong, .board-assistant-message strong { display: block; color: var(--text); font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; margin-bottom: .2rem; }
+.board-user-message p, .board-assistant-message p { margin: 0; overflow-wrap: anywhere; line-height: 1.5; }
+.board-assistant-message { border-top: 1px solid var(--border); padding-top: .55rem; }
+.board-empty { display: grid; place-items: center; text-align: center; gap: .6rem; padding: 1.5rem .75rem; color: var(--text-muted); font-size: .82rem; line-height: 1.5; }
+.board-composer { display: flex; flex-direction: column; gap: .5rem; flex: 0 0 auto; }
+.board-chat-input { min-height: 84px; max-height: 150px; resize: vertical; }
+.board-settings { flex: 0 0 auto; max-height: 28%; overflow-y: auto; }
+@media (max-width: 1024px) {
+  .whiteboard-workspace { grid-template-columns: minmax(0, 1fr); height: auto; min-height: 0; gap: .75rem; }
+  .drawing-surface { height: 50vh; min-height: 300px; }
+  .board-copilot { height: 40vh; min-height: 280px; padding: .8rem; }
+  .board-settings { max-height: 22%; }
+}
+@media (max-width: 639px) {
+  .whiteboard-workspace { gap: .65rem; }
+  .drawing-surface { height: 50vh; min-height: 260px; }
+  .board-copilot { height: 40vh; min-height: 260px; padding: .7rem; }
+}
