@@ -20,6 +20,7 @@ export default function DrawingBoard() {
   const [sources, setSources] = useState<SourceInput[]>([]);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const [error, setError] = useState('');
   const [dark, setDark] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(() => load('board-discussion', []));
@@ -32,6 +33,7 @@ export default function DrawingBoard() {
     runRef.current += 1;
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
     setBusy(false);
+    setSpeaking(false);
   }
 
   function wait(ms: number, run: number) {
@@ -125,6 +127,9 @@ export default function DrawingBoard() {
         const speech = new SpeechSynthesisUtterance(result.spoken_script);
         speech.lang = 'en-IN';
         speech.rate = 0.96;
+        speech.onstart = () => { if (runRef.current === run) setSpeaking(true); };
+        speech.onend = () => { if (runRef.current === run) setSpeaking(false); };
+        speech.onerror = () => { if (runRef.current === run) setSpeaking(false); };
         window.speechSynthesis.speak(speech);
       }
     } catch (cause) {
@@ -163,7 +168,7 @@ export default function DrawingBoard() {
 
         <aside className="board-copilot">
           <div className="board-chat-heading"><span className="flex gap-2 items-center text-sm font-semibold"><Sparkles size={17} /> Classroom chat</span>
-            {busy && <Button variant="destructive" size="sm" onClick={stopPlayback}><Square size={14} /> Stop</Button>}
+            {(busy || speaking) && <Button variant="destructive" size="sm" onClick={stopPlayback}><Square size={14} /> Stop</Button>}
           </div>
           <div className="board-discussion" ref={discussionRef} aria-live="polite">
             {messages.length === 0 && <div className="board-empty"><Sparkles size={20} /><p>Ask a question about your topic or the drawing. Your tutor will explain, speak, and build the diagram live.</p></div>}
