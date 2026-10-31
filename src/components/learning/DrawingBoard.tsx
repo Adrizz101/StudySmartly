@@ -27,9 +27,12 @@ export default function DrawingBoard() {
   const initial = useRef(load('whiteboard', null));
   const runRef = useRef(0);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const cancelWaitsRef = useRef<(() => void)[]>([]);
 
   function stopPlayback() {
     runRef.current += 1;
+    cancelWaitsRef.current.forEach((cancel) => cancel());
+    cancelWaitsRef.current = [];
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
@@ -38,12 +41,21 @@ export default function DrawingBoard() {
 
   function wait(ms: number, run: number) {
     return new Promise<void>((resolve) => {
-      const timer = setTimeout(() => {
+      let settled = false;
+      let timer: ReturnType<typeof setTimeout>;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
         timersRef.current = timersRef.current.filter((item) => item !== timer);
+        cancelWaitsRef.current = cancelWaitsRef.current.filter((cancel) => cancel !== cancelWait);
         resolve();
-      }, ms);
+      };
+      const cancelWait = () => finish();
+      timer = setTimeout(finish, ms);
       timersRef.current.push(timer);
-      if (run !== runRef.current) { clearTimeout(timer); resolve(); }
+      cancelWaitsRef.current.push(cancelWait);
+      if (run !== runRef.current) finish();
     });
   }
 
@@ -105,16 +117,48 @@ export default function DrawingBoard() {
             : {}),
         };
       });
+      // Start speech as soon as the response arrives; do not make the student
+      // wait for the drawing animation to finish before hearing the explanation.
+      let drawingFinished = false;
+      let speechFinished = !(typeof window !== 'undefined' && 'speechSynthesis' in window && result.spoken_script.trim());
+      const finishIfDone = () => {
+        if (drawingFinished && speechFinished && run === runRef.current) setBusy(false);
+      };
+      if (!speechFinished) {
+        const utterance = new SpeechSynthesisUtterance(result.spoken_script);
+        utterance.rate = 0.96;
+        utterance.pitch = 1;
+        utterance.onend = () => { speechFinished = true; finishIfDone(); };
+        utterance.onerror = () => { speechFinished = true; finishIfDone(); };
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+      }
+
       const added = convertToExcalidrawElements(normalized as any[]);
       const all = [...elements];
       for (const element of added) {
         if (run !== runRef.current) return;
-        all.push(element);
-        api.updateScene({ elements: [...all] });
-        await wait(30, run);
+        if (element.type === 'text' && element.text) {
+          const fullText = element.text;
+          const chars = Array.from(fullText);
+          const animated = { ...element, text: '' };
+          all.push(animated);
+          api.updateScene({ elements: [...all] });
+          for (let index = 0; index < chars.length; index++) {
+            if (run !== runRef.current) return;
+            all[all.length - 1] = { ...animated, text: chars.slice(0, index + 1).join('') };
+            api.updateScene({ elements: [...all] });
+            await wait(18, run);
+          }
+        } else {
+          all.push(element);
+          api.updateScene({ elements: [...all] });
+          await wait(30, run);
+        }
       }
       if (run !== runRef.current) return;
       api.scrollToContent(added, { fitToContent: true });
+      drawingFinished = true;
 
       const nextMessages = [...messages, {
         question,
@@ -124,18 +168,7 @@ export default function DrawingBoard() {
       setMessages(nextMessages);
       save('board-discussion', nextMessages);
       setPrompt('');
-
-      if ('speechSynthesis' in window && result.spoken_script.trim()) {
-        const utterance = new SpeechSynthesisUtterance(result.spoken_script);
-        utterance.rate = 0.96;
-        utterance.pitch = 1;
-        utterance.onend = () => { if (run === runRef.current) setBusy(false); };
-        utterance.onerror = () => { if (run === runRef.current) setBusy(false); };
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utterance);
-      } else {
-        setBusy(false);
-      }
+      finishIfDone();
     } catch (cause) {
       if (run === runRef.current) {
         setError(cause instanceof Error ? cause.message : 'Could not explain this board.');
