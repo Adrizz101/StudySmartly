@@ -1,1 +1,11 @@
 project_id = "awkcjgvtcpakawetqjki"
+
+# Keep email OTPs aligned with the six-digit input in AuthScreen.
+[auth.email]
+otp_length = 6
+
+# The hosted project's Magic Link / Email OTP template must also use {{ .Token }}.
+# For local Supabase, this config and template select a numeric code instead of a link.
+[auth.email.template.magic_link]
+subject = "Your StudySmart sign-in code"
+content_path = "./supabase/templates/magic_link.html"
