@@ -380,3 +380,61 @@ body {
   .board-discussion { min-height:0; flex:1 1 0%; overflow-y:auto; }
   .board-chat-input { min-height:60px !important; max-height:100px !important; height:64px; }
 }
+
+
+/* Doubt Center and classroom voice controls */
+.board-history-toggle { flex: 0 0 auto; }
+.board-history {
+  flex: 0 0 auto;
+  max-height: 190px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: .75rem;
+  padding: .4rem;
+  background: var(--surface-hover);
+}
+.board-history-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  gap: .2rem;
+  padding: .65rem .7rem;
+  border: 1px solid transparent;
+  border-radius: .55rem;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.board-history-item:hover,
+.board-history-item.active {
+  border-color: var(--accent-500);
+  background: var(--surface);
+}
+.board-history-title {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .8rem;
+  font-weight: 600;
+}
+.board-history-meta { color: var(--text-muted); font-size: .68rem; }
+.board-history-empty { padding: .7rem; color: var(--text-muted); font-size: .78rem; line-height: 1.45; }
+.board-empty { display: flex; align-items: flex-start; gap: .5rem; }
+.board-empty svg { flex: 0 0 auto; margin-top: .1rem; }
+.board-voice { flex: 0 0 auto; }
+.board-actions { flex-wrap: wrap; }
+@media (max-width: 1024px) {
+  .board-history { max-height: 145px; }
+  .board-actions { gap: .35rem; }
+  .board-send { flex: 1 1 100%; }
+  .board-voice, .board-stop { flex: 1 1 0; }
+}
+@media (max-width: 420px) {
+  .board-history-meta { font-size: .64rem; }
+  .board-copilot-heading { font-size: .82rem; }
+  .board-voice, .board-stop { min-width: 0; padding-inline: .5rem; }
+}
