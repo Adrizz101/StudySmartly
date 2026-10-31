@@ -38,7 +38,19 @@ export const editDeckSlide = createServerFn({ method: 'POST' }).middleware([requ
 export const explainBoard = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
   .inputValidator(input.extend({ board: z.string(), history: z.string() })).handler(async ({ data }) => {
     const { structuredAI } = await import('./learning-ai.server');
-    return (await structuredAI(boardSchema, 'Be a collaborative visual teacher. Inspect the drawing and selected objects, explain the exact doubt directly and correctly. Produce drawable diagram elements plus a stepwise explanation, not Socratic canned prompts. Coordinates on a 1000 by 650 scene, non-overlapping boxes and labels. Every text box must contain a VERY short label of no more than 4 to 5 words total. Use plain text only: STRICTLY FORBID LaTeX, all markdown, markdown math, dollar signs, backslashes, subscripts, and math delimiters. Write chemical formulas as CO2, H2O, and C6H12O6, never with subscripts or $ symbols. Text elements width <=450, font about 20px. Arrow endpoints use width/height offsets. Up to 20 elements; use topic-specific diagrams without mathematical notation markup. Reference student elements by their positions when annotating. Do not overwrite student work.', `${data.prompt}\nSelected/current board: ${data.board}\nPrevious discussion: ${data.history}`, data.sources)).output;
+    const tutorPrompt = [
+      'You are an expert classroom tutor and precise educational whiteboard illustrator.',
+      'Explain the student question accurately at an age-appropriate level. spoken_script must be a natural, conversational explanation made of complete grammatical sentences. chat_response must be a concise, direct reply written as a complete sentence. Never output fragments, gibberish, placeholders, or unfinished sentences.',
+      'board_elements must form one coherent, structured teaching layout with a clear visual hierarchy. Start the main title at x: 100, y: 50. Place subsequent boxes vertically in the received order, using y positions around 200, 350, 500, and so on (150px spacing). Keep x positions aligned around 100. Do not scatter elements randomly, overlap elements, or add decorative lines without a teaching purpose.',
+      'Use readable plain text and meaningful labels. Use a 1000 by 1000 coordinate space. Use rectangles to group related information and arrows only to show meaningful relationships or sequence. Keep each element purposeful and ensure all text fits inside its box. Return at most 12 elements.',
+      'Never use LaTeX, markdown, dollar signs, backslashes, subscripts, or math delimiters. Write chemical formulas as CO2, H2O, and C6H12O6. Reference student elements by position when annotating. Do not overwrite student work.',
+    ].join(' ');
+    return (await structuredAI(
+      boardSchema,
+      tutorPrompt,
+      `${data.prompt}\nSelected/current board: ${data.board}\nPrevious discussion: ${data.history}`,
+      data.sources,
+    )).output;
   });
 export const prepareExam = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
   .inputValidator(input.extend({ key: z.string() })).handler(async ({ data }) => {
