@@ -9,6 +9,7 @@ export const deckSlideSchema = z.object({
 });
 export const deckSchema = z.object({ title: z.string(), subject: z.string(), slides: z.array(deckSlideSchema) });
 export const boardSchema = z.object({
+  diagram_image_prompt: z.string().optional().describe('A concise image-generation prompt for a clear textbook-style educational diagram, when a visual topic benefits from an illustration.'),
   session_title: z.string().min(2).max(48).refine((value) => { const words = value.trim().split(/\s+/).filter(Boolean).length; return words >= 2 && words <= 4; }, 'Session title must contain 2–4 words.').describe('A concise 2–4 word title for this tutoring session.'),
   spoken_script: z.string().min(1).describe('A natural, conversational spoken explanation written in complete sentences.'),
   board_elements: z.array(z.object({
