@@ -200,6 +200,30 @@ export default function DrawingBoard() {
     commitSessions(next);
   }
 
+  // Persist manual canvas edits without scheduling React state updates from Excalidraw's onChange.
+  // Updating sessions state here would re-render Excalidraw for every scene change and can
+  // create a maximum-update-depth loop while updateScene() is applying AI elements.
+  function persistSessionSnapshot(elements: unknown[]) {
+    const id = activeSessionRef.current;
+    if (!id) return;
+    const existing = sessionsRef.current.find((session) => session.id === id);
+    if (!existing) return;
+    const nextSession: BoardSession = {
+      ...existing,
+      timestamp: new Date().toISOString(),
+      messages: messagesRef.current,
+      board_elements: elements,
+    };
+    const next = [nextSession, ...sessionsRef.current.filter((session) => session.id !== id)]
+      .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    sessionsRef.current = next;
+    try {
+      window.localStorage.setItem(SESSIONS_KEY, JSON.stringify(next));
+    } catch (storageError) {
+      console.error('Unable to persist whiteboard session snapshot:', storageError);
+    }
+  }
+
   function stopPlayback() {
     runRef.current += 1;
     cancelWaitsRef.current.forEach((cancel) => cancel());
@@ -475,9 +499,15 @@ export default function DrawingBoard() {
         <section className="drawing-surface" aria-label="Interactive whiteboard">
           <Excalidraw excalidrawAPI={setApi} initialData={initial.current} theme={dark ? 'dark' : 'light'}
             onChange={(elements, _state, files) => {
-              save('whiteboard', { elements, files });
-              if (activeSessionRef.current && !animatingRef.current) {
-                persistSession(messagesRef.current, elements, activeSessionRef.current);
+              // Keep this callback free of React state setters. Excalidraw calls onChange
+              // during updateScene(), so setState here can feed back into another render.
+              try {
+                save('whiteboard', { elements, files });
+                if (activeSessionRef.current && !animatingRef.current) {
+                  persistSessionSnapshot(elements);
+                }
+              } catch (changeError) {
+                console.error('Unable to save Excalidraw scene changes:', changeError);
               }
             }} />
         </section>
