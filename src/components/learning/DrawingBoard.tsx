@@ -3,7 +3,7 @@ import { Excalidraw, convertToExcalidrawElements, exportToBlob } from '@excalidr
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import '@excalidraw/excalidraw/index.css';
 import { useServerFn } from '@tanstack/react-start';
-import { Sparkles, Download, Moon, Sun, Trash2, Square } from 'lucide-react';
+import { Sparkles, Download, Moon, Sun, Trash2, Square, Pause, Play, History, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { explainBoard } from '@/lib/learning-ai.functions';
 import { load, save } from '@/lib/storage';
@@ -13,6 +13,37 @@ import { AIConsent, requireAISession } from './AIConsent';
 import { SourcePicker } from './SourcePicker';
 
 type BoardMessage = { question: string; answer: string; citations: string[] };
+type BoardSession = {
+  id: string;
+  title: string;
+  updatedAt: string;
+  messages: BoardMessage[];
+  boardElements: unknown[];
+};
+
+const SESSIONS_KEY = 'studysmartly_sessions';
+
+function readSessions(): BoardSession[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const value: unknown = JSON.parse(window.localStorage.getItem(SESSIONS_KEY) || '[]');
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is BoardSession =>
+      Boolean(item && typeof item === 'object' &&
+        typeof item.id === 'string' && typeof item.title === 'string' &&
+        typeof item.updatedAt === 'string' && Array.isArray(item.messages) &&
+        Array.isArray(item.boardElements)),
+    );
+  } catch {
+    return [];
+  }
+}
+
+function createSessionId() {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 export default function DrawingBoard() {
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
@@ -20,14 +51,50 @@ export default function DrawingBoard() {
   const [sources, setSources] = useState<SourceInput[]>([]);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [error, setError] = useState('');
   const [dark, setDark] = useState(false);
   const [messages, setMessages] = useState<BoardMessage[]>(() => load('board-discussion', []));
+  const [sessions, setSessions] = useState<BoardSession[]>(readSessions);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const explain = useServerFn(explainBoard);
   const initial = useRef(load('whiteboard', null));
   const runRef = useRef(0);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const cancelWaitsRef = useRef<(() => void)[]>([]);
+  const sessionsRef = useRef(sessions);
+  const activeSessionRef = useRef<string | null>(null);
+  const animatingRef = useRef(false);
+
+  function commitSessions(next: BoardSession[]) {
+    sessionsRef.current = next;
+    setSessions(next);
+    try {
+      window.localStorage.setItem(SESSIONS_KEY, JSON.stringify(next));
+    } catch {
+      setError('Session storage is full. Your current lesson is still available until you leave this page.');
+    }
+  }
+
+  function persistSession(nextMessages: BoardMessage[], elements: unknown[], preferredId = activeSessionRef.current) {
+    const id = preferredId || createSessionId();
+    const firstQuestion = nextMessages[0]?.question;
+    const existing = sessionsRef.current.find((session) => session.id === id);
+    const session: BoardSession = {
+      id,
+      title: firstQuestion?.slice(0, 72) || existing?.title || 'New doubt session',
+      updatedAt: new Date().toISOString(),
+      messages: nextMessages,
+      boardElements: elements,
+    };
+    const next = [session, ...sessionsRef.current.filter((item) => item.id !== id)]
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    activeSessionRef.current = id;
+    setActiveSessionId(id);
+    commitSessions(next);
+  }
 
   function stopPlayback() {
     runRef.current += 1;
@@ -36,7 +103,24 @@ export default function DrawingBoard() {
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+    setIsSpeaking(false);
+    setIsPaused(false);
     setBusy(false);
+    animatingRef.current = false;
+  }
+
+  function pausePlayback() {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window && isSpeaking && !isPaused) {
+      window.speechSynthesis.pause();
+      setIsPaused(true);
+    }
+  }
+
+  function resumePlayback() {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window && isPaused) {
+      window.speechSynthesis.resume();
+      setIsPaused(false);
+    }
   }
 
   function wait(ms: number, run: number) {
@@ -62,6 +146,7 @@ export default function DrawingBoard() {
   async function ask() {
     const question = prompt.trim();
     if (!api || !question) return;
+    // A new doubt always interrupts the current voice and any in-progress drawing.
     stopPlayback();
     const run = runRef.current;
     setError('');
@@ -121,8 +206,7 @@ export default function DrawingBoard() {
             : {}),
         };
       });
-      // Start speech as soon as the response arrives; do not make the student
-      // wait for the drawing animation to finish before hearing the explanation.
+      // Speak the explanation while the board is being drawn.
       let drawingFinished = false;
       let speechFinished = !(typeof window !== 'undefined' && 'speechSynthesis' in window && result.spoken_script.trim());
       const finishIfDone = () => {
@@ -132,12 +216,24 @@ export default function DrawingBoard() {
         const utterance = new SpeechSynthesisUtterance(result.spoken_script);
         utterance.rate = 0.96;
         utterance.pitch = 1;
-        utterance.onend = () => { speechFinished = true; finishIfDone(); };
-        utterance.onerror = () => { speechFinished = true; finishIfDone(); };
+        utterance.onstart = () => { if (run === runRef.current) setIsSpeaking(true); };
+        utterance.onpause = () => { if (run === runRef.current) setIsPaused(true); };
+        utterance.onresume = () => { if (run === runRef.current) setIsPaused(false); };
+        utterance.onend = () => {
+          if (run === runRef.current) { setIsSpeaking(false); setIsPaused(false); }
+          speechFinished = true;
+          finishIfDone();
+        };
+        utterance.onerror = () => {
+          if (run === runRef.current) { setIsSpeaking(false); setIsPaused(false); }
+          speechFinished = true;
+          finishIfDone();
+        };
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(utterance);
       }
 
+      animatingRef.current = true;
       const added = convertToExcalidrawElements(normalized as any[]);
       const all = [...elements];
       for (const element of added) {
@@ -163,6 +259,7 @@ export default function DrawingBoard() {
       if (run !== runRef.current) return;
       api.scrollToContent(added, { fitToContent: true });
       drawingFinished = true;
+      animatingRef.current = false;
 
       const nextMessages = [...messages, {
         question,
@@ -171,14 +268,33 @@ export default function DrawingBoard() {
       }];
       setMessages(nextMessages);
       save('board-discussion', nextMessages);
+      const finalElements = api.getSceneElements();
+      save('whiteboard', { elements: finalElements, files: api.getFiles() });
+      persistSession(nextMessages, finalElements);
       setPrompt('');
       finishIfDone();
     } catch (cause) {
       if (run === runRef.current) {
+        animatingRef.current = false;
         setError(cause instanceof Error ? cause.message : 'Could not explain this board.');
         setBusy(false);
+        setIsSpeaking(false);
+        setIsPaused(false);
       }
     }
+  }
+
+  function openSession(session: BoardSession) {
+    stopPlayback();
+    activeSessionRef.current = session.id;
+    setActiveSessionId(session.id);
+    setMessages(session.messages);
+    save('board-discussion', session.messages);
+    api?.updateScene({ elements: session.boardElements as any[] });
+    save('whiteboard', { elements: session.boardElements, files: api?.getFiles() || {} });
+    setPrompt('');
+    setError('');
+    setHistoryOpen(false);
   }
 
   return (
@@ -196,9 +312,14 @@ export default function DrawingBoard() {
             URL.revokeObjectURL(url);
           }}><Download /></Button>
           <Button variant="outline" size="icon" aria-label="Clear board" onClick={() => {
-            if (window.confirm('Clear the entire board and chat?')) {
-              stopPlayback(); api?.resetScene(); setMessages([]);
-              localStorage.removeItem('studysmart:board-discussion');
+            if (window.confirm('Clear the entire board and start a new doubt session?')) {
+              stopPlayback();
+              api?.resetScene();
+              setMessages([]);
+              activeSessionRef.current = null;
+              setActiveSessionId(null);
+              save('board-discussion', []);
+              save('whiteboard', { elements: [], files: {} });
             }
           }}><Trash2 /></Button>
         </div>
@@ -206,14 +327,41 @@ export default function DrawingBoard() {
       <div className="whiteboard-workspace">
         <section className="drawing-surface" aria-label="Interactive whiteboard">
           <Excalidraw excalidrawAPI={setApi} initialData={initial.current} theme={dark ? 'dark' : 'light'}
-            onChange={(elements, _state, files) => save('whiteboard', { elements, files })} />
+            onChange={(elements, _state, files) => {
+              save('whiteboard', { elements, files });
+              if (activeSessionRef.current && !animatingRef.current) {
+                persistSession(messages, elements, activeSessionRef.current);
+              }
+            }} />
         </section>
         <aside className="board-copilot">
           <div className="board-copilot-heading"><Sparkles size={17} /><span>Visual tutor</span>
-            {busy && <span className="board-speaking">Working / speaking</span>}
+            {busy && <span className="board-speaking">{isPaused ? 'Voice paused' : isSpeaking ? 'Speaking' : 'Drawing lesson'}</span>}
           </div>
+
+          <div className="board-history-toggle">
+            <Button variant="outline" size="sm" className="w-full justify-between" onClick={() => setHistoryOpen(!historyOpen)} aria-expanded={historyOpen}>
+              <span className="inline-flex items-center gap-2"><History size={15} /> Doubt Center · Session History ({sessions.length})</span>
+              <span>{historyOpen ? 'Hide' : 'View'}</span>
+            </Button>
+          </div>
+          {historyOpen && (
+            <section className="board-history" aria-label="Saved doubt sessions">
+              {sessions.length === 0 ? (
+                <p className="board-history-empty">Your saved lessons will appear here after your first question.</p>
+              ) : sessions.map((session) => (
+                <button key={session.id} type="button"
+                  className={`board-history-item${activeSessionId === session.id ? ' active' : ''}`}
+                  onClick={() => openSession(session)}>
+                  <span className="board-history-title">{session.title}</span>
+                  <span className="board-history-meta">{session.messages.length} {session.messages.length === 1 ? 'doubt' : 'doubts'} · {new Date(session.updatedAt).toLocaleString()}</span>
+                </button>
+              ))}
+            </section>
+          )}
+
           <div className="board-discussion" aria-live="polite">
-            {messages.length === 0 && <p className="board-empty">Ask a question to start a live lesson. Your discussion will appear here.</p>}
+            {messages.length === 0 && <p className="board-empty"><MessageCircle size={16} /> Ask a question to start a live lesson. Your doubts and explanations will be saved in Session History.</p>}
             {messages.map((message, index) => (
               <article key={index} className="board-message">
                 <strong>{message.question}</strong>
@@ -229,10 +377,20 @@ export default function DrawingBoard() {
               onChange={(event) => { if (busy) stopPlayback(); setPrompt(event.target.value); }}
               onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void ask(); } }} />
             <div className="board-actions">
-              <Button className="board-send" disabled={busy || !prompt.trim()} onClick={() => void ask()}>
-                <Sparkles size={16} /> Explain on board
+              <Button className="board-send" disabled={!prompt.trim()} onClick={() => void ask()}>
+                <Sparkles size={16} /> {busy ? 'Ask this doubt' : 'Explain on board'}
               </Button>
-              <Button className="board-stop" variant="destructive" disabled={!busy} onClick={stopPlayback}>
+              {isSpeaking && !isPaused && (
+                <Button variant="outline" className="board-voice" onClick={pausePlayback} aria-label="Pause voice">
+                  <Pause size={15} /> Pause
+                </Button>
+              )}
+              {isPaused && (
+                <Button variant="outline" className="board-voice" onClick={resumePlayback} aria-label="Resume voice">
+                  <Play size={15} /> Resume
+                </Button>
+              )}
+              <Button className="board-stop" variant="destructive" disabled={!busy && !isSpeaking} onClick={stopPlayback}>
                 <Square size={15} /> Stop
               </Button>
             </div>
