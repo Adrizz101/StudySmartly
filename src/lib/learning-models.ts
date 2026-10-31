@@ -9,6 +9,7 @@ export const deckSlideSchema = z.object({
 });
 export const deckSchema = z.object({ title: z.string(), subject: z.string(), slides: z.array(deckSlideSchema) });
 export const boardSchema = z.object({
+  session_title: z.string().min(2).max(48).describe('A concise 2–4 word title for this tutoring session.'),
   spoken_script: z.string().min(1).describe('A natural, conversational spoken explanation written in complete sentences.'),
   board_elements: z.array(z.object({
     type: z.enum(['text', 'rectangle', 'ellipse', 'arrow', 'line']),
