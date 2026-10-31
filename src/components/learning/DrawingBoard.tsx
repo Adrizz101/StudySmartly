@@ -333,7 +333,7 @@ export default function DrawingBoard() {
       let normalized: Record<string, unknown>[];
       try {
         normalized = sanitizeBoardElements(result.board_elements).map((element, index) => {
-          const text = element.text.replace(/[$\\]/g, '').trim();
+          const text = (typeof element.text === 'string' ? element.text : '').replace(/[$\\]/g, '').trim();
           const lineCount = Math.max(1, text.split(/\r?\n/).length);
           const width = Math.max(300, text.length * 12);
           const height = Math.min(160, Math.max(72, lineCount * 28 + 28, Math.min(160, Math.abs(element.height))));
