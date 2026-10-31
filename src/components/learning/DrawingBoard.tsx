@@ -204,13 +204,13 @@ export default function DrawingBoard() {
           const text = element.text.replace(/[$\\]/g, '').trim();
           const lineCount = Math.max(1, text.split(/\r?\n/).length);
           const width = Math.max(300, text.length * 12);
-          const height = Math.max(element.height, lineCount * 30 + 36);
+          const height = Math.min(160, Math.max(72, lineCount * 28 + 28, Math.min(160, Math.abs(element.height))));
           return {
             type: element.type,
             x: Math.max(100, element.x),
             y: firstY + index * 180,
             width: Math.max(width, Math.abs(element.width)),
-            height: Math.max(height, Math.abs(element.height)),
+            height,
             strokeColor: ink,
             ...(element.type === 'text'
               ? { text, fontSize: 20, autoResize: true }
