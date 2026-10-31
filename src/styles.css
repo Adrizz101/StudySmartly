@@ -438,3 +438,32 @@ body {
   .board-copilot-heading { font-size: .82rem; }
   .board-voice, .board-stop { min-width: 0; padding-inline: .5rem; }
 }
+
+
+/* ChatGPT-style tutor conversation */
+.board-chat-pair { display:flex; flex-direction:column; gap:.55rem; width:100%; }
+.board-chat-bubble {
+  max-width:92%;
+  padding:.7rem .85rem;
+  border-radius: .9rem;
+  overflow-wrap:anywhere;
+  line-height:1.5;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+}
+.board-chat-bubble p { margin:.2rem 0 0; white-space:pre-wrap; color:inherit; font-size:.84rem; }
+.board-chat-role { display:block; font-size:.67rem; font-weight:700; letter-spacing:.035em; opacity:.78; }
+.board-chat-user {
+  align-self:flex-end;
+  background:#16875d;
+  color:#fff;
+  border-bottom-right-radius:.25rem;
+}
+.board-chat-ai {
+  align-self:flex-start;
+  background:#242b35;
+  color:#f4f6f8;
+  border:1px solid rgb(255 255 255 / 8%);
+  border-bottom-left-radius:.25rem;
+}
+.board-chat-ai small { display:block; margin-top:.45rem; color:#b9c2cd; font-size:.68rem; }
+.board-discussion { padding:.25rem .1rem .7rem; }
