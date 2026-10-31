@@ -21,6 +21,61 @@ type BoardSession = {
   board_elements: unknown[];
 };
 
+
+const VALID_BOARD_TYPES = new Set(['text', 'rectangle', 'ellipse', 'arrow', 'line']);
+const DEFAULT_STROKE = '#1e1e1e';
+const DEFAULT_BACKGROUND = 'transparent';
+
+function createBoardElementId() {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  } catch {
+    // Fall through for browsers without a usable crypto implementation.
+  }
+  return `board-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function finiteNumber(value: unknown, fallback = 0) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+/** Validate both AI-generated element skeletons and persisted Excalidraw elements. */
+function sanitizeBoardElements(input: unknown): Record<string, any>[] {
+  if (!Array.isArray(input)) return [];
+  return input.flatMap((raw) => {
+    if (!raw || typeof raw !== 'object') return [];
+    const source = raw as Record<string, any>;
+    if (!VALID_BOARD_TYPES.has(source.type)) return [];
+    const width = Math.max(1, Math.abs(finiteNumber(source.width, 300)));
+    const height = Math.max(1, Math.abs(finiteNumber(source.height, 80)));
+    const text = typeof source.text === 'string' ? source.text : '';
+    const safe: Record<string, any> = {
+      ...source,
+      id: typeof source.id === 'string' && source.id.trim() ? source.id : createBoardElementId(),
+      x: finiteNumber(source.x),
+      y: finiteNumber(source.y),
+      width,
+      height,
+      strokeColor: typeof source.strokeColor === 'string' && source.strokeColor.trim() ? source.strokeColor : DEFAULT_STROKE,
+      backgroundColor: typeof source.backgroundColor === 'string' && source.backgroundColor.trim() ? source.backgroundColor : DEFAULT_BACKGROUND,
+    };
+    if (source.type === 'arrow' || source.type === 'line') {
+      const points = Array.isArray(source.points)
+        ? source.points.filter((point: unknown) => Array.isArray(point) && point.length >= 2
+          && Number.isFinite(point[0]) && Number.isFinite(point[1]))
+          .map((point: number[]) => [point[0], point[1]])
+        : [];
+      safe.points = points.length >= 2 ? points : [[0, 0], [width, height]];
+    }
+    if (source.type === 'text') {
+      safe.text = text;
+      safe.fontSize = 20;
+      safe.autoResize = true;
+    }
+    return [safe];
+  });
+}
+
 const SESSIONS_KEY = 'studysmartly_sessions';
 
 function isBoardMessage(value: unknown): value is BoardMessage {
@@ -208,6 +263,11 @@ export default function DrawingBoard() {
   }
 
   async function ask() {
+    try {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+    } catch (speechError) {
+      console.error('Unable to clear speech synthesis before starting a new tutor request:', speechError);
+    }
     const question = prompt.trim();
     if (!api || !question) return;
     // A new doubt always interrupts the current voice and any in-progress drawing.
@@ -249,18 +309,21 @@ export default function DrawingBoard() {
       const firstY = elements.length === 0 ? 100 : currentBottom + 180;
       let normalized: Record<string, unknown>[];
       try {
-        normalized = result.board_elements.map((element, index) => {
+        normalized = sanitizeBoardElements(result.board_elements).map((element, index) => {
           const text = element.text.replace(/[$\\]/g, '').trim();
           const lineCount = Math.max(1, text.split(/\r?\n/).length);
           const width = Math.max(300, text.length * 12);
           const height = Math.min(160, Math.max(72, lineCount * 28 + 28, Math.min(160, Math.abs(element.height))));
           return {
+            ...element,
+            id: typeof element.id === 'string' && element.id.trim() ? element.id : createBoardElementId(),
             type: element.type,
             x: Math.max(100, element.x),
             y: firstY + index * 180,
             width: Math.max(width, Math.abs(element.width)),
             height,
             strokeColor: ink,
+            backgroundColor: typeof element.backgroundColor === 'string' ? element.backgroundColor : DEFAULT_BACKGROUND,
             ...(element.type === 'text'
               ? { text, fontSize: 20, autoResize: true }
               : element.type === 'rectangle' || element.type === 'ellipse'
@@ -311,16 +374,20 @@ export default function DrawingBoard() {
       animatingRef.current = true;
       let added: ReturnType<typeof convertToExcalidrawElements>;
       try {
-        added = convertToExcalidrawElements(normalized as any[]);
-        const all = [...elements];
+        const safeInput = sanitizeBoardElements(normalized);
+        added = sanitizeBoardElements(convertToExcalidrawElements(safeInput as any[])) as any;
+        const existingSafe = sanitizeBoardElements(elements);
+        const all = [...existingSafe];
+        if (!api) throw new Error('Whiteboard is not ready yet. Please wait a moment and try again.');
         for (const element of added) {
           if (run !== runRef.current) return;
           all.push(element);
-          if (!api) throw new Error('Whiteboard is not ready yet. Please wait a moment and try again.');
-          api.updateScene({ elements: [...all] });
+          const safeScene = sanitizeBoardElements(all);
+          api.updateScene({ elements: safeScene as any });
           await wait(35, run);
         }
-      } catch (renderError) {
+        } catch (renderError) {
+        console.error('Excalidraw rejected sanitized tutor board elements:', renderError);
         throw new Error(renderError instanceof Error ? 'The tutor diagram could not be drawn: ' + renderError.message : 'The tutor diagram could not be drawn.');
       }
       if (run !== runRef.current) return;
@@ -364,8 +431,9 @@ export default function DrawingBoard() {
     setError('');
     try {
       if (!api) throw new Error('Whiteboard is still loading. Please wait a moment, then select the session again.');
-      api.updateScene({ elements: session.board_elements as any[] });
-      save('whiteboard', { elements: session.board_elements, files: api.getFiles() });
+      const safeElements = sanitizeBoardElements(session.board_elements);
+      api.updateScene({ elements: safeElements as any });
+      save('whiteboard', { elements: safeElements, files: api.getFiles() });
     } catch (restoreError) {
       setError(restoreError instanceof Error ? restoreError.message : 'Could not restore this session board.');
     }
