@@ -65,6 +65,7 @@ export default function DrawingBoard() {
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const cancelWaitsRef = useRef<(() => void)[]>([]);
   const sessionsRef = useRef(sessions);
+  const messagesRef = useRef(messages);
   const activeSessionRef = useRef<string | null>(null);
   const animatingRef = useRef(false);
 
@@ -165,7 +166,7 @@ export default function DrawingBoard() {
         mimeType: 'image/png',
       });
       const image = await dataURL(new File([blob], 'student-board.png', { type: 'image/png' }));
-      const history = messages.slice(-8).map((message) =>
+      const history = messagesRef.current.slice(-8).map((message) =>
         'Student: ' + message.question + '\nTutor: ' + message.answer,
       ).join('\n\n');
       const result = await explain({
@@ -261,11 +262,12 @@ export default function DrawingBoard() {
       drawingFinished = true;
       animatingRef.current = false;
 
-      const nextMessages = [...messages, {
+      const nextMessages = [...messagesRef.current, {
         question,
         answer: result.chat_response,
         citations: result.citations,
       }];
+      messagesRef.current = nextMessages;
       setMessages(nextMessages);
       save('board-discussion', nextMessages);
       const finalElements = api.getSceneElements();
@@ -288,6 +290,7 @@ export default function DrawingBoard() {
     stopPlayback();
     activeSessionRef.current = session.id;
     setActiveSessionId(session.id);
+    messagesRef.current = session.messages;
     setMessages(session.messages);
     save('board-discussion', session.messages);
     api?.updateScene({ elements: session.boardElements as any[] });
@@ -315,6 +318,7 @@ export default function DrawingBoard() {
             if (window.confirm('Clear the entire board and start a new doubt session?')) {
               stopPlayback();
               api?.resetScene();
+              messagesRef.current = [];
               setMessages([]);
               activeSessionRef.current = null;
               setActiveSessionId(null);
@@ -330,7 +334,7 @@ export default function DrawingBoard() {
             onChange={(elements, _state, files) => {
               save('whiteboard', { elements, files });
               if (activeSessionRef.current && !animatingRef.current) {
-                persistSession(messages, elements, activeSessionRef.current);
+                persistSession(messagesRef.current, elements, activeSessionRef.current);
               }
             }} />
         </section>
