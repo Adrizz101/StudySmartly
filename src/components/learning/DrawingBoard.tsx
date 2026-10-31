@@ -330,11 +330,11 @@ export default function DrawingBoard() {
           <Button variant="outline" size="icon" aria-label="New session" title="New session" onClick={() => {
             if (window.confirm('Start a new session? The current session will remain in Session History.')) {
               stopPlayback();
-              api?.resetScene();
-              messagesRef.current = [];
-              setMessages([]);
               activeSessionRef.current = null;
               setActiveSessionId(null);
+              messagesRef.current = [];
+              setMessages([]);
+              api?.resetScene();
               save('board-discussion', []);
               save('whiteboard', { elements: [], files: {} });
             }
