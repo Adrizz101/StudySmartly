@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Excalidraw, convertToExcalidrawElements, exportToBlob } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import '@excalidraw/excalidraw/index.css';
 import { useServerFn } from '@tanstack/react-start';
-import { Sparkles, Download, Moon, Sun, Trash2, Square, Pause, Play, History, MessageCircle } from 'lucide-react';
+import { Sparkles, Download, Moon, Sun, Trash2, Square, Pause, Play, History, MessageCircle, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { explainBoard } from '@/lib/learning-ai.functions';
 import { load, save } from '@/lib/storage';
@@ -16,9 +16,9 @@ type BoardMessage = { question: string; answer: string; citations: string[] };
 type BoardSession = {
   id: string;
   title: string;
-  updatedAt: string;
+  timestamp: string;
   messages: BoardMessage[];
-  boardElements: unknown[];
+  board_elements: unknown[];
 };
 
 const SESSIONS_KEY = 'studysmartly_sessions';
@@ -28,12 +28,15 @@ function readSessions(): BoardSession[] {
   try {
     const value: unknown = JSON.parse(window.localStorage.getItem(SESSIONS_KEY) || '[]');
     if (!Array.isArray(value)) return [];
-    return value.filter((item): item is BoardSession =>
-      Boolean(item && typeof item === 'object' &&
-        typeof item.id === 'string' && typeof item.title === 'string' &&
-        typeof item.updatedAt === 'string' && Array.isArray(item.messages) &&
-        Array.isArray(item.boardElements)),
-    );
+    return value.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+      .filter((item) => typeof item.id === 'string' && typeof item.title === 'string' && Array.isArray(item.messages))
+      .map((item) => ({
+        id: item.id as string,
+        title: item.title as string,
+        timestamp: typeof item.timestamp === 'string' ? item.timestamp : typeof item.updatedAt === 'string' ? item.updatedAt : new Date().toISOString(),
+        messages: item.messages as BoardMessage[],
+        board_elements: (Array.isArray(item.board_elements) ? item.board_elements : Array.isArray(item.boardElements) ? item.boardElements : []) as unknown[],
+      }));
   } catch {
     return [];
   }
@@ -69,6 +72,13 @@ export default function DrawingBoard() {
   const activeSessionRef = useRef<string | null>(null);
   const animatingRef = useRef(false);
 
+  useEffect(() => () => {
+    runRef.current += 1;
+    timersRef.current.forEach(clearTimeout);
+    cancelWaitsRef.current.forEach((cancel) => cancel());
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  }, []);
+
   function commitSessions(next: BoardSession[]) {
     sessionsRef.current = next;
     setSessions(next);
@@ -79,19 +89,19 @@ export default function DrawingBoard() {
     }
   }
 
-  function persistSession(nextMessages: BoardMessage[], elements: unknown[], preferredId = activeSessionRef.current) {
+  function persistSession(nextMessages: BoardMessage[], elements: unknown[], preferredId = activeSessionRef.current, generatedTitle?: string) {
     const id = preferredId || createSessionId();
     const firstQuestion = nextMessages[0]?.question;
     const existing = sessionsRef.current.find((session) => session.id === id);
     const session: BoardSession = {
       id,
-      title: firstQuestion?.slice(0, 72) || existing?.title || 'New doubt session',
-      updatedAt: new Date().toISOString(),
+      title: generatedTitle || existing?.title || firstQuestion?.slice(0, 48) || 'New doubt session',
+      timestamp: new Date().toISOString(),
       messages: nextMessages,
-      boardElements: elements,
+      board_elements: elements,
     };
     const next = [session, ...sessionsRef.current.filter((item) => item.id !== id)]
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
     activeSessionRef.current = id;
     setActiveSessionId(id);
     commitSessions(next);
@@ -166,14 +176,11 @@ export default function DrawingBoard() {
         mimeType: 'image/png',
       });
       const image = await dataURL(new File([blob], 'student-board.png', { type: 'image/png' }));
-      const history = messagesRef.current.slice(-8).map((message) =>
-        'Student: ' + message.question + '\nTutor: ' + message.answer,
-      ).join('\n\n');
       const result = await explain({
         data: {
           prompt: question,
           board: JSON.stringify(selection.length ? selection : elements),
-          history,
+          messages: messagesRef.current,
           sources: [...sources, {
             name: 'Student whiteboard',
             text: 'Student drawing; inspect selected objects and image.',
@@ -185,28 +192,35 @@ export default function DrawingBoard() {
       if (run !== runRef.current) return;
 
       const ink = getComputedStyle(document.documentElement).getPropertyValue('--board-tutor').trim() || '#0f9f6e';
-      let nextY = Math.max(200, ...elements.map((element) => element.y + element.height + 40));
-      const normalized = result.board_elements.map((element, index) => {
-        const text = element.type === 'text' ? element.text.replace(/[$\\]/g, '').trim() : element.text;
-        const y = index === 0 ? 50 : Math.max(200 + (index - 1) * 150, nextY);
-        nextY = y + Math.max(90, element.height) + 60;
-        return {
-          type: element.type,
-          x: index === 0 ? 100 : Math.max(100, element.x),
-          y: selection.length ? element.y : y,
-          width: element.type === 'text' ? Math.max(250, text.length * 12) : Math.max(1, Math.abs(element.width)),
-          height: element.type === 'text' ? Math.max(60, element.height || 60) : Math.max(1, Math.abs(element.height)),
-          strokeColor: ink,
-          ...(element.type === 'text'
-            ? { text, fontSize: 20, autoResize: true }
-            : element.type === 'rectangle' || element.type === 'ellipse'
-              ? { label: { text, fontSize: 20 } }
+      const currentBottom = elements.reduce((bottom, element) => Math.max(bottom, element.y + element.height), 0);
+      const firstY = elements.length === 0 ? 100 : currentBottom + 180;
+      let normalized: Record<string, unknown>[];
+      try {
+        normalized = result.board_elements.map((element, index) => {
+          const text = element.text.replace(/[$\\]/g, '').trim();
+          const lineCount = Math.max(1, text.split(/\r?\n/).length);
+          const width = Math.max(300, text.length * 12);
+          const height = Math.max(element.height, lineCount * 30 + 36);
+          return {
+            type: element.type,
+            x: Math.max(100, element.x),
+            y: firstY + index * 180,
+            width: element.type === 'text' ? width : Math.max(1, Math.abs(element.width)),
+            height: element.type === 'text' ? height : Math.max(height, Math.abs(element.height)),
+            strokeColor: ink,
+            ...(element.type === 'text'
+              ? { text, fontSize: 20, autoResize: true }
+              : element.type === 'rectangle' || element.type === 'ellipse'
+                ? { label: { text, fontSize: 20, autoResize: true } }
+                : {}),
+            ...(element.type === 'arrow' || element.type === 'line'
+              ? { points: [[0, 0], [element.width, element.height]] as [number, number][] }
               : {}),
-          ...(element.type === 'arrow' || element.type === 'line'
-            ? { points: [[0, 0], [element.width, element.height]] as [number, number][] }
-            : {}),
-        };
-      });
+          };
+        });
+      } catch (mappingError) {
+        throw new Error(mappingError instanceof Error ? 'Could not prepare the tutor diagram: ' + mappingError.message : 'Could not prepare the tutor diagram.');
+      }
       // Speak the explanation while the board is being drawn.
       let drawingFinished = false;
       let speechFinished = !(typeof window !== 'undefined' && 'speechSynthesis' in window && result.spoken_script.trim());
@@ -235,27 +249,18 @@ export default function DrawingBoard() {
       }
 
       animatingRef.current = true;
-      const added = convertToExcalidrawElements(normalized as any[]);
-      const all = [...elements];
-      for (const element of added) {
-        if (run !== runRef.current) return;
-        if (element.type === 'text' && element.text) {
-          const fullText = element.text;
-          const chars = Array.from(fullText);
-          const animated = { ...element, text: '' };
-          all.push(animated);
-          api.updateScene({ elements: [...all] });
-          for (let index = 0; index < chars.length; index++) {
-            if (run !== runRef.current) return;
-            all[all.length - 1] = { ...animated, text: chars.slice(0, index + 1).join('') };
-            api.updateScene({ elements: [...all] });
-            await wait(18, run);
-          }
-        } else {
+      let added: ReturnType<typeof convertToExcalidrawElements>;
+      try {
+        added = convertToExcalidrawElements(normalized as any[]);
+        const all = [...elements];
+        for (const element of added) {
+          if (run !== runRef.current) return;
           all.push(element);
           api.updateScene({ elements: [...all] });
-          await wait(30, run);
+          await wait(35, run);
         }
+      } catch (renderError) {
+        throw new Error(renderError instanceof Error ? 'The tutor diagram could not be drawn: ' + renderError.message : 'The tutor diagram could not be drawn.');
       }
       if (run !== runRef.current) return;
       api.scrollToContent(added, { fitToContent: true });
@@ -272,7 +277,7 @@ export default function DrawingBoard() {
       save('board-discussion', nextMessages);
       const finalElements = api.getSceneElements();
       save('whiteboard', { elements: finalElements, files: api.getFiles() });
-      persistSession(nextMessages, finalElements);
+      persistSession(nextMessages, finalElements, activeSessionRef.current, result.session_title);
       setPrompt('');
       finishIfDone();
     } catch (cause) {
@@ -293,8 +298,12 @@ export default function DrawingBoard() {
     messagesRef.current = session.messages;
     setMessages(session.messages);
     save('board-discussion', session.messages);
-    api?.updateScene({ elements: session.boardElements as any[] });
-    save('whiteboard', { elements: session.boardElements, files: api?.getFiles() || {} });
+    try {
+      api?.updateScene({ elements: session.board_elements as any[] });
+      save('whiteboard', { elements: session.board_elements, files: api?.getFiles() || {} });
+    } catch (restoreError) {
+      setError(restoreError instanceof Error ? restoreError.message : 'Could not restore this session board.');
+    }
     setPrompt('');
     setError('');
     setHistoryOpen(false);
@@ -314,8 +323,8 @@ export default function DrawingBoard() {
             anchor.href = url; anchor.download = 'StudySmart-whiteboard.png'; anchor.click();
             URL.revokeObjectURL(url);
           }}><Download /></Button>
-          <Button variant="outline" size="icon" aria-label="Clear board" onClick={() => {
-            if (window.confirm('Clear the entire board and start a new doubt session?')) {
+          <Button variant="outline" size="icon" aria-label="New session" title="New session" onClick={() => {
+            if (window.confirm('Start a new session? The current session will remain in Session History.')) {
               stopPlayback();
               api?.resetScene();
               messagesRef.current = [];
@@ -325,7 +334,7 @@ export default function DrawingBoard() {
               save('board-discussion', []);
               save('whiteboard', { elements: [], files: {} });
             }
-          }}><Trash2 /></Button>
+          }}><Plus /></Button>
         </div>
       </header>
       <div className="whiteboard-workspace">
@@ -358,7 +367,7 @@ export default function DrawingBoard() {
                   className={`board-history-item${activeSessionId === session.id ? ' active' : ''}`}
                   onClick={() => openSession(session)}>
                   <span className="board-history-title">{session.title}</span>
-                  <span className="board-history-meta">{session.messages.length} {session.messages.length === 1 ? 'doubt' : 'doubts'} · {new Date(session.updatedAt).toLocaleString()}</span>
+                  <span className="board-history-meta">{session.messages.length} {session.messages.length === 1 ? 'doubt' : 'doubts'} · {new Date(session.timestamp).toLocaleString()}</span>
                 </button>
               ))}
             </section>
@@ -367,10 +376,11 @@ export default function DrawingBoard() {
           <div className="board-discussion" aria-live="polite">
             {messages.length === 0 && <p className="board-empty"><MessageCircle size={16} /> Ask a question to start a live lesson. Your doubts and explanations will be saved in Session History.</p>}
             {messages.map((message, index) => (
-              <article key={index} className="board-message">
-                <strong>{message.question}</strong>
-                <p className="whitespace-pre-wrap">{message.answer}</p>
-                {message.citations.length > 0 && <small>{message.citations.join(' · ')}</small>}
+              <article key={index} className="board-chat-pair">
+                <div className="board-chat-bubble board-chat-user"><span className="board-chat-role">You</span><p>{message.question}</p></div>
+                <div className="board-chat-bubble board-chat-ai"><span className="board-chat-role">AI Tutor</span><p>{message.answer}</p>
+                  {message.citations.length > 0 && <small>{message.citations.join(' · ')}</small>}
+                </div>
               </article>
             ))}
             {busy && <p className="board-thinking">Preparing your explanation…</p>}
