@@ -36,7 +36,7 @@ export const editDeckSlide = createServerFn({ method: 'POST' }).middleware([requ
     return (await structuredAI(deckSlideSchema, 'Edit only the selected slide following the student request. Preserve factual accuracy, citations and detail unless explicitly changed. Use at most 4 cards/bullets and concise text that fits a presentation.', `${data.prompt}\nCurrent slide: ${data.slide}`, data.sources)).output;
   });
 export const explainBoard = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
-  .inputValidator(input.extend({ board: z.string(), messages: z.array(z.object({ question: z.string(), answer: z.string(), citations: z.array(z.string()) })).max(40) })).handler(async ({ data }) => {
+  .inputValidator(input.extend({ board: z.string(), messages: z.array(z.object({ question: z.string(), answer: z.string(), citations: z.array(z.string()) })) })).handler(async ({ data }) => {
     const { structuredAI } = await import('./learning-ai.server');
     const tutorPrompt = [
       'You are an interactive visual tutor: a warm, encouraging, patient classroom teacher and precise educational whiteboard illustrator. Make the student feel comfortable asking questions; never shame them or imply that a doubt is obvious.',
