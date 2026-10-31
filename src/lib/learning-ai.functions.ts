@@ -36,20 +36,22 @@ export const editDeckSlide = createServerFn({ method: 'POST' }).middleware([requ
     return (await structuredAI(deckSlideSchema, 'Edit only the selected slide following the student request. Preserve factual accuracy, citations and detail unless explicitly changed. Use at most 4 cards/bullets and concise text that fits a presentation.', `${data.prompt}\nCurrent slide: ${data.slide}`, data.sources)).output;
   });
 export const explainBoard = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
-  .inputValidator(input.extend({ board: z.string(), history: z.string() })).handler(async ({ data }) => {
+  .inputValidator(input.extend({ board: z.string(), messages: z.array(z.object({ question: z.string(), answer: z.string(), citations: z.array(z.string()) })).max(40) })).handler(async ({ data }) => {
     const { structuredAI } = await import('./learning-ai.server');
     const tutorPrompt = [
-      'You are a warm, encouraging, patient classroom teacher and precise educational whiteboard illustrator. Make the student feel comfortable asking questions; never shame them or imply that a doubt is obvious.',
+      'You are an interactive visual tutor: a warm, encouraging, patient classroom teacher and precise educational whiteboard illustrator. Make the student feel comfortable asking questions; never shame them or imply that a doubt is obvious.',
       'Respond naturally to interruptions and follow-up doubts. If the student asks a question during an explanation, acknowledge it briefly and positively (for example, “That is a good question. Let us look at it.”), then answer that exact doubt before continuing. Use the previous discussion as context, but prioritize the newest question.',
       'Teach the reasoning, not just the result or a narration of what is written on the board. Explain why each step, relationship, diagram, or arrow is used; connect the visual representation to the underlying concept and use a short example when it improves understanding. spoken_script must sound like a real teacher speaking directly to one student, with natural transitions and complete grammatical sentences. chat_response must be a concise, direct, encouraging reply written as complete sentences. Never output fragments, gibberish, placeholders, or unfinished sentences.',
-      'board_elements must form one coherent, structured teaching layout with a clear visual hierarchy. Start the main title at x: 100, y: 50. Place subsequent boxes vertically in the received order, using y positions around 200, 350, 500, and so on (150px spacing). Keep x positions aligned around 100. Do not scatter elements randomly, overlap elements, or add decorative lines without a teaching purpose.',
-      'Use readable plain text and meaningful labels. Use a 1000 by 1000 coordinate space. Use rectangles to group related information and arrows only to show meaningful relationships or sequence. Keep each element purposeful and ensure all text fits inside its box. Return at most 12 elements.',
+      'Maintain context from the full messages array supplied with this request. Treat each question and tutor response as the conversation history, not just the latest turn.',
+      'Instead of only drawing text boxes, create actual visual diagrams: flowcharts, comparisons, sequences, cause-and-effect layouts, and arrows connecting related concepts. Use rectangles and ellipses as labelled nodes, and arrows to show meaningful relationships or direction. A diagram must communicate the concept visually, not merely decorate the board.',
+      'CRITICAL LAYOUT RULE: Space out elements vertically. Start at y: 100. For every subsequent box or arrow, increase the y-coordinate by exactly 180. Do not overlap elements. Keep the x-coordinate aligned around 100 unless a comparison layout needs side-by-side columns; preserve the exact 180px vertical progression for each successive row.',
+      'Generate session_title as a concise topic-based title of 2–4 words. Use readable plain text and meaningful labels. Use a 1600 by 1800 coordinate space. Use rectangles to group related information and arrows to connect concepts. Keep each element purposeful and ensure all text fits inside its box. Return at most 12 elements.',
       'Never use LaTeX, markdown, dollar signs, backslashes, subscripts, or math delimiters. Write chemical formulas as CO2, H2O, and C6H12O6. Reference student elements by position when annotating. Do not overwrite student work.',
     ].join(' ');
     return (await structuredAI(
       boardSchema,
       tutorPrompt,
-      `${data.prompt}\nSelected/current board: ${data.board}\nPrevious discussion: ${data.history}`,
+      `${data.prompt}\nSelected/current board: ${data.board}\nFull messages array (oldest to newest): ${JSON.stringify(data.messages)}`,
       data.sources,
     )).output;
   });
