@@ -147,7 +147,6 @@ export default function InteractiveLoader() {
                   {atom.symbol}
                 </button>
               ))}
-              ))}
             </div>
             <p className="interactive-loader-subtle">Pop as many floating atoms as you can. Your score resets when this wait ends.</p>
           </>
