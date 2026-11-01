@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { Brain, Sparkles, Atom } from 'lucide-react';
 
 type LoaderMode = 'standard' | 'game';
@@ -84,6 +85,7 @@ export default function InteractiveLoader() {
           <>
             <div className="interactive-loader-icon">
               <Brain size={34} strokeWidth={1.7} />
+              <Sparkles size={15} className="absolute -right-1 -top-1" />
               <span className="interactive-loader-orbit" />
             </div>
             <div className="interactive-loader-message">{typedMessage}<span className="interactive-loader-cursor" /></div>
@@ -116,7 +118,7 @@ export default function InteractiveLoader() {
                     animationDuration: `${5.5 + (index % 4) * 0.8}s`,
                     ['--rise-duration' as string]: `${5.5 + (index % 4) * 0.8}s`,
                     ['--rise-delay' as string]: `${(index % 6) * -0.65}s`,
-                  } as React.CSSProperties}
+                  } as CSSProperties}
                 >
                   {symbol}
                 </button>
