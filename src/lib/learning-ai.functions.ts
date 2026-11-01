@@ -81,7 +81,7 @@ export const analyzeExamMistakes = createServerFn({ method: 'POST' }).middleware
   .handler(async ({ data }) => {
     const missed = data.attempt.exam.questions.flatMap((q, index) => {
       const answer = data.attempt.answers[String(index)];
-      if (!q.verified || q.correct === null || answer === q.correct) return [];
+      if (!q.verified || q.correct === null || answer === undefined || answer === q.correct) return [];
       return [{
         question: q.question,
         options: q.options,
