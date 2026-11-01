@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { motion } from 'framer-motion';
 import { useApp } from '@/store';
 import { ViewKey } from '@/types';
 import { Calendar, Bot, FileText, Mic, BookOpen, Clock, TrendingUp, AlertCircle, Plus } from 'lucide-react';
@@ -38,17 +39,29 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       {/* Hero */}
       <div className="relative overflow-hidden rounded-2xl glass surface-elevated p-5 lg:p-6 motion-card">
         <div className="absolute top-0 right-0 w-64 h-64 bg-accent-500/10 rounded-full blur-3xl -mr-20 -mt-20" />
-        <div className="relative max-w-3xl">
-          <h2 className="dashboard-hero-title text-3xl lg:text-4xl font-extrabold leading-tight">
-            {new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening'}
-            {settings.userName ? `, ${settings.userName}` : ''}
-          </h2>
-          <p className="text-text-muted mt-1 text-sm lg:text-base">
-            {todayEvents.length > 0
-              ? `You have ${todayEvents.length} ${todayEvents.length === 1 ? 'event' : 'events'} today. Stay focused!`
-              : 'No events scheduled today. A great time to catch up or plan ahead.'}
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3"><button onClick={() => onNavigate("planner")} className="rounded-full bg-emerald-400 px-5 py-2.5 text-sm font-bold text-zinc-950 hover:shadow-[0_0_20px_rgba(16,185,129,.4)]">Build my study plan</button><button onClick={() => onNavigate("exams")} className="rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-text hover:bg-white/10">Practice an exam</button></div>
+        <div className="relative flex items-center justify-between gap-4 md:gap-8">
+          <div className="min-w-0 flex-1">
+            <h2 className="dashboard-hero-title text-3xl lg:text-4xl font-extrabold leading-tight">
+              {new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening'}
+              {settings.userName ? `, ${settings.userName}` : ''}
+            </h2>
+            <p className="text-text-muted mt-1 text-sm lg:text-base">
+              {todayEvents.length > 0
+                ? `You have ${todayEvents.length} ${todayEvents.length === 1 ? 'event' : 'events'} today. Stay focused!`
+                : 'No events scheduled today. A great time to catch up or plan ahead.'}
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button onClick={() => onNavigate("planner")} className="rounded-full bg-emerald-400 px-5 py-2.5 text-sm font-bold text-zinc-950 hover:shadow-[0_0_20px_rgba(16,185,129,.4)]">Build my study plan</button>
+              <button onClick={() => onNavigate("exams")} className="rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-text hover:bg-white/10">Practice an exam</button>
+            </div>
+          </div>
+          <motion.img
+            src="/logo.jpg"
+            alt="StudySmartly"
+            className="mix-blend-screen w-32 md:w-48 h-auto object-contain shrink-0"
+            animate={{ y: [0, -5, 0] }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          />
         </div>
       </div>
 
