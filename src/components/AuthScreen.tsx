@@ -89,7 +89,7 @@ export function AuthScreen() {
   async function verifyCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalizedToken = token.trim();
-    if (!/^\\d{6}$/.test(normalizedToken)) {
+    if (!/^\d{6}$/.test(normalizedToken)) {
       setError("Enter the 6-digit code from your email.");
       return;
     }
@@ -208,7 +208,7 @@ export function AuthScreen() {
                 required
                 placeholder="123456"
                 value={token}
-                onChange={(event) => setToken(event.target.value.replace(/\\D/g, "").slice(0, 6))}
+                onChange={(event) => setToken(event.target.value.replace(/\D/g, "").slice(0, 6))}
                 disabled={busy}
                 className="learning-input w-full text-center tracking-[0.4em]"
               />
