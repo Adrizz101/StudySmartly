@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ExamsRouteImport } from './routes/exams'
+import { Route as FlashcardsRouteImport } from './routes/flashcards'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ScheduleRouteImport } from './routes/schedule'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -23,6 +24,11 @@ import { Route as ApiGenerateImageRouteImport } from './routes/api/generate-imag
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FlashcardsRoute = FlashcardsRouteImport.update({
+  id: '/flashcards',
+  path: '/flashcards',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExamsRoute = ExamsRouteImport.update({
@@ -74,6 +80,7 @@ const ApiGenerateImageRoute = ApiGenerateImageRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/exams': typeof ExamsRoute
+  '/flashcards': typeof FlashcardsRoute
   '/privacy': typeof PrivacyRoute
   '/schedule': typeof ScheduleRoute
   '/settings': typeof SettingsRoute
@@ -113,6 +120,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/exams'
+    | '/flashcards'
     | '/privacy'
     | '/schedule'
     | '/settings'
@@ -150,6 +158,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ExamsRoute: typeof ExamsRoute
+  FlashcardsRoute: typeof FlashcardsRoute
   PrivacyRoute: typeof PrivacyRoute
   ScheduleRoute: typeof ScheduleRoute
   SettingsRoute: typeof SettingsRoute
@@ -167,6 +176,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/flashcards': {
+      id: '/flashcards'
+      path: '/flashcards'
+      fullPath: '/flashcards'
+      preLoaderRoute: typeof FlashcardsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/exams': {
@@ -238,6 +254,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ExamsRoute: ExamsRoute,
+  FlashcardsRoute: FlashcardsRoute,
   PrivacyRoute: PrivacyRoute,
   ScheduleRoute: ScheduleRoute,
   SettingsRoute: SettingsRoute,
