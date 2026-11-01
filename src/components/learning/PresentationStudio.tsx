@@ -13,19 +13,20 @@ import { streamImage } from '@/lib/stream-image';
 import { DeckCanvas } from './DeckCanvas';
 import { AIConsent, requireAISession } from './AIConsent';
 import { SourcePicker } from './SourcePicker';
+import InteractiveLoader from '@/components/ui/InteractiveLoader';
 
 export default function PresentationStudio() {
   const { documents, setDocuments, settings } = useApp();
   const [id,setId] = useState<string|null>(null), [index,setIndex] = useState(0), [creating,setCreating] = useState(false);
   const [prompt,setPrompt] = useState(''), [count,setCount] = useState(10), [student,setStudent] = useState(settings.userName), [outline,setOutline] = useState('');
-  const [sources,setSources] = useState<SourceInput[]>([]), [consent,setConsent] = useState(false), [busy,setBusy] = useState(''), [error,setError] = useState('');
+  const [sources,setSources] = useState<SourceInput[]>([]), [consent,setConsent] = useState(false), [busy,setBusy] = useState(''), [aiBusy,setAiBusy] = useState(false), [error,setError] = useState('');
   const [edit,setEdit] = useState(''), [present,setPresent] = useState(false), [imagePrompt,setImagePrompt] = useState(''), [partial,setPartial] = useState(false);
   const generate = useServerFn(generateDeck), plan = useServerFn(outlineDeck), revise = useServerFn(editDeckSlide);
   const doc = documents.find(d => d.id === id), slide = doc?.slides[index];
   const refs = useRef<(HTMLDivElement|null)[]>([]);
   function update(patch: Partial<SlideDocument>) { if (doc) setDocuments(prev => prev.map(d => d.id === doc.id ? {...d,...patch,updatedAt:Date.now()} : d)); }
   function updateSlide(patch: Partial<Slide>) { if (doc && slide) update({ slides: doc.slides.map((s,i) => i===index ? {...s,...patch} : s) }); }
-  async function action(label: string, fn: () => Promise<void>, ai = true) { setError(''); setBusy(label); try { if(ai) { if(!consent) throw new Error('Agree to AI processing before continuing.'); await requireAISession(); } await fn(); } catch(e) { setError(e instanceof Error ? e.message : 'Could not complete this action.'); } finally {setBusy('');} }
+  async function action(label: string, fn: () => Promise<void>, ai = true) { setError(''); setBusy(label); setAiBusy(ai); try { if(ai) { if(!consent) throw new Error('Agree to AI processing before continuing.'); await requireAISession(); } await fn(); } catch(e) { setError(e instanceof Error ? e.message : 'Could not complete this action.'); } finally {setBusy(''); setAiBusy(false);} }
   const createForm = <div className="studio-create space-y-4">
     <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">New presentation</h2>{creating && <Button variant="ghost" size="icon" aria-label="Close creation" onClick={() => setCreating(false)}><X /></Button>}</div>
     <textarea className="learning-input min-h-28" aria-label="Presentation topic" placeholder="What is your presentation about? Include your audience, detail and visual direction…" value={prompt} onChange={e=>setPrompt(e.target.value)} />
@@ -41,7 +42,7 @@ export default function PresentationStudio() {
   </div>;
   return <div className="learning-workspace">
     <header className="learning-heading"><div><span className="workspace-eyebrow">CREATE / STUDIO</span><h1>Presentation Studio</h1></div><Button onClick={()=>setCreating(true)}><Plus />New presentation</Button></header>
-    {error && <div role="alert" className="learning-error">{error}</div>}{busy && <div role="status" className="learning-status"><Sparkles className="animate-pulse" />{busy}…</div>}
+    {error && <div role="alert" className="learning-error">{error}</div>}{aiBusy && <InteractiveLoader />}{busy && !aiBusy && <div role="status" className="learning-status">{busy}…</div>}
     {(!doc || creating) ? <div className="studio-start"><div>{createForm}</div><div className="studio-library"><h2 className="text-sm font-semibold mb-4">Your presentations <span className="text-text-muted">/ {documents.length}</span></h2>{documents.map(d=><div key={d.id} className="library-row"><Button variant="ghost" className="h-auto flex-1 justify-start py-4 text-left" onClick={()=>{setId(d.id);setIndex(0);setSources(d.sources ?? []);setCreating(false);}}><div><strong>{d.title}</strong><p className="text-xs text-text-muted mt-1">{d.slides.length} slides · {d.subject}</p></div></Button><Button variant="ghost" size="icon" aria-label={`Delete ${d.title}`} onClick={()=>setDocuments(p=>p.filter(x=>x.id!==d.id))}><Trash2 /></Button></div>)}</div></div> : <>
       <div className="studio-toolbar"><input className="studio-title" aria-label="Presentation title" value={doc.title} onChange={e=>update({title:e.target.value})} /><select className="learning-select" aria-label="Presentation theme" value={doc.theme??'editorial'} onChange={e=>update({theme:e.target.value as SlideDocument['theme']})}><option value="editorial">Editorial / paper</option><option value="noir">Noir / coral</option><option value="botanical">Botanical / emerald</option></select><Button variant="outline" onClick={()=>setPresent(true)}><Play />Present</Button><Button variant="outline" disabled={Boolean(busy)} onClick={()=>action('Exporting PDF',()=>exportSlidesToPDF(refs.current.filter((el):el is HTMLDivElement=>Boolean(el)),`${doc.title}.pdf`),false)}><Download />PDF</Button></div>
       <div className="studio-editor"><aside className="slide-rail">{doc.slides.map((s,i)=><Button key={s.id} variant="source" className={`slide-thumb ${i===index?'active':''}`} onClick={()=>setIndex(i)}><span>{String(i+1).padStart(2,'0')}</span><strong>{s.heading}</strong></Button>)}<Button variant="outline" onClick={()=>{update({slides:[...doc.slides,{id:crypto.randomUUID(),heading:'Untitled slide',body:'',bullets:[],layout:'bento'}]});setIndex(doc.slides.length);}}><Plus />Add slide</Button></aside>
