@@ -4,6 +4,7 @@ export type Mode = 'dark' | 'light';
 export type ViewKey =
   | 'dashboard'
   | 'schedule'
+  | 'planner'
   | 'tutor'
   | 'studio'
   | 'exams'
