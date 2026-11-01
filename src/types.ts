@@ -5,6 +5,7 @@ export type ViewKey =
   | 'dashboard'
   | 'schedule'
   | 'planner'
+  | 'flashcards'
   | 'tutor'
   | 'studio'
   | 'exams'
