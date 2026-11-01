@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { ViewKey } from '@/types';
-import { LayoutDashboard, Calendar, Bot, FileText, Mic, Settings, BookOpen, Menu, X, PenTool, ClipboardCheck, LogOut, BrainCircuit } from 'lucide-react';
+import { LayoutDashboard, Calendar, Bot, FileText, Mic, Settings, Menu, X, PenTool, ClipboardCheck, LogOut, BrainCircuit } from 'lucide-react';
 import { useApp } from '@/store';
 import { supabase } from '@/integrations/supabase/client';
 import { PomodoroTimer } from '@/components/PomodoroTimer';
@@ -32,14 +32,9 @@ export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile, collap
 
   const content = (
     <div className="flex flex-col h-full">
-      <div className={`flex items-center py-5 border-b border-border ${compact ? 'justify-center px-2' : 'justify-center px-4'}`}>
-        {compact ? (
-          <div className="w-10 h-10 rounded-xl bg-accent-600 flex items-center justify-center shadow-lg">
-            <BookOpen className="text-study-white" size={22} />
-          </div>
-        ) : (
-          <img src="/logo.jpg" alt="StudySmartly" className="w-48 h-auto" />
-        )}
+      <div className={`flex items-center gap-3 py-5 border-b border-border ${compact ? 'justify-center px-2' : 'px-4'}`}>
+        <img src="/favicon.jpg" alt="" aria-hidden="true" className="w-10 h-10 rounded-xl object-cover shrink-0" />
+        {!compact && <span className="font-bold text-lg text-text whitespace-nowrap">StudySmartly</span>}
       </div>
 
       <nav className={`flex-1 py-4 space-y-1 overflow-y-auto ${compact ? 'px-2' : 'px-3'}`}>
