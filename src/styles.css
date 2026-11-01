@@ -596,3 +596,56 @@ button, input, textarea, select { max-width: 100%; }
   .board-copilot { max-height: 420px; }
   .slide-rail { max-height: calc(100dvh - 150px); }
 }
+
+
+/* Responsive guardrails: prevent viewport-ratio changes from pushing study
+   workspaces wider than the available device width. */
+html, body, #root {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  overflow-x: clip;
+}
+*, *::before, *::after { box-sizing: border-box; }
+.study-content, .study-content > *, .learning-workspace,
+.learning-workspace > *, .learning-workspace section,
+.learning-workspace aside, .learning-workspace article {
+  min-width: 0;
+  max-width: 100%;
+}
+.study-content { overflow-x: clip; }
+img, canvas, video, iframe { max-width: 100%; }
+input, textarea, select, button { max-width: 100%; }
+button, a { overflow-wrap: anywhere; }
+.sidebar-shell { min-width: 0; }
+.dashboard-hero-title { overflow-wrap: anywhere; }
+
+@media (max-width: 639px) {
+  .study-content { padding: .875rem; }
+  .learning-heading { align-items: flex-start; flex-direction: column; }
+  .learning-heading > * { width: 100%; }
+  .learning-heading h1 { font-size: clamp(1.55rem, 7vw, 2rem); }
+  .exam-setup, .exam-body, .studio-start, .studio-editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .exam-bar { align-items: flex-start; flex-wrap: wrap; }
+  .question-palette { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .whiteboard-workspace { grid-template-columns: minmax(0, 1fr); height: auto; min-height: 0; }
+  .drawing-surface { width: 100%; height: min(62svh, 520px); min-height: 300px; }
+  .board-copilot { width: 100%; height: auto; max-height: 60svh; }
+  .studio-toolbar { align-items: stretch; }
+  .studio-toolbar > * { min-width: 0; }
+  .studio-title { width: 100%; min-width: 0; font-size: 1.2rem; }
+  .slide-rail { max-width: 100%; }
+  .dashboard-hero-title { font-size: clamp(1.65rem, 8vw, 2.25rem); }
+  .dashboard-hero-logo { width: min(11rem, 55vw); }
+}
+@media (max-width: 380px) {
+  .study-content { padding: .65rem; }
+  .flashcard-review-actions { grid-template-columns: 1fr; }
+  .question-palette { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@media (max-height: 620px) and (min-width: 640px) {
+  .whiteboard-workspace { height: auto; min-height: 0; }
+  .drawing-surface { min-height: 360px; }
+}
