@@ -3,6 +3,7 @@ import { useApp } from '@/store';
 import { ViewKey } from '@/types';
 import { Calendar, Bot, FileText, Mic, BookOpen, Clock, TrendingUp, AlertCircle, Plus } from 'lucide-react';
 import { formatDateLabel, formatTimeLabel } from '@/lib/syllabus';
+import { SplineHero } from '@/components/study/SplineHero';
 
 interface DashboardProps {
   onNavigate: (v: ViewKey) => void;
@@ -36,10 +37,10 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   return (
     <div className="space-y-6">
       {/* Hero */}
-      <div className="relative overflow-hidden rounded-2xl glass surface-elevated p-6 lg:p-8">
+      <div className="relative overflow-hidden rounded-2xl glass surface-elevated p-6 lg:p-8 grid lg:grid-cols-[1.15fr_.85fr] gap-5 items-center motion-card">
         <div className="absolute top-0 right-0 w-64 h-64 bg-accent-500/10 rounded-full blur-3xl -mr-20 -mt-20" />
         <div className="relative">
-          <h2 className="text-2xl lg:text-3xl font-bold text-text">
+          <h2 className="dashboard-hero-title text-3xl lg:text-5xl font-extrabold leading-tight">
             {new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening'}
             {settings.userName ? `, ${settings.userName}` : ''}
           </h2>
@@ -48,7 +49,9 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
               ? `You have ${todayEvents.length} ${todayEvents.length === 1 ? 'event' : 'events'} today. Stay focused!`
               : 'No events scheduled today. A great time to catch up or plan ahead.'}
           </p>
+          <div className="mt-6 flex flex-wrap gap-3"><button onClick={() => onNavigate("planner")} className="rounded-full bg-emerald-400 px-5 py-2.5 text-sm font-bold text-zinc-950 hover:shadow-[0_0_20px_rgba(16,185,129,.4)]">Build my study plan</button><button onClick={() => onNavigate("exams")} className="rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-text hover:bg-white/10">Practice an exam</button></div>
         </div>
+        <SplineHero />
       </div>
 
       {/* Stats grid */}
@@ -56,7 +59,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <div key={stat.label} className="glass rounded-xl p-4 lg:p-5 surface-elevated">
+            <div key={stat.label} className="glass rounded-xl p-4 lg:p-5 surface-elevated motion-card">
               <div className="flex items-center justify-between mb-2">
                 <Icon size={20} className={stat.accent} />
               </div>
@@ -77,7 +80,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
               <Button variant="source"
                 key={action.label}
                 onClick={() => onNavigate(action.view)}
-                className="group glass rounded-xl p-5 text-left hover:surface-elevated transition-all hover:scale-[1.02] border border-border hover:border-border-light"
+                className="group glass motion-card rounded-xl p-5 text-left hover:surface-elevated border border-border hover:border-border-light"
               >
                 <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${action.color} flex items-center justify-center mb-3 shadow-md group-hover:scale-110 transition-transform`}>
                   <Icon className="text-study-white" size={22} />
@@ -93,7 +96,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       {/* Active courses + today's schedule */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Active courses */}
-        <div className="glass rounded-xl p-5 surface-elevated">
+        <div className="glass rounded-xl p-5 surface-elevated motion-card">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-text">Active Courses</h3>
             <Button variant="source"
