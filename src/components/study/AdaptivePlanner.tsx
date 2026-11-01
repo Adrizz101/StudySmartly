@@ -96,7 +96,7 @@ export default function AdaptivePlanner() {
       if (importMode === 'file' && syllabusFile) source = await readSource(syllabusFile);
       const text = importMode === 'paste' ? syllabusText.trim() : source?.text ?? '';
       const result = await extractSyllabusTopics({
-        data: { text, sources: source ? [source] : [] },
+        data: { text, images: source?.images ?? [] },
       });
       if (!result.topics.length) throw new Error('No syllabus topics could be identified. Try a clearer or more complete source.');
       const rows = result.topics.slice(0, 300).map(topic => ({
