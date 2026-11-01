@@ -27,6 +27,29 @@ export const questionSchema = z.object({
   evidence: z.string(), verified: z.boolean(),
 });
 export const examSchema = z.object({ title: z.string(), questions: z.array(questionSchema) });
+
+export const mistakeAnalysisSchema = z.object({
+  summary: z.string().min(1),
+  strengths: z.array(z.string()).max(4),
+  findings: z.array(z.object({
+    subject: z.string(),
+    chapter: z.string(),
+    concept: z.string(),
+    pattern: z.enum(['concept_gap', 'misreading', 'calculation', 'recall', 'application', 'careless_or_unclear']),
+    evidence: z.string(),
+    explanation: z.string(),
+    next_steps: z.array(z.string()).min(1).max(4),
+  })).max(8),
+  practice: z.array(z.object({
+    question: z.string(),
+    options: z.array(z.string()).length(4),
+    correct: z.number().int().min(0).max(3),
+    explanation: z.string(),
+    concept: z.string(),
+  })).max(5),
+});
+export type MistakeAnalysis = z.infer<typeof mistakeAnalysisSchema>;
+
 export type ExamQuestion = z.infer<typeof questionSchema>;
 export type Exam = z.infer<typeof examSchema>;
 export type BoardAnswer = z.infer<typeof boardSchema>;
