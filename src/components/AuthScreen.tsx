@@ -3,11 +3,15 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 
 type AuthStep = "email" | "otp";
+type OtpMode = "code" | "password";
+
+const OWNER_EMAIL = "owner@studysmartly.app";
 
 export function AuthScreen() {
   const [step, setStep] = useState<AuthStep>("email");
   const [email, setEmail] = useState("");
   const [token, setToken] = useState("");
+  const [otpMode, setOtpMode] = useState<OtpMode>("code");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -50,6 +54,7 @@ export function AuthScreen() {
     if (sent) {
       setEmail(normalizedEmail);
       setToken("");
+      setOtpMode("code");
       setStep("otp");
       setNotice("Check your email for the 6-digit sign-in code.");
     }
@@ -72,13 +77,18 @@ export function AuthScreen() {
     setNotice("");
 
     try {
-      const { error: authError } = await supabase.auth.verifyOtp({
-        email,
-        token: normalizedToken,
-        type: "email",
-      });
+      const { error: authError } = otpMode === "password"
+        ? await supabase.auth.signInWithPassword({
+            email: email.trim().toLowerCase() === OWNER_EMAIL ? OWNER_EMAIL : email.trim().toLowerCase(),
+            password: normalizedToken,
+          })
+        : await supabase.auth.verifyOtp({
+            email,
+            token: normalizedToken,
+            type: "email",
+          });
 
-      if (authError) setError(authError.message);
+      if (authError) setError(otpMode === "password" ? "Unable to sign in with that email and password." : authError.message);
       // On success, AuthGate observes the new Supabase session and opens the app.
     } catch (verificationError) {
       setError(verificationError instanceof Error ? verificationError.message : "Could not verify the code. Please try again.");
@@ -89,6 +99,14 @@ export function AuthScreen() {
 
   function goBack() {
     setStep("email");
+    setToken("");
+    setOtpMode("code");
+    setError("");
+    setNotice("");
+  }
+
+  function toggleOtpMode() {
+    setOtpMode((current) => current === "code" ? "password" : "code");
     setToken("");
     setError("");
     setNotice("");
@@ -126,7 +144,7 @@ export function AuthScreen() {
         ) : (
           <>
             <p className="mt-2 text-sm text-text-muted">
-              Enter the 6-digit code sent to <strong>{email}</strong>.
+              {otpMode === "code" ? <>Enter the 6-digit code sent to <strong>{email}</strong>.</> : <>Enter the password for <strong>{email}</strong>.</>}
             </p>
             <form onSubmit={verifyCode} className="mt-6 space-y-4">
               <label htmlFor="auth-otp" className="sr-only">
@@ -157,7 +175,7 @@ export function AuthScreen() {
                 disabled={busy}
               >
                 Resend code
-              </Button>
+              </Button>}
               <Button
                 type="button"
                 variant="ghost"
@@ -167,6 +185,14 @@ export function AuthScreen() {
               >
                 Change email
               </Button>
+              <button
+                type="button"
+                onClick={toggleOtpMode}
+                disabled={busy}
+                className="w-full text-center text-xs text-text-muted underline-offset-4 hover:text-text hover:underline disabled:opacity-50"
+              >
+                {otpMode === "code" ? "Trouble getting a code? Sign in with a password." : "Use an email code instead."}
+              </button>
             </form>
           </>
         )}
