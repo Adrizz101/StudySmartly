@@ -11,6 +11,7 @@ import { dataURL } from '@/lib/source-files';
 import type { SourceInput } from '@/lib/learning-models';
 import { AIConsent, requireAISession } from './AIConsent';
 import { SourcePicker } from './SourcePicker';
+import InteractiveLoader from '@/components/ui/InteractiveLoader';
 
 type BoardMessage = { question: string; answer: string; citations: string[] };
 type BoardSession = {
@@ -613,7 +614,7 @@ export default function DrawingBoard() {
                 </div>
               </article>
             ))}
-            {busy && <p className="board-thinking">Preparing your explanation…</p>}
+            {busy && <InteractiveLoader />}
           </div>
           <div className="board-composer">
             <textarea className="learning-input board-chat-input" rows={2} aria-label="Whiteboard question"
