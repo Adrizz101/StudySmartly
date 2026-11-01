@@ -554,3 +554,45 @@ button:active:not(:disabled) { transform: scale(.985); }
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   .motion-card:hover { transform:none; }
 }
+
+
+/* Responsive hardening: protect layouts from narrow, short and zoomed viewports. */
+html, body, #root { width: 100%; min-width: 0; min-height: 100%; }
+body { overflow-x: hidden; }
+button, input, textarea, select { max-width: 100%; }
+.study-content, .study-content > *, .learning-workspace, .motion-stagger { min-width: 0; max-width: 100%; }
+.study-content img, .study-content canvas, .study-content svg { max-width: 100%; }
+.learning-heading h1 { min-width: 0; overflow-wrap: anywhere; }
+.whiteboard-workspace { height: min(760px, calc(100dvh - 190px)); min-height: 420px; grid-template-columns: minmax(0,1fr) minmax(260px,340px); }
+.drawing-surface, .board-copilot { min-width: 0; min-height: 0; }
+.exam-setup, .exam-body, .studio-start, .studio-editor { min-width: 0; }
+.exam-body > *, .studio-editor > *, .studio-start > * { min-width: 0; }
+.studio-title { width: 100%; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.deck-canvas { max-width: 100%; }
+@media (max-width: 1024px) {
+  .whiteboard-workspace { height: auto; min-height: 0; grid-template-columns: minmax(0,1fr); }
+  .drawing-surface { height: clamp(320px, 58dvh, 620px); min-height: 320px; }
+  .board-copilot { height: auto; max-height: min(58dvh, 520px); min-height: 240px; }
+}
+@media (max-width: 640px) {
+  .study-content { padding: .75rem; }
+  .learning-heading { align-items: flex-start; }
+  .learning-heading h1 { font-size: clamp(1.45rem, 7vw, 2rem); line-height: 1.15; }
+  .exam-setup > div, .question-sheet, .exam-results, .subject-diagnostics,
+  .studio-create, .studio-library { padding: 1rem; }
+  .exam-bar { flex-wrap: wrap; align-items: flex-start; padding: .8rem; }
+  .exam-bar h2 { min-width: 0; overflow-wrap: anywhere; }
+  .question-palette { grid-template-columns: repeat(auto-fit, minmax(2.25rem, 1fr)); }
+  .studio-toolbar { align-items: stretch; }
+  .studio-toolbar > * { min-width: 0; }
+  .studio-title { font-size: 1.2rem; }
+  .deck-canvas { border-radius: 8px; }
+  .presentation-overlay { padding: 3vw; overflow: auto; }
+  .presentation-overlay .deck-canvas { width: min(96vw, calc(90dvh * 16 / 9)); }
+}
+@media (max-height: 600px) and (min-width: 641px) {
+  .whiteboard-workspace { height: auto; min-height: 0; }
+  .drawing-surface { min-height: 320px; }
+  .board-copilot { max-height: 420px; }
+  .slide-rail { max-height: calc(100dvh - 150px); }
+}
