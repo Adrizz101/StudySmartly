@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowLeft, ArrowRight, Calendar, Check, ClipboardCheck, FileText,
@@ -26,11 +26,11 @@ export default function StudyAcademy({ onClose }: StudyAcademyProps) {
   const activeStep = steps[step];
   const Icon = activeStep.icon;
 
-  const finish = () => {
+  const finish = useCallback(() => {
     try { window.localStorage.setItem('studysmartly_academy_seen', 'true'); }
     catch (error) { console.warn('[StudySmartly Academy] Could not save tutorial preference:', error); }
     onClose();
-  };
+  }, [onClose]);
 
   const move = (next: number) => {
     setDirection(next > step ? 1 : -1);
