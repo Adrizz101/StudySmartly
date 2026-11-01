@@ -93,6 +93,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/exams': typeof ExamsRoute
+  '/flashcards': typeof FlashcardsRoute
   '/privacy': typeof PrivacyRoute
   '/schedule': typeof ScheduleRoute
   '/settings': typeof SettingsRoute
@@ -106,6 +107,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/exams': typeof ExamsRoute
+  '/flashcards': typeof FlashcardsRoute
   '/privacy': typeof PrivacyRoute
   '/schedule': typeof ScheduleRoute
   '/settings': typeof SettingsRoute
@@ -133,6 +135,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/exams'
+    | '/flashcards'
     | '/privacy'
     | '/schedule'
     | '/settings'
@@ -145,6 +148,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/exams'
+    | '/flashcards'
     | '/privacy'
     | '/schedule'
     | '/settings'
@@ -158,6 +162,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ExamsRoute: typeof ExamsRoute
+  FlashcardsRoute: typeof FlashcardsRoute
   FlashcardsRoute: typeof FlashcardsRoute
   PrivacyRoute: typeof PrivacyRoute
   ScheduleRoute: typeof ScheduleRoute
@@ -254,6 +259,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ExamsRoute: ExamsRoute,
+  FlashcardsRoute: FlashcardsRoute,
   FlashcardsRoute: FlashcardsRoute,
   PrivacyRoute: PrivacyRoute,
   ScheduleRoute: ScheduleRoute,
