@@ -97,15 +97,3 @@ export function diagnose(attempts: Attempt[]) {
   });
   return [...rows.values()].sort((a,b) => a.correct/a.total - b.correct/b.total);
 }
-
-
-export const syllabusExtractionSchema = z.object({
-  topics: z.array(z.object({
-    subject: z.string(),
-    chapter: z.string(),
-    concept: z.string(),
-    priority: z.enum(['High', 'Normal', 'Low']),
-    mastery: z.number(),
-  })),
-});
-export type SyllabusExtraction = z.infer<typeof syllabusExtractionSchema>;
