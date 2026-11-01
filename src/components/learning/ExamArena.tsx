@@ -8,6 +8,7 @@ import { type Exam, type Attempt, type SourceInput, type MistakeAnalysis, canGra
 import { load, save } from '@/lib/storage';
 import { AIConsent, requireAISession } from './AIConsent';
 import { SourcePicker } from './SourcePicker';
+import InteractiveLoader from '@/components/ui/InteractiveLoader';
 
 const letters=['A','B','C','D'];
 export default function ExamArena(){
@@ -20,18 +21,6 @@ export default function ExamArena(){
   useEffect(()=>{if(!deadline)return;const tick=()=>{const left=Math.max(0,Math.ceil((deadline-Date.now())/1000));setSeconds(left);if(!left)submit();};tick();const t=setInterval(tick,1000);return()=>clearInterval(t);},[deadline,answers,exam,result]);
   async function create(){setError('');setBusy(true);try{if(!consent)throw new Error('Consent to AI processing before continuing.');await requireAISession();const r=await prepare({data:{prompt:prompt||'Extract the MCQ past-paper questions from my uploaded sources.',sources,key,consent:true}});if(!r.questions.some(canGrade))throw new Error('No questions passed verification. Add a clearer paper or an answer key.');setExam(r);setAnswers({});setIndex(0);setReview([]);setResult(null);setDeadline(null);}catch(e){setError(e instanceof Error?e.message:'Could not prepare this test.');}finally{setBusy(false);}}
 
-  async function runMistakeAnalysis(){
-    if(!result)return;
-    setAnalysisError('');setAnalysisBusy(true);
-    try{
-      if(!consent)throw new Error('Parent/guardian consent is required before sending study content to AI.');
-      await requireAISession();
-      const answers=Object.fromEntries(Object.entries(result.answers).map(([k,v])=>[String(k),v]));
-      const report=await analyze({data:{prompt:'Analyse my exam mistakes',sources:[],consent:true,attempt:{exam:result.exam,answers}}});
-      setAnalysis(report);
-    }catch(e){setAnalysisError(e instanceof Error?e.message:'Could not analyse this attempt.');}
-    finally{setAnalysisBusy(false);}
-  }
 
   async function runMistakeAnalysis(){
     if(!result)return;
@@ -48,6 +37,7 @@ export default function ExamArena(){
   const score=result?scoreExam(result.exam,result.answers):null,q=exam?.questions[index], weaknesses=diagnose(attempts);
   return <div className="learning-workspace"><header className="learning-heading"><div><span className="workspace-eyebrow">PRACTISE / EXAM ARENA</span><h1>PYQ Exam Arena</h1></div>{exam&&<Button variant="outline" onClick={()=>{if(!deadline||window.confirm('Leave this test?')){setExam(null);setResult(null);setDeadline(null);}}}>New test</Button>}</header>
     {error&&<div role="alert" className="learning-error">{error}</div>}
+    {(busy||analysisBusy)&&<InteractiveLoader />}
     {!exam?<div className="exam-setup"><div className="space-y-4"><h2 className="text-lg font-semibold">Create a past-paper test</h2><SourcePicker sources={sources} onChange={setSources}/><textarea className="learning-input min-h-28" aria-label="Past paper questions" placeholder="Paste MCQs, or add a past-paper PDF above…" value={prompt} onChange={e=>setPrompt(e.target.value)}/><textarea className="learning-input" aria-label="Official answer key" placeholder="Answer key (optional): 1-B, 2-D… Include the paper/year." value={key} onChange={e=>setKey(e.target.value)}/><label className="block text-xs text-text-muted">Test duration (minutes)<input className="learning-input mt-1" type="number" min="1" aria-label="Test duration" value={minutes} onChange={e=>setMinutes(Number(e.target.value))}/></label><AIConsent consent={consent} onConsent={setConsent}/><Button disabled={busy||(!prompt.trim()&&!sources.length)} onClick={create}><Sparkles/>{busy?'Solving and independently verifying…':'Prepare verified MCQs'}</Button></div><div className="subject-diagnostics"><h2 className="text-lg font-semibold mb-4">Subject insights</h2>{attempts.length===0?<p className="text-text-muted text-sm">No submitted tests yet.</p>:weaknesses.map((w,i)=><div className="diagnostic-row" key={i}><strong>{w.subject} / {w.concept}</strong><p>{w.chapter} · {w.correct}/{w.total} correct · {w.total<3?'Limited evidence':w.correct/w.total<.6?'Needs revision':'Developing mastery'}</p></div>)}{attempts.map(a=><Button key={a.id} variant="ghost" className="w-full justify-between mt-3" onClick={()=>{setExam(a.exam);setAnswers(a.answers);setResult(a);setIndex(0);}}>{a.exam.title}<span>{scoreExam(a.exam,a.answers).percentage}%</span></Button>)}</div></div>:<>
     <div className="exam-bar"><h2>{exam.title}</h2>{deadline?<span className="flex items-center gap-2"><Clock size={17}/>{Math.floor(seconds/60)}:{String(seconds%60).padStart(2,'0')}</span>:!result&&<Button disabled={!Number.isFinite(minutes)||minutes<1} onClick={()=>setDeadline(Date.now()+minutes*60000)}>Start timed test</Button>}{!result&&deadline&&<Button onClick={()=>{if(window.confirm('Submit your answers?'))submit();}}><Check/>Submit test</Button>}</div>
     {!deadline&&!result?<div className="py-6"><p className="text-sm text-text-muted">{exam.questions.filter(canGrade).length} verified questions · {exam.questions.filter(q=>!canGrade(q)).length} excluded from scoring</p></div>:<div className="exam-body"><aside className="question-palette">{exam.questions.map((question,i)=><Button key={i} variant="outline" className={`${i===index?'selected':''} ${answers[i]!==undefined?'answered':''}`} onClick={()=>setIndex(i)} aria-label={`Question ${i+1}`}>{i+1}{review.includes(i)&&<Flag size={10}/>}</Button>)}</aside><div className="question-sheet">{q&&<><div className="flex items-center justify-between text-xs text-text-muted"><span>{q.subject} / {q.chapter} / {q.concept}</span><span>{index+1} / {exam.questions.length}</span></div><h3 className="text-xl font-semibold my-6 whitespace-pre-wrap">{q.question}</h3>{!canGrade(q)&&<p className="learning-error">Uncertain answer — excluded from scoring.</p>}<div className="space-y-3">{q.options.map((option,i)=><label key={i} className={`exam-option ${answers[index]===i?'marked':''} ${result&&q.correct===i&&canGrade(q)?'correct':''}`}><input type="radio" name={`question-${index}`} checked={answers[index]===i} disabled={Boolean(result)||!canGrade(q)} onChange={()=>setAnswers({...answers,[index]:i})}/><span className="option-letter">{letters[i]}</span><span>{option}</span></label>)}</div>
