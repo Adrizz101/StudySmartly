@@ -57,7 +57,7 @@ export default function ExamArena(){
 
     {score&&<section className="exam-results mt-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><h3 className="text-lg font-semibold">AI mistake analysis</h3><p className="text-sm text-text-muted">Identify patterns behind incorrect answers and get targeted practice.</p></div>
+        <div><h3 className="text-lg font-semibold">AI mistake analysis</h3><p className="text-sm text-text-muted">Identify patterns behind incorrect answers and get targeted practice.</p></div><AIConsent consent={consent} onConsent={setConsent}/>
         <Button onClick={runMistakeAnalysis} disabled={analysisBusy||score.incorrect===0}><Sparkles/>{analysisBusy?'Analysing…':analysis?'Refresh analysis':'Analyse my mistakes'}</Button>
       </div>
       {!consent&&<p className="text-xs text-text-muted mt-2">AI analysis requires the consent checkbox above. If you are under 18, parent/guardian consent is required.</p>}
