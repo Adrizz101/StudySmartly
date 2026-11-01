@@ -108,17 +108,6 @@ export const analyzeExamMistakes = createServerFn({ method: 'POST' }).middleware
   });
 
 
-const syllabusInput = z.object({
-  text: z.string().max(100000).default(''),
-  sources: z.array(source).max(50).default([]),
-});
-export const extractSyllabusTopics = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
-  .inputValidator(syllabusInput)
-  .handler(async ({ data }) => {
-    const { extractTopicsFromText } = await import('./syllabus-extraction.server');
-    return extractTopicsFromText(data.text, data.sources);
-  });
-
 
 export const extractSyllabusTopics = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
