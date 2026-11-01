@@ -13,7 +13,7 @@ import {
   Sun, Moon, Palette, Clock, Key, Shield, User, Check,
   Bell, Volume2, Brain, Coffee, RotateCcw, Eye, EyeOff,
   AlertCircle, Scale, FileText, Image as ImageIcon, Plug,
-  Wifi, WifiOff, Github, Cpu, PenTool, Server, CalendarClock, AudioLines, Gauge, Layers,
+  Wifi, WifiOff, Github, Cpu, PenTool, Server, CalendarClock, AudioLines, Gauge, Layers, Sparkles,
 } from 'lucide-react';
 
 export default function Settings() {
@@ -112,6 +112,17 @@ export default function Settings() {
 
   return (
     <div className="space-y-6 max-w-3xl">
+      <SettingsCard icon={Sparkles} title="StudySmartly Academy">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="max-w-xl text-sm leading-6 text-text-muted">
+            Explore the dashboard, study tools, exam practice, and personalisation settings in an interactive eight-step guided tour.
+          </p>
+          <Button type="button" onClick={() => window.dispatchEvent(new Event('studysmartly:open-academy'))} className="min-h-11 shrink-0">
+            <Sparkles size={16} className="mr-2" /> Open StudySmartly Academy
+          </Button>
+        </div>
+      </SettingsCard>
+
       {/* Profile */}
       <SettingsCard icon={User} title="Profile">
         <div>
