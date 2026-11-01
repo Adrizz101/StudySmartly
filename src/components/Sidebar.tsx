@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { ViewKey } from '@/types';
-import { LayoutDashboard, Calendar, Bot, FileText, Mic, Settings, BookOpen, Menu, X, PenTool, ClipboardCheck, LogOut } from 'lucide-react';
+import { LayoutDashboard, Calendar, Bot, FileText, Mic, Settings, BookOpen, Menu, X, PenTool, ClipboardCheck, LogOut, BrainCircuit } from 'lucide-react';
 import { useApp } from '@/store';
 import { supabase } from '@/integrations/supabase/client';
 import { PomodoroTimer } from '@/components/PomodoroTimer';
@@ -9,6 +9,7 @@ import { trackEvent } from '@/lib/analytics';
 const NAV_ITEMS: { key: ViewKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'schedule', label: 'Smart Schedule', icon: Calendar },
+  { key: 'planner', label: 'Adaptive Planner', icon: BrainCircuit },
   { key: 'tutor', label: 'AI Whiteboard', icon: PenTool },
   { key: 'studio', label: 'Presentation Studio', icon: FileText },
   { key: 'exams', label: 'PYQ Exam Arena', icon: ClipboardCheck },
@@ -56,6 +57,7 @@ export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile, collap
                 const featureNames: Record<ViewKey, string> = {
                   dashboard: 'Dashboard',
                   schedule: 'Smart_Schedule',
+                  planner: 'Adaptive_Planner',
                   tutor: 'AI_Whiteboard',
                   studio: 'Presentation_Studio',
                   exams: 'PYQ_Exam_Arena',
