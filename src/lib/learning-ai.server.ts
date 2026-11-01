@@ -74,15 +74,24 @@ export async function structuredAI<T>(
     },
   ];
 
-  const configuredProviders = providers.filter((provider) => provider.apiKey);
+  // Free-only is the default so AI requests cannot silently fall through to a
+  // potentially billable Gemini/Groq model when those keys have paid billing enabled.
+  // OpenRouter's openrouter/free router selects only free model variants.
+  const freeOnly = process.env['FREE_AI_ONLY'] !== 'false';
+  const activeProviders = freeOnly
+    ? providers.filter((provider) => provider.name === 'OpenRouter')
+    : providers;
+  const configuredProviders = activeProviders.filter((provider) => provider.apiKey);
   if (!configuredProviders.length) {
     throw new Error(
-      'No AI provider API keys are configured. Add GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY to your server environment.',
+      freeOnly
+        ? 'Free AI mode is enabled, but OPENROUTER_API_KEY is missing. Add an OpenRouter key to your server environment. Paid providers are intentionally disabled.'
+        : 'No AI provider API keys are configured. Add GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY to your server environment.',
     );
   }
 
   const failures: string[] = [];
-  for (const provider of providers) {
+  for (const provider of activeProviders) {
     if (!provider.apiKey) {
       failures.push(`${provider.name}: skipped because ${provider.keyName} is not configured`);
       continue;
