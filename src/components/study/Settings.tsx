@@ -1,5 +1,9 @@
 import { Button } from '@/components/ui/button';
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from '@/integrations/supabase/client';
+import { trackEvent } from '@/lib/analytics';
 import { useApp } from '@/store';
 import { AccentKey, ACCENTS, Mode } from '@/types';
 import { requestNotificationPermission } from '@/lib/audio';
@@ -15,6 +19,53 @@ export default function Settings() {
   const { settings, updateSettings, setMode, setAccent } = useApp();
   const [showAiKey, setShowAiKey] = useState(false);
   const [showImageKey, setShowImageKey] = useState(false);
+  const [requestedFeature, setRequestedFeature] = useState('');
+  const [requestCategory, setRequestCategory] = useState('Study Tools');
+  const [feedbackFeature, setFeedbackFeature] = useState('AI Whiteboard');
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackType, setFeedbackType] = useState('Suggestion');
+  const [submissionNotice, setSubmissionNotice] = useState('');
+
+  const getAccountId = async (): Promise<string | null> => {
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) {
+        console.warn('[ANALYTICS] Could not retrieve the signed-in account:', error);
+        return null;
+      }
+      return data.session?.user?.id ?? null;
+    } catch (error) {
+      console.warn('[ANALYTICS] Session lookup failed:', error);
+      return null;
+    }
+  };
+
+  const submitFeatureRequest = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!requestedFeature.trim()) return;
+    const accountId = await getAccountId();
+    trackEvent('feature_request_submitted', {
+      account_id: accountId,
+      student_segment: 'high_school_student',
+      requested_feature_category: requestCategory,
+    });
+    setRequestedFeature('');
+    setSubmissionNotice('Request metadata recorded in the local analytics console. The feature description is not transmitted or stored.');
+  };
+
+  const submitFeedback = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!feedbackText.trim()) return;
+    const accountId = await getAccountId();
+    trackEvent('feature_feedback_submitted', {
+      account_id: accountId,
+      student_segment: 'high_school_student',
+      feature_name: feedbackFeature,
+      feedback_type: feedbackType,
+    });
+    setFeedbackText('');
+    setSubmissionNotice('Feedback metadata recorded in the local analytics console. Your written feedback is not transmitted or stored.');
+  };
 
   const updatePomodoro = (key: keyof typeof settings.pomodoro, value: number | boolean) => {
     updateSettings({ pomodoro: { ...settings.pomodoro, [key]: value } });
@@ -238,6 +289,79 @@ export default function Settings() {
             <Shield size={13} />
             All keys are stored locally in your browser under localStorage and never sent to any server except the provider you configure.
           </div>
+        </div>
+      </SettingsCard>
+
+
+
+      {/* Feedback and feature requests */}
+      <SettingsCard icon={FileText} title="Feedback & Feature Requests">
+        <div className="space-y-6">
+          <form onSubmit={submitFeatureRequest} className="space-y-3">
+            <div>
+              <h4 className="text-sm font-semibold text-text">Request a Feature</h4>
+              <p className="text-xs text-text-dim mt-1">Suggest a feature you would like to see.</p>
+            </div>
+            <Input
+              value={requestedFeature}
+              onChange={(event) => setRequestedFeature(event.target.value)}
+              placeholder="Feature name"
+              maxLength={100}
+              required
+              aria-label="Requested feature name"
+            />
+            <Select value={requestCategory} onValueChange={setRequestCategory}>
+              <SelectTrigger aria-label="Feature request category"><SelectValue placeholder="Choose a category" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="UI">UI</SelectItem>
+                <SelectItem value="AI">AI</SelectItem>
+                <SelectItem value="Study Tools">Study Tools</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button type="submit">Submit Feature Request</Button>
+          </form>
+
+          <div className="border-t border-border" />
+
+          <form onSubmit={submitFeedback} className="space-y-3">
+            <div>
+              <h4 className="text-sm font-semibold text-text">Submit Feedback</h4>
+              <p className="text-xs text-text-dim mt-1">Choose the area and type of feedback.</p>
+            </div>
+            <Select value={feedbackFeature} onValueChange={setFeedbackFeature}>
+              <SelectTrigger aria-label="Feedback feature"><SelectValue placeholder="Choose a feature" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="AI Whiteboard">AI Whiteboard</SelectItem>
+                <SelectItem value="Presentation Studio">Presentation Studio</SelectItem>
+                <SelectItem value="PYQ Exam Arena">PYQ Exam Arena</SelectItem>
+                <SelectItem value="Smart Schedule">Smart Schedule</SelectItem>
+                <SelectItem value="Lecture Transcriber">Lecture Transcriber</SelectItem>
+                <SelectItem value="Dashboard">Dashboard</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              value={feedbackText}
+              onChange={(event) => setFeedbackText(event.target.value)}
+              placeholder="Describe your feedback"
+              maxLength={1000}
+              required
+              aria-label="Feedback text"
+            />
+            <Select value={feedbackType} onValueChange={setFeedbackType}>
+              <SelectTrigger aria-label="Feedback type"><SelectValue placeholder="Choose feedback type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Bug">Bug</SelectItem>
+                <SelectItem value="Suggestion">Suggestion</SelectItem>
+                <SelectItem value="Compliment">Compliment</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button type="submit">Submit Feedback</Button>
+          </form>
+
+          {submissionNotice && <p role="status" className="text-xs text-text-muted">{submissionNotice}</p>}
+          <p className="text-xs text-text-dim leading-relaxed">
+            Privacy notice: this prototype logs only event metadata to the browser console. Written descriptions are not sent to a server or saved. Account IDs are included only when a Supabase session is available.
+          </p>
         </div>
       </SettingsCard>
 
