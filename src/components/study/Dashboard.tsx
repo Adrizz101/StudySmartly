@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { useApp } from '@/store';
 import { ViewKey } from '@/types';
-import { Calendar, Bot, FileText, Mic, BookOpen, Clock, TrendingUp, AlertCircle, Plus } from 'lucide-react';
+import { Calendar, Bot, FileText, Mic, BookOpen, Clock, TrendingUp, AlertCircle, Plus, Layers3 } from 'lucide-react';
 import { formatDateLabel, formatTimeLabel } from '@/lib/syllabus';
 
 interface DashboardProps {
@@ -30,6 +30,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   const quickActions: { label: string; desc: string; icon: typeof Calendar; view: ViewKey; color: string }[] = [
     { label: 'Plan Schedule', desc: 'Add events or parse a syllabus', icon: Calendar, view: 'schedule', color: 'from-study-emerald-500 to-study-teal-600' },
     { label: 'AI Whiteboard', desc: 'Draw, upload and get visual explanations', icon: Bot, view: 'tutor', color: 'from-study-blue-500 to-study-indigo-600' },
+    { label: 'Smart Flashcards', desc: 'Generate cards and review with spaced repetition', icon: Layers3, view: 'flashcards', color: 'from-study-purple-500 to-study-indigo-600' },
     { label: 'Build Document', desc: 'Generate slides & study guides', icon: FileText, view: 'studio', color: 'from-study-amber-500 to-study-orange-600' },
     { label: 'Transcribe Lecture', desc: 'Live speech-to-text capture', icon: Mic, view: 'transcriber', color: 'from-study-rose-500 to-study-pink-600' },
   ];
@@ -39,7 +40,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       {/* Hero */}
       <div className="relative overflow-hidden rounded-2xl glass surface-elevated p-5 lg:p-6 motion-card">
         <div className="absolute top-0 right-0 w-64 h-64 bg-accent-500/10 rounded-full blur-3xl -mr-20 -mt-20" />
-        <div className="relative flex items-center justify-between gap-4 md:gap-8">
+        <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 md:gap-8">
           <div className="min-w-0 flex-1">
             <h2 className="dashboard-hero-title text-3xl lg:text-4xl font-extrabold leading-tight">
               {new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening'}
@@ -58,7 +59,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           <motion.img
             src="/logo.jpg"
             alt="StudySmartly"
-            className="mix-blend-screen w-32 md:w-48 h-auto object-contain shrink-0"
+            className="dashboard-hero-logo mix-blend-screen w-32 md:w-48 h-auto object-contain shrink-0 self-center sm:self-auto"
             animate={{ y: [0, -5, 0] }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
           />
