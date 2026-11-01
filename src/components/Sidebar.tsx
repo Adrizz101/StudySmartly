@@ -161,7 +161,7 @@ interface TopBarProps {
 export function TopBar({ view, onMenuClick }: TopBarProps) {
   const label = NAV_ITEMS.find((n) => n.key === view)?.label ?? '';
   return (
-    <header className="sticky top-0 z-20 glass border-b border-border px-4 lg:px-6 py-3 flex items-center justify-between">
+    <header className="sticky top-0 z-20 glass border-b border-border px-3 sm:px-4 lg:px-6 py-3 flex flex-wrap items-center justify-between gap-2">
       <div className="flex items-center gap-3">
         <Button variant="source"
           aria-label="Open menu" onClick={onMenuClick}
