@@ -11,8 +11,6 @@ export function AuthScreen() {
   const [step, setStep] = useState<AuthStep>("email");
   const [email, setEmail] = useState("");
   const [token, setToken] = useState("");
-  const [password, setPassword] = useState("");
-  const [passwordMode, setPasswordMode] = useState(false);
   const [otpMode, setOtpMode] = useState<OtpMode>("code");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -68,33 +66,14 @@ export function AuthScreen() {
 
   async function verifyCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (passwordMode) {
-      if (!password) {
-        setError("Enter your password.");
-        return;
-      }
+    const normalizedToken = token.trim();
 
-      setBusy(true);
-      setError("");
-      setNotice("");
-      try {
-        const { error: authError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (authError) setError("Unable to sign in with that email and password.");
-        // On success, AuthGate observes the new Supabase session and opens the app.
-      } catch {
-        setError("Unable to sign in with that email and password.");
-      } finally {
-        setBusy(false);
-      }
+    if (otpMode === "code" && !/^\\d{6}$/.test(normalizedToken)) {
+      setError("Enter the 6-digit code from your email.");
       return;
     }
-
-    const normalizedToken = token.trim();
-    if (!/^\d{6}$/.test(normalizedToken)) {
-      setError("Enter the 6-digit code from your email.");
+    if (otpMode === "password" && !normalizedToken) {
+      setError("Enter your password.");
       return;
     }
 
@@ -103,21 +82,24 @@ export function AuthScreen() {
     setNotice("");
 
     try {
+      const normalizedEmail = email.trim().toLowerCase();
       const { error: authError } = otpMode === "password"
         ? await supabase.auth.signInWithPassword({
-            email: email.trim().toLowerCase() === OWNER_EMAIL ? OWNER_EMAIL : email.trim().toLowerCase(),
+            email: normalizedEmail === OWNER_EMAIL ? OWNER_EMAIL : normalizedEmail,
             password: normalizedToken,
           })
         : await supabase.auth.verifyOtp({
-            email,
+            email: normalizedEmail,
             token: normalizedToken,
             type: "email",
           });
 
-      if (authError) setError(otpMode === "password" ? "Unable to sign in with that email and password." : authError.message);
+      if (authError) {
+        setError(otpMode === "password" ? "Unable to sign in with that email and password." : authError.message);
+      }
       // On success, AuthGate observes the new Supabase session and opens the app.
     } catch (verificationError) {
-      setError(verificationError instanceof Error ? verificationError.message : "Could not verify the code. Please try again.");
+      setError(verificationError instanceof Error ? verificationError.message : "Could not complete sign-in. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -134,16 +116,6 @@ export function AuthScreen() {
   function toggleOtpMode() {
     setOtpMode((current) => current === "code" ? "password" : "code");
     setToken("");
-    setPassword("");
-    setPasswordMode(false);
-    setError("");
-    setNotice("");
-  }
-
-  function togglePasswordMode() {
-    setPasswordMode((current) => !current);
-    setToken("");
-    setPassword("");
     setError("");
     setNotice("");
   }
@@ -180,47 +152,42 @@ export function AuthScreen() {
         ) : (
           <>
             <p className="mt-2 text-sm text-text-muted">
-              {otpMode === "code" ? <>Enter the 6-digit code sent to <strong>{email}</strong>.</> : <>Enter the password for <strong>{email}</strong>.</>}
+              {otpMode === "code"
+                ? <>Enter the 6-digit code sent to <strong>{email}</strong>.</>
+                : <>Enter the password for <strong>{email}</strong>.</>}
             </p>
             <form onSubmit={verifyCode} className="mt-6 space-y-4">
-              {passwordMode ? (
-                <>
-                  <label htmlFor="auth-password" className="sr-only">Account password</label>
-                  <input
-                    id="auth-password"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    disabled={busy}
-                    className="learning-input w-full"
-                  />
-                </>
-              ) : (
-                <>
-                  <label htmlFor="auth-otp" className="sr-only">6-digit verification code</label>
-                  <input
-                    id="auth-otp"
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    pattern="[0-9]{6}"
-                    maxLength={6}
-                    required
-                    placeholder="123456"
-                    value={token}
-                    onChange={(event) => setToken(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                    disabled={busy}
-                    className="learning-input w-full text-center tracking-[0.4em]"
-                  />
-                </>
-              )}
-              <Button type="submit" className="w-full" disabled={busy || (passwordMode ? !password : token.length !== 6)}>
-                {busy ? (passwordMode ? "Logging in…" : "Verifying…") : (passwordMode ? "Log In" : "Verify Code")}
+              <label htmlFor="auth-credential" className="sr-only">
+                {otpMode === "code" ? "6-digit verification code" : "Password"}
+              </label>
+              <input
+                id="auth-credential"
+                type={otpMode === "password" ? "password" : "text"}
+                inputMode={otpMode === "code" ? "numeric" : undefined}
+                autoComplete={otpMode === "code" ? "one-time-code" : "current-password"}
+                pattern={otpMode === "code" ? "[0-9]{6}" : undefined}
+                maxLength={otpMode === "code" ? 6 : undefined}
+                required
+                placeholder={otpMode === "code" ? "123456" : "Enter your password"}
+                value={token}
+                onChange={(event) => setToken(
+                  otpMode === "code"
+                    ? event.target.value.replace(/\\D/g, "").slice(0, 6)
+                    : event.target.value,
+                )}
+                disabled={busy}
+                className={`learning-input w-full ${otpMode === "code" ? "text-center tracking-[0.4em]" : ""}`}
+              />
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={busy || (otpMode === "code" ? token.length !== 6 : !token.trim())}
+              >
+                {busy
+                  ? (otpMode === "code" ? "Verifying…" : "Logging in…")
+                  : (otpMode === "code" ? "Verify Code" : "Log In")}
               </Button>
-              {!passwordMode && (
+              {otpMode === "code" && (
                 <Button
                   type="button"
                   variant="outline"
@@ -230,7 +197,7 @@ export function AuthScreen() {
                 >
                   Resend code
                 </Button>
-              )}}
+              )}
               <Button
                 type="button"
                 variant="ghost"
@@ -246,15 +213,9 @@ export function AuthScreen() {
                 disabled={busy}
                 className="w-full text-center text-xs text-text-muted underline-offset-4 hover:text-text hover:underline disabled:opacity-50"
               >
-                {otpMode === "code" ? "Trouble getting a code? Sign in with a password." : "Use an email code instead."}
-              </button>
-              <button
-                type="button"
-                onClick={togglePasswordMode}
-                disabled={busy}
-                className="w-full text-center text-xs text-text-muted underline underline-offset-4 hover:text-text disabled:opacity-50"
-              >
-                {passwordMode ? "Back to email code" : "Trouble getting a code? Sign in with a password."}
+                {otpMode === "code"
+                  ? "Trouble getting a code? Sign in with a password."
+                  : "Use an email code instead."}
               </button>
             </form>
           </>
