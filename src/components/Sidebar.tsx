@@ -32,14 +32,14 @@ export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile, collap
 
   const content = (
     <div className="flex flex-col h-full">
-      <div className={`flex items-center gap-3 py-5 border-b border-border ${compact ? 'justify-center px-2' : 'px-5'}`}>
-        <div className="w-10 h-10 rounded-xl bg-accent-600 flex items-center justify-center shadow-lg">
-          <BookOpen className="text-study-white" size={22} />
-        </div>
-        {!compact && <div>
-          <h1 className="font-bold text-text text-lg leading-none">StudySmart</h1>
-          <p className="text-xs text-text-dim mt-0.5">Student OS</p>
-        </div>}
+      <div className={`flex items-center py-5 border-b border-border ${compact ? 'justify-center px-2' : 'justify-center px-4'}`}>
+        {compact ? (
+          <div className="w-10 h-10 rounded-xl bg-accent-600 flex items-center justify-center shadow-lg">
+            <BookOpen className="text-study-white" size={22} />
+          </div>
+        ) : (
+          <img src="/logo.jpg" alt="StudySmartly" className="w-48 h-auto" />
+        )}
       </div>
 
       <nav className={`flex-1 py-4 space-y-1 overflow-y-auto ${compact ? 'px-2' : 'px-3'}`}>
