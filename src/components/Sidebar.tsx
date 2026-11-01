@@ -138,7 +138,7 @@ export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile, collap
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-study-black/60 backdrop-blur-sm animate-fadeIn" aria-label="Close menu" onClick={onCloseMobile} />
-          <aside className="relative w-72 glass h-full animate-slideIn shadow-2xl">
+          <aside className="relative w-[min(18rem,88vw)] max-w-full glass h-full animate-slideIn shadow-2xl">
             <Button variant="source"
               aria-label="Close menu" onClick={onCloseMobile}
               className="absolute top-4 right-4 z-10 p-2 rounded-lg hover:bg-surface-hover text-text-muted"
