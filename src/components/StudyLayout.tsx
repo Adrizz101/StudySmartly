@@ -1,9 +1,8 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { Sidebar, TopBar } from '@/components/Sidebar';
 import type { ViewKey } from '@/types';
 import { AnimatedRoute } from '@/components/animated-route';
-import { useEffect } from 'react';
 import StudyAcademy from '@/components/StudyAcademy';
 
 export function StudyLayout({ children }: { children: ReactNode }) {
