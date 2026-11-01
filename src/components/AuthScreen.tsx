@@ -131,7 +131,7 @@ export function AuthScreen() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-bg px-4">
       <section className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-lg">
-        <img src="/logo.jpg" alt="StudySmartly" className="mx-auto w-48 mb-6" />
+        <img src="/logo.jpg" alt="StudySmartly" className="mix-blend-screen w-56 mx-auto mb-6" />
         <h1 className="text-2xl font-bold text-text">Welcome to StudySmartly</h1>
         {step === "email" ? (
           <>
