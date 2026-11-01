@@ -28,6 +28,18 @@ export const questionSchema = z.object({
 });
 export const examSchema = z.object({ title: z.string(), questions: z.array(questionSchema) });
 
+
+export const syllabusExtractionSchema = z.object({
+  topics: z.array(z.object({
+    subject: z.string().min(1),
+    chapter: z.string().min(1),
+    concept: z.string().min(1),
+    priority: z.enum(['High', 'Normal', 'Low']),
+    mastery: z.number().min(0).max(100),
+  })),
+});
+export type SyllabusExtraction = z.infer<typeof syllabusExtractionSchema>;
+
 export const mistakeAnalysisSchema = z.object({
   summary: z.string().min(1),
   strengths: z.array(z.string()).max(4),
