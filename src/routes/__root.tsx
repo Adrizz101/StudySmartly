@@ -17,6 +17,7 @@ import { AuthScreen } from "@/components/AuthScreen";
 import appCss from "../styles.css?url";
 import { AppProvider } from '@/store';
 import { StudyLayout } from '@/components/StudyLayout';
+import { RouteAnimationContainer } from '@/components/route-animation-container';
 
 function NotFoundComponent() {
   return (
@@ -157,7 +158,7 @@ function RootComponent() {
       <ClientOnly fallback={<div className="flex min-h-screen items-center justify-center bg-bg text-text">StudySmart</div>}>
         <AuthGate>
           <AppProvider>
-            <StudyLayout><Outlet /></StudyLayout>
+            <StudyLayout><RouteAnimationContainer><Outlet /></RouteAnimationContainer></StudyLayout>
           </AppProvider>
         </AuthGate>
       </ClientOnly>
