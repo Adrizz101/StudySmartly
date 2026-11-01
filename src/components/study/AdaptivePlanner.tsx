@@ -39,6 +39,7 @@ export default function AdaptivePlanner() {
   const [syllabusText, setSyllabusText] = useState('');
   const [syllabusFile, setSyllabusFile] = useState<File | null>(null);
   const [extracting, setExtracting] = useState(false);
+  const [completingSessionIds, setCompletingSessionIds] = useState<string[]>([]);
 
   const loadPlanner = useCallback(async () => {
     setBusy(true); setError('');
@@ -193,14 +194,107 @@ export default function AdaptivePlanner() {
     finally { setSaving(false); }
   }
 
+  async function completeStudySession(session: StudySession) {
+    if (completingSessionIds.includes(session.id)) return;
+    setError(''); setNotice('');
+    const topic = topics.find(t => t.id === session.topic_id);
+    if (!topic) {
+      setError('This session is not linked to a learning topic, so mastery and review scheduling cannot be updated.');
+      return;
+    }
+
+    const completedAt = new Date().toISOString();
+    const nextMastery = Math.min(100, Math.round((topic.mastery_score + 10) * 10) / 10);
+    const reviewStart = new Date();
+    reviewStart.setDate(reviewStart.getDate() + 3);
+    const originalStart = new Date(session.scheduled_start);
+    reviewStart.setHours(originalStart.getHours(), originalStart.getMinutes(), 0, 0);
+    const reviewEnd = new Date(reviewStart.getTime() + session.duration_minutes * 60_000);
+    const reviewPayload = {
+      user_id: userId,
+      topic_id: topic.id,
+      title: session.title,
+      subject: session.subject,
+      chapter: session.chapter,
+      concept: session.concept,
+      scheduled_start: reviewStart.toISOString(),
+      scheduled_end: reviewEnd.toISOString(),
+      duration_minutes: session.duration_minutes,
+      status: 'planned' as const,
+      priority: session.priority,
+      source: 'adaptive_planner' as const,
+      rationale: 'Spaced review scheduled three days after completing this study session.',
+    };
+
+    // Optimistically update both the completed session and mastery. The weak-topic
+    // metric is derived from topics, so it recalculates immediately from this state.
+    setCompletingSessionIds(prev => [...prev, session.id]);
+    setTopics(prev => prev.map(t => t.id === topic.id ? { ...t, mastery_score: nextMastery, last_practiced_at: completedAt } : t));
+    setSessions(prev => prev.map(s => s.id === session.id ? { ...s, status: 'completed' } : s));
+
+    let topicPersisted = false;
+    let reviewId: string | null = null;
+    try {
+      const { data: updatedTopic, error: topicError } = await supabase
+        .from('learning_topics')
+        .update({ mastery_score: nextMastery, last_practiced_at: completedAt, updated_at: completedAt })
+        .eq('id', topic.id)
+        .eq('user_id', userId)
+        .select('id')
+        .maybeSingle();
+      if (topicError) throw topicError;
+      if (!updatedTopic) throw new Error('The linked topic could not be updated. Refresh and try again.');
+      topicPersisted = true;
+
+      const { data: review, error: reviewError } = await supabase
+        .from('study_sessions')
+        .insert(reviewPayload)
+        .select('*')
+        .single();
+      if (reviewError) throw reviewError;
+      reviewId = review.id;
+
+      const { data: completed, error: sessionError } = await supabase
+        .from('study_sessions')
+        .update({ status: 'completed', completed_at: completedAt, updated_at: completedAt })
+        .eq('id', session.id)
+        .eq('user_id', userId)
+        .select('id')
+        .maybeSingle();
+      if (sessionError) throw sessionError;
+      if (!completed) throw new Error('The session could not be marked complete. Refresh and try again.');
+
+      setSessions(prev => [...prev.filter(s => s.id !== review.id), review as StudySession]
+        .map(s => s.id === session.id ? { ...s, status: 'completed' } : s)
+        .sort((a,b) => a.scheduled_start.localeCompare(b.scheduled_start)));
+      setNotice(`Session completed. Mastery increased to ${nextMastery}% and a review was scheduled for ${dayLabel(reviewStart)}.`);
+    } catch (e) {
+      if (reviewId) {
+        await supabase.from('study_sessions').delete().eq('id', reviewId).eq('user_id', userId);
+      }
+      if (topicPersisted) {
+        await supabase.from('learning_topics').update({
+          mastery_score: topic.mastery_score,
+          last_practiced_at: topic.last_practiced_at,
+          updated_at: new Date().toISOString(),
+        }).eq('id', topic.id).eq('user_id', userId);
+      }
+      setTopics(prev => prev.map(t => t.id === topic.id ? topic : t));
+      setSessions(prev => prev.map(s => s.id === session.id ? session : s).filter(s => s.id !== reviewId));
+      setError(e instanceof Error ? e.message : 'Could not complete this study session.');
+    } finally {
+      setCompletingSessionIds(prev => prev.filter(id => id !== session.id));
+    }
+  }
+
   async function updateSessionStatus(session: StudySession, status: StudySession['status']) {
     setError(''); setNotice('');
     const { error: updateError } = await supabase.from('study_sessions').update({
-      status, completed_at: status === 'completed' ? new Date().toISOString() : null, updated_at: new Date().toISOString(),
-    }).eq('id', session.id);
+      status, completed_at: null, updated_at: new Date().toISOString(),
+    }).eq('id', session.id).eq('user_id', userId);
     if (updateError) { setError(updateError.message); return; }
     setSessions(prev => prev.map(s => s.id === session.id ? { ...s, status } : s));
-    setNotice(status === 'completed' ? 'Session marked complete. Your next plan can prioritise remaining weak topics.' : 'Session status updated.');
+    setNotice('Session status updated.');
   }
 
   async function deleteTopic(topic: Topic) {
@@ -260,7 +354,7 @@ export default function AdaptivePlanner() {
       </section>
     </div>
     <section className="glass rounded-xl p-5 motion-card"><div className="flex items-center justify-between mb-4"><div><h2 className="font-semibold text-text">Upcoming study sessions</h2><p className="text-xs text-text-muted mt-1">Scheduled around your availability and existing calendar events.</p></div><Clock3 size={18} className="text-accent-500"/></div>
-      {busy ? <div className="space-y-2" aria-busy="true" aria-label="Loading sessions"><div className="skeleton-glass h-16"/><div className="skeleton-glass h-16"/><div className="skeleton-glass h-16"/></div> : upcoming.length ? <div className="space-y-2">{upcoming.map((s,index)=><motion.article key={s.id} initial={reduceMotion?false:{opacity:0,y:16}} animate={{opacity:1,y:0}} transition={{duration:reduceMotion?0:0.3,delay:reduceMotion?0:index*0.07}} whileHover={reduceMotion?undefined:{scale:1.01}} whileTap={reduceMotion?undefined:{scale:0.99}} className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3"><div className="min-w-0 flex-1"><div className="text-sm font-medium text-text">{s.title}</div><div className="text-xs text-text-muted">{s.subject}{s.chapter? ` · ${s.chapter}`:''} · {dayLabel(new Date(s.scheduled_start))} · {new Date(s.scheduled_start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}–{new Date(s.scheduled_end).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div><div className="text-xs text-text-muted mt-1">{s.rationale}</div></div><span className="text-xs text-text-muted">{s.duration_minutes} min</span><Button variant="outline" size="sm" onClick={()=>void updateSessionStatus(s,'completed')}><CheckCircle2 size={14}/> Done</Button><Button variant="ghost" size="icon" aria-label="Mark session missed" onClick={()=>void updateSessionStatus(s,'missed')}><Clock3 size={14}/></Button></motion.article>)}</div> : <div className="text-center py-8"><CalendarDays className="mx-auto text-text-dim mb-2" size={30}/><p className="text-sm text-text-muted">No sessions planned yet.</p><p className="text-xs text-text-dim mt-1">Add topics, then generate your first revision plan.</p></div>}
+      {busy ? <div className="space-y-2" aria-busy="true" aria-label="Loading sessions"><div className="skeleton-glass h-16"/><div className="skeleton-glass h-16"/><div className="skeleton-glass h-16"/></div> : upcoming.length ? <div className="space-y-2">{upcoming.map((s,index)=><motion.article key={s.id} initial={reduceMotion?false:{opacity:0,y:16}} animate={{opacity:1,y:0}} transition={{duration:reduceMotion?0:0.3,delay:reduceMotion?0:index*0.07}} whileHover={reduceMotion?undefined:{scale:1.01}} whileTap={reduceMotion?undefined:{scale:0.99}} className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3"><div className="min-w-0 flex-1"><div className="text-sm font-medium text-text">{s.title}</div><div className="text-xs text-text-muted">{s.subject}{s.chapter? ` · ${s.chapter}`:''} · {dayLabel(new Date(s.scheduled_start))} · {new Date(s.scheduled_start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}–{new Date(s.scheduled_end).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div><div className="text-xs text-text-muted mt-1">{s.rationale}</div></div><span className="text-xs text-text-muted">{s.duration_minutes} min</span><Button variant="outline" size="sm" onClick={()=>void completeStudySession(s)} disabled={completingSessionIds.includes(s.id)}><CheckCircle2 size={14}/>{completingSessionIds.includes(s.id) ? 'Saving…' : 'Done'}</Button><Button variant="ghost" size="icon" aria-label="Mark session missed" onClick={()=>void updateSessionStatus(s,'missed')}><Clock3 size={14}/></Button></motion.article>)}</div> : <div className="text-center py-8"><CalendarDays className="mx-auto text-text-dim mb-2" size={30}/><p className="text-sm text-text-muted">No sessions planned yet.</p><p className="text-xs text-text-dim mt-1">Add topics, then generate your first revision plan.</p></div>}
     </section>
   </div>;
 }
