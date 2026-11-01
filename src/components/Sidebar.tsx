@@ -4,6 +4,7 @@ import { LayoutDashboard, Calendar, Bot, FileText, Mic, Settings, BookOpen, Menu
 import { useApp } from '@/store';
 import { supabase } from '@/integrations/supabase/client';
 import { PomodoroTimer } from '@/components/PomodoroTimer';
+import { trackEvent } from '@/lib/analytics';
 
 const NAV_ITEMS: { key: ViewKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -47,7 +48,34 @@ export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile, collap
           return (
             <Button variant="source"
               key={item.key}
-              onClick={() => { onNavigate(item.key); onCloseMobile(); }}
+              onClick={async () => {
+                try {
+                  const { data: { session } } = await supabase.auth.getSession();
+                  const featureNames: Record<ViewKey, string> = {
+                    dashboard: 'Dashboard',
+                    schedule: 'Smart_Schedule',
+                    tutor: 'AI_Whiteboard',
+                    studio: 'Presentation_Studio',
+                    exams: 'PYQ_Exam_Arena',
+                    transcriber: 'Lecture_Transcriber',
+                    settings: 'Settings',
+                  };
+                  trackEvent('feature_usage', {
+                    account_id: session?.user?.id ?? null,
+                    student_segment: 'high_school_student',
+                    feature_name: featureNames[item.key],
+                  });
+                } catch (error) {
+                  console.warn('[ANALYTICS] Could not retrieve the signed-in account:', error);
+                  trackEvent('feature_usage', {
+                    account_id: null,
+                    student_segment: 'high_school_student',
+                    feature_name: item.key,
+                  });
+                }
+                onNavigate(item.key);
+                onCloseMobile();
+              }}
               title={compact ? item.label : undefined}
               aria-label={item.label}
               className={`w-full flex items-center ${compact ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-xl text-sm font-medium transition-all min-h-[44px] ${
