@@ -25,6 +25,40 @@ export default function Settings() {
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackType, setFeedbackType] = useState('Suggestion');
   const [submissionNotice, setSubmissionNotice] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordNotice, setPasswordNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const updateAccountPassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setPasswordNotice(null);
+
+    if (newPassword.length < 8) {
+      setPasswordNotice({ type: 'error', message: 'Password must be at least 8 characters long.' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordNotice({ type: 'error', message: 'The passwords do not match.' });
+      return;
+    }
+
+    setPasswordBusy(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordNotice({ type: 'success', message: 'Password updated successfully!' });
+    } catch (error) {
+      setPasswordNotice({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Could not update your password. Please try again.',
+      });
+    } finally {
+      setPasswordBusy(false);
+    }
+  };
 
   const getAccountId = async (): Promise<string | null> => {
     try {
@@ -87,6 +121,54 @@ export default function Settings() {
             className="w-full px-3.5 py-2.5 rounded-xl bg-surface-hover border border-border text-text text-sm focus:outline-none focus:border-accent-500 transition-colors"
           />
         </div>
+      </SettingsCard>
+
+      {/* Account Security */}
+      <SettingsCard icon={Shield} title="Account Security">
+        <form onSubmit={updateAccountPassword} className="space-y-3">
+          <div>
+            <label htmlFor="new-account-password" className="text-sm text-text-muted block mb-1.5">New Password</label>
+            <input
+              id="new-account-password"
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              required
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              placeholder="At least 8 characters"
+              disabled={passwordBusy}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-surface-hover border border-border text-text text-sm focus:outline-none focus:border-accent-500 transition-colors"
+            />
+          </div>
+          <div>
+            <label htmlFor="confirm-account-password" className="text-sm text-text-muted block mb-1.5">Confirm Password</label>
+            <input
+              id="confirm-account-password"
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              required
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              placeholder="Re-enter your new password"
+              disabled={passwordBusy}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-surface-hover border border-border text-text text-sm focus:outline-none focus:border-accent-500 transition-colors"
+            />
+          </div>
+          <Button type="submit" disabled={passwordBusy || !newPassword || !confirmPassword}>
+            {passwordBusy ? 'Updating…' : 'Update Password'}
+          </Button>
+          {passwordNotice && (
+            <p role={passwordNotice.type === 'error' ? 'alert' : 'status'}
+              className={`text-sm ${passwordNotice.type === 'success' ? 'text-study-emerald-500' : 'text-study-rose-500'}`}>
+              {passwordNotice.message}
+            </p>
+          )}
+          <p className="text-xs text-text-dim">
+            Set a password after signing in with your email code. You can then use either sign-in method.
+          </p>
+        </form>
       </SettingsCard>
 
       {/* Appearance */}
