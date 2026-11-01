@@ -48,33 +48,37 @@ export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile, collap
           return (
             <Button variant="source"
               key={item.key}
-              onClick={async () => {
-                try {
-                  const { data: { session } } = await supabase.auth.getSession();
-                  const featureNames: Record<ViewKey, string> = {
-                    dashboard: 'Dashboard',
-                    schedule: 'Smart_Schedule',
-                    tutor: 'AI_Whiteboard',
-                    studio: 'Presentation_Studio',
-                    exams: 'PYQ_Exam_Arena',
-                    transcriber: 'Lecture_Transcriber',
-                    settings: 'Settings',
-                  };
-                  trackEvent('feature_usage', {
-                    account_id: session?.user?.id ?? null,
-                    student_segment: 'high_school_student',
-                    feature_name: featureNames[item.key],
-                  });
-                } catch (error) {
-                  console.warn('[ANALYTICS] Could not retrieve the signed-in account:', error);
-                  trackEvent('feature_usage', {
-                    account_id: null,
-                    student_segment: 'high_school_student',
-                    feature_name: item.key,
-                  });
-                }
+              onClick={() => {
+                // Navigate immediately; analytics must never make the UI wait for auth.
                 onNavigate(item.key);
                 onCloseMobile();
+
+                const featureNames: Record<ViewKey, string> = {
+                  dashboard: 'Dashboard',
+                  schedule: 'Smart_Schedule',
+                  tutor: 'AI_Whiteboard',
+                  studio: 'Presentation_Studio',
+                  exams: 'PYQ_Exam_Arena',
+                  transcriber: 'Lecture_Transcriber',
+                  settings: 'Settings',
+                };
+                void supabase.auth.getSession()
+                  .then(({ data, error }) => {
+                    if (error) console.warn('[ANALYTICS] Account lookup returned an error:', error);
+                    trackEvent('feature_usage', {
+                      account_id: data.session?.user?.id ?? null,
+                      student_segment: 'high_school_student',
+                      feature_name: featureNames[item.key],
+                    });
+                  })
+                  .catch((error) => {
+                    console.warn('[ANALYTICS] Could not retrieve the signed-in account:', error);
+                    trackEvent('feature_usage', {
+                      account_id: null,
+                      student_segment: 'high_school_student',
+                      feature_name: featureNames[item.key],
+                    });
+                  });
               }}
               title={compact ? item.label : undefined}
               aria-label={item.label}
