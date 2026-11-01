@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { BookOpen, CalendarDays, CheckCircle2, Clock3, Plus, RefreshCw, Settings2, Target, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,9 +38,9 @@ export default function AdaptivePlanner() {
       if (!auth.user) throw new Error('Please sign in again to open your study planner.');
       setUserId(auth.user.id);
       const [topicResult, sessionResult, prefResult] = await Promise.all([
-        supabase.from('learning_topics').select('*').order('updated_at', { ascending: false }),
-        supabase.from('study_sessions').select('*').order('scheduled_start', { ascending: true }).limit(250),
-        supabase.from('planner_preferences').select('*').maybeSingle(),
+        (supabase as any).from('learning_topics').select('*').order('updated_at', { ascending: false }),
+        (supabase as any).from('study_sessions').select('*').order('scheduled_start', { ascending: true }).limit(250),
+        (supabase as any).from('planner_preferences').select('*').maybeSingle(),
       ]);
       if (topicResult.error) throw topicResult.error;
       if (sessionResult.error) throw sessionResult.error;
@@ -55,7 +55,7 @@ export default function AdaptivePlanner() {
 
   useEffect(() => { void loadPlanner(); }, [loadPlanner]);
 
-  async function addTopic(e: React.FormEvent) {
+  async function addTopic(e: FormEvent) {
     e.preventDefault(); setSaving(true); setError(''); setNotice('');
     try {
       if (!subject.trim() || !chapter.trim() || !concept.trim()) throw new Error('Fill in subject, chapter and topic.');
