@@ -168,6 +168,9 @@ export function AuthScreen() {
                     disabled={busy}
                     className="learning-input w-full"
                   />
+                  <p className="text-xs text-text-dim -mt-2">
+                    First time here? Log in with an email code first to set your password in Settings.
+                  </p>
                 </>
               )}
               <Button
