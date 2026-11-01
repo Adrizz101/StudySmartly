@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { useState, type FormEvent } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,11 +13,12 @@ import {
   Sun, Moon, Palette, Clock, Key, Shield, User, Check,
   Bell, Volume2, Brain, Coffee, RotateCcw, Eye, EyeOff,
   AlertCircle, Scale, FileText, Image as ImageIcon, Plug,
-  Wifi, WifiOff,
+  Wifi, WifiOff, Github, Cpu, PenTool, Server, CalendarClock, AudioLines, Gauge, Layers,
 } from 'lucide-react';
 
 export default function Settings() {
   const { settings, updateSettings, setMode, setAccent } = useApp();
+  const reduceMotion = useReducedMotion();
   const [showAiKey, setShowAiKey] = useState(false);
   const [showImageKey, setShowImageKey] = useState(false);
   const [requestedFeature, setRequestedFeature] = useState('');
@@ -498,6 +500,135 @@ export default function Settings() {
           </div>
         </div>
       </SettingsCard>
+
+      {/* About StudySmartly */}
+      <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-lg sm:p-7">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-emerald-400/10 blur-3xl" />
+        <div className="relative space-y-7">
+          <div className="flex flex-col gap-5 border-b border-white/10 pb-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">The people and engineering behind the platform</p>
+              <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">Architected &amp; Engineered by Adrizz101</h2>
+              <p className="mt-2 text-sm text-slate-400">Student Systems Architect &amp; Full-Stack Developer</p>
+            </div>
+            <a
+              href="https://github.com/Adrizz101"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-300/30 bg-emerald-300 px-5 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-emerald-950/20 transition-all hover:-translate-y-0.5 hover:bg-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+            >
+              <Github size={18} /> Explore GitHub
+            </a>
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-slate-950/45 p-5 sm:p-6">
+            <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">
+              <Cpu size={15} /> Engineering vision
+            </div>
+            <p className="max-w-4xl text-sm leading-7 text-slate-300 sm:text-base">
+              StudySmartly is a testament to zero-cost, high-availability software engineering. It was designed to prove that enterprise-grade AI educational tools can be built entirely on free-tier infrastructure without sacrificing performance, security, or user experience.
+            </p>
+          </div>
+
+          <div>
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Under the hood</p>
+                <h3 className="mt-1 text-xl font-bold text-white">Technical Architecture</h3>
+              </div>
+              <span className="text-xs text-slate-500">System design / implementation notes</span>
+            </div>
+            <motion.div
+              className="grid grid-cols-1 gap-3 md:grid-cols-2"
+              initial="hidden"
+              animate="visible"
+              variants={{
+                hidden: {},
+                visible: { transition: { staggerChildren: reduceMotion ? 0 : 0.07 } },
+              }}
+            >
+              {[
+                {
+                  icon: Cpu,
+                  title: 'Fault-Tolerant AI Routing',
+                  body: 'Uses a provider waterfall (Google Gemini → OpenRouter) through the Vercel AI SDK, with Groq intentionally disabled until paid usage is approved. Structured responses are constrained by Zod schemas, and provider attempts use the SDK retry setting before failing over to the next configured provider.',
+                  tag: 'Provider failover · Structured output',
+                },
+                {
+                  icon: PenTool,
+                  title: 'Imperative Canvas Rendering',
+                  body: 'Integrates Excalidraw through its imperative API. AI-generated element data is converted, sanitized, and applied with updateScene(), while canvas persistence is kept separate from React state updates to avoid render feedback loops during scene changes.',
+                  tag: 'Excalidraw API · Scene sanitization',
+                },
+                {
+                  icon: Server,
+                  title: 'Serverless Application Architecture',
+                  body: 'Built with TanStack Start and deployed on Vercel, with Supabase PostgreSQL for persistent user data. Authenticated data access is protected by Row-Level Security policies, while server functions isolate AI-provider credentials from the browser.',
+                  tag: 'SSR routing · PostgreSQL · RLS',
+                },
+                {
+                  icon: CalendarClock,
+                  title: 'Algorithmic Spaced Repetition',
+                  body: 'A deterministic planner turns structured learning topics, mastery levels, priorities, availability preferences, and existing calendar events into scheduled revision sessions. Completion updates topic mastery and schedules a follow-up review three days later.',
+                  tag: 'Scheduling · Mastery tracking',
+                },
+                {
+                  icon: AudioLines,
+                  title: 'Native Web Speech Synthesis',
+                  body: 'Uses browser-native speech capabilities for spoken tutoring without requiring a separate cloud text-to-speech service. Voice availability and quality are delegated to the browser and operating system, keeping the speech layer lightweight.',
+                  tag: 'Web Speech API · Client-side audio',
+                },
+                {
+                  icon: Gauge,
+                  title: 'High-FPS UI System',
+                  body: 'Combines React 19, Tailwind CSS, and Framer Motion for responsive interface transitions and interactive states. Motion-sensitive experiences respect prefers-reduced-motion, while optimistic updates keep key study workflows responsive.',
+                  tag: 'React 19 · Motion · Accessibility',
+                },
+              ].map((item, index) => {
+                const Icon = item.icon;
+                return (
+                  <motion.article
+                    key={item.title}
+                    variants={{
+                      hidden: { opacity: 0, y: reduceMotion ? 0 : 14 },
+                      visible: { opacity: 1, y: 0, transition: { duration: reduceMotion ? 0 : 0.32 } },
+                    }}
+                    whileHover={reduceMotion ? undefined : { scale: 1.02 }}
+                    className="group rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-lg transition-colors hover:border-emerald-300/25 hover:bg-white/[0.07] sm:p-5"
+                  >
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-emerald-300/15 bg-emerald-300/10 text-emerald-300">
+                        <Icon size={19} />
+                      </div>
+                      <span className="font-mono text-[10px] text-slate-600">{String(index + 1).padStart(2, '0')}</span>
+                    </div>
+                    <h4 className="text-base font-semibold text-white">{item.title}</h4>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">{item.body}</p>
+                    <p className="mt-4 border-t border-white/10 pt-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-300/80">{item.tag}</p>
+                  </motion.article>
+                );
+              })}
+            </motion.div>
+          </div>
+
+          <div>
+            <div className="mb-3 flex items-center gap-2">
+              <Layers size={16} className="text-emerald-300" />
+              <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-white">Core Technology Stack</h3>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {['React 19', 'TanStack Start', 'TypeScript', 'Tailwind CSS', 'Framer Motion', 'Supabase', 'Vercel', 'Vercel AI SDK', 'Excalidraw', 'Zod', 'Node.js'].map((tech) => (
+                <span key={tech} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-300 shadow-sm shadow-black/10">
+                  {tech}
+                </span>
+              ))}
+            </div>
+          </div>
+          <p className="border-t border-white/10 pt-4 text-center text-[11px] text-slate-500">
+            Designed and built with a focus on accessible learning workflows, transparent system behavior, and maintainable engineering.
+          </p>
+        </div>
+      </section>
 
       <p className="text-xs text-text-dim text-center">Settings save automatically to your browser.</p>
     </div>
