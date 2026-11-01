@@ -68,7 +68,7 @@ export function AuthScreen() {
     event.preventDefault();
     const normalizedToken = token.trim();
 
-    if (otpMode === "code" && !/^\\d{6}$/.test(normalizedToken)) {
+    if (otpMode === "code" && !/^\d{6}$/.test(normalizedToken)) {
       setError("Enter the 6-digit code from your email.");
       return;
     }
@@ -172,7 +172,7 @@ export function AuthScreen() {
                 value={token}
                 onChange={(event) => setToken(
                   otpMode === "code"
-                    ? event.target.value.replace(/\\D/g, "").slice(0, 6)
+                    ? event.target.value.replace(/\D/g, "").slice(0, 6)
                     : event.target.value,
                 )}
                 disabled={busy}
