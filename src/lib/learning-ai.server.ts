@@ -60,6 +60,7 @@ export async function structuredAI<T>(
       }),
       model: 'openai/gpt-oss-120b',
       supportsImages: false,
+      enabled: false, // Groq currently publishes token pricing; keep disabled until paid usage is explicitly approved.
     },
     {
       name: 'OpenRouter',
@@ -82,6 +83,10 @@ export async function structuredAI<T>(
 
   const failures: string[] = [];
   for (const provider of providers) {
+    if ('enabled' in provider && provider.enabled === false) {
+      failures.push(`${provider.name}: skipped because this model is not verified as free`);
+      continue;
+    }
     if (!provider.apiKey) {
       failures.push(`${provider.name}: skipped because ${provider.keyName} is not configured`);
       continue;
