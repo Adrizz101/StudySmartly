@@ -467,3 +467,92 @@ body {
 }
 .board-chat-ai small { display:block; margin-top:.45rem; color:#b9c2cd; font-size:.68rem; }
 .board-discussion { padding:.25rem .1rem .7rem; }
+
+
+/* StudySmartly — deep-space glass system */
+:root, .dark {
+  --bg: #09090b;
+  --surface: rgba(255,255,255,.055);
+  --surface-hover: rgba(255,255,255,.085);
+  --surface-active: rgba(255,255,255,.12);
+  --border: rgba(255,255,255,.10);
+  --border-light: rgba(255,255,255,.16);
+  --text: #f4f7f6;
+  --text-muted: #a1aaa8;
+  --text-dim: #707a78;
+  --shadow: rgba(0,0,0,.28);
+}
+html { background: #09090b; }
+body {
+  background:
+    radial-gradient(ellipse at 12% 8%, rgba(16,185,129,.14), transparent 34rem),
+    radial-gradient(ellipse at 88% 16%, rgba(99,102,241,.16), transparent 38rem),
+    radial-gradient(ellipse at 55% 100%, rgba(20,184,166,.08), transparent 34rem),
+    #09090b;
+  background-attachment: fixed;
+  font-family: 'Manrope', 'Geist', ui-sans-serif, system-ui, sans-serif;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: -25%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 20% 35%, rgba(16,185,129,.08), transparent 32%),
+    radial-gradient(ellipse at 75% 25%, rgba(99,102,241,.10), transparent 30%);
+  filter: blur(50px);
+  animation: space-drift 28s ease-in-out infinite alternate;
+}
+@keyframes space-drift { from { transform: translate3d(-1.5%, -1%, 0) scale(1); } to { transform: translate3d(2%, 1.5%, 0) scale(1.08); } }
+.glass, .surface-elevated {
+  background: rgba(255,255,255,.045);
+  border: 1px solid rgba(255,255,255,.10);
+  backdrop-filter: blur(22px) saturate(135%);
+  -webkit-backdrop-filter: blur(22px) saturate(135%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.055), 0 18px 55px rgba(0,0,0,.16);
+}
+.glass { border-radius: 1.1rem; }
+.learning-workspace h1, .learning-heading h1, .dashboard-hero-title {
+  font-weight: 800;
+  letter-spacing: -.045em;
+}
+.learning-heading h1, .dashboard-hero-title {
+  background: linear-gradient(100deg, #6ee7b7 0%, #5eead4 48%, #c7d2fe 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+button, [role="button"], a {
+  transition: color .24s cubic-bezier(.2,.8,.2,1), background-color .24s cubic-bezier(.2,.8,.2,1), border-color .24s cubic-bezier(.2,.8,.2,1), box-shadow .24s cubic-bezier(.2,.8,.2,1), transform .24s cubic-bezier(.2,.8,.2,1);
+}
+button:hover:not(:disabled), [role="button"]:hover, a:hover {
+  box-shadow: 0 0 20px rgba(16,185,129,.13);
+}
+button:active:not(:disabled) { transform: scale(.985); }
+.study-content { position: relative; isolation: isolate; }
+.route-transition { animation: route-enter .42s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes route-enter { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
+.motion-stagger > * { animation: route-enter .42s cubic-bezier(.2,.8,.2,1) both; }
+.motion-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.motion-stagger > *:nth-child(2) { animation-delay: 55ms; }
+.motion-stagger > *:nth-child(3) { animation-delay: 110ms; }
+.motion-stagger > *:nth-child(4) { animation-delay: 165ms; }
+.motion-stagger > *:nth-child(5) { animation-delay: 220ms; }
+.motion-stagger > *:nth-child(6) { animation-delay: 275ms; }
+.motion-card { transition: transform .32s cubic-bezier(.2,.8,.2,1), border-color .32s, box-shadow .32s; }
+.motion-card:hover { transform: translateY(-3px) scale(1.012); border-color: rgba(110,231,183,.28); box-shadow: 0 18px 48px rgba(0,0,0,.22), 0 0 24px rgba(16,185,129,.08); }
+.sidebar-shell { transition: width .42s cubic-bezier(.2,.8,.2,1); }
+.skeleton-glass {
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: .85rem;
+  background: linear-gradient(100deg, rgba(255,255,255,.035) 20%, rgba(255,255,255,.09) 45%, rgba(255,255,255,.035) 70%);
+  background-size: 220% 100%;
+  animation: skeleton-sheen 1.7s ease-in-out infinite;
+}
+@keyframes skeleton-sheen { to { background-position-x: -220%; } }
+.spline-hero-frame { width:100%; height:100%; border:0; opacity:.92; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  .motion-card:hover { transform:none; }
+}
