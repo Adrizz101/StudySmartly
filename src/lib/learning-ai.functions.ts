@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import { z } from 'zod';
-import { deckSchema, boardSchema, examSchema, validateSlideCount } from './learning-models';
+import { deckSchema, boardSchema, examSchema, mistakeAnalysisSchema, validateSlideCount } from './learning-models';
 
 const source = z.object({ name: z.string(), text: z.string(), images: z.array(z.string().startsWith('data:image/')) });
 const input = z.object({ prompt: z.string().min(1).max(100000), sources: z.array(source), consent: z.literal(true) });
@@ -68,4 +68,41 @@ export const prepareExam = createServerFn({ method: 'POST' }).middleware([requir
     });
     if (!questions.length) throw new Error('No four-option MCQs were found in these sources.');
     return { title: second.output.title, questions };
+  });
+
+
+export const analyzeExamMistakes = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
+  .inputValidator(input.extend({
+    attempt: z.object({
+      exam: examSchema,
+      answers: z.record(z.string(), z.number().int().min(0).max(3)),
+    }),
+  }))
+  .handler(async ({ data }) => {
+    const missed = data.attempt.exam.questions.flatMap((q, index) => {
+      const answer = data.attempt.answers[String(index)];
+      if (!q.verified || q.correct === null || answer === q.correct) return [];
+      return [{
+        question: q.question,
+        options: q.options,
+        studentAnswer: q.options[answer] ?? 'No answer',
+        correctAnswer: q.options[q.correct],
+        subject: q.subject,
+        chapter: q.chapter,
+        concept: q.concept,
+        solution: q.steps,
+        distractors: q.distractors,
+      }];
+    });
+    if (!missed.length) {
+      throw new Error('There are no verified incorrect answers to analyse. Complete a test with at least one mistake first.');
+    }
+    const { structuredAI } = await import('./learning-ai.server');
+    const result = await structuredAI(
+      mistakeAnalysisSchema,
+      'You are a careful, supportive school learning diagnostician. Analyse only the supplied incorrect answers. Identify plausible learning patterns from evidence, but do not claim certainty from one question. Do not shame the student or label them. Give concise explanations and practical next steps. Generate up to five new four-option practice questions that test the same concepts without copying the original wording. Ensure each practice answer index is correct and explanations are accurate. Do not invent student history or claim to know why an error occurred if evidence is insufficient.',
+      `Analyse these verified mistakes from the student's completed test. Return a concise report grounded in the supplied questions and solutions only:\n${JSON.stringify(missed)}`,
+      [],
+    );
+    return result.output;
   });
