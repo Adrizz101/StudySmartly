@@ -18,7 +18,7 @@ export function StudyLayout({ children }: { children: ReactNode }) {
           if (window.matchMedia('(min-width: 1024px)').matches) setSidebarCollapsed((value) => !value);
           else setMobileOpen(true);
         }} />
-        <main className="study-content mx-auto w-full max-w-7xl flex-1 p-4 lg:p-6">{children}</main>
+        <main key={pathname} className="study-content route-transition mx-auto w-full max-w-7xl flex-1 p-4 lg:p-6">{children}</main>
       </div>
     </div>
   );
