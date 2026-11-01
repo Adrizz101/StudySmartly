@@ -166,6 +166,18 @@ export default function DrawingBoard() {
   const activeSessionRef = useRef<string | null>(activeSessionId);
   const animatingRef = useRef(false);
 
+  useEffect(() => {
+    try {
+      const handoff = window.sessionStorage.getItem('studysmartly_whiteboard_prompt');
+      if (handoff) {
+        setPrompt(handoff);
+        window.sessionStorage.removeItem('studysmartly_whiteboard_prompt');
+      }
+    } catch (error) {
+      console.warn('Could not read the flashcard Whiteboard handoff:', error);
+    }
+  }, []);
+
   useEffect(() => () => {
     runRef.current += 1;
     timersRef.current.forEach(clearTimeout);
