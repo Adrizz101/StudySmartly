@@ -3,7 +3,6 @@ import { useApp } from '@/store';
 import { ViewKey } from '@/types';
 import { Calendar, Bot, FileText, Mic, BookOpen, Clock, TrendingUp, AlertCircle, Plus } from 'lucide-react';
 import { formatDateLabel, formatTimeLabel } from '@/lib/syllabus';
-import { SplineHero } from '@/components/study/SplineHero';
 
 interface DashboardProps {
   onNavigate: (v: ViewKey) => void;
@@ -35,12 +34,12 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Hero */}
-      <div className="relative overflow-hidden rounded-2xl glass surface-elevated p-6 lg:p-8 grid lg:grid-cols-[1.15fr_.85fr] gap-5 items-center motion-card">
+      <div className="relative overflow-hidden rounded-2xl glass surface-elevated p-5 lg:p-6 motion-card">
         <div className="absolute top-0 right-0 w-64 h-64 bg-accent-500/10 rounded-full blur-3xl -mr-20 -mt-20" />
-        <div className="relative">
-          <h2 className="dashboard-hero-title text-3xl lg:text-5xl font-extrabold leading-tight">
+        <div className="relative max-w-3xl">
+          <h2 className="dashboard-hero-title text-3xl lg:text-4xl font-extrabold leading-tight">
             {new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening'}
             {settings.userName ? `, ${settings.userName}` : ''}
           </h2>
@@ -51,7 +50,6 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           </p>
           <div className="mt-6 flex flex-wrap gap-3"><button onClick={() => onNavigate("planner")} className="rounded-full bg-emerald-400 px-5 py-2.5 text-sm font-bold text-zinc-950 hover:shadow-[0_0_20px_rgba(16,185,129,.4)]">Build my study plan</button><button onClick={() => onNavigate("exams")} className="rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-text hover:bg-white/10">Practice an exam</button></div>
         </div>
-        <SplineHero />
       </div>
 
       {/* Stats grid */}
@@ -173,10 +171,10 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                       style={{ backgroundColor: course?.color || 'var(--accent)' }}
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-text truncate">{event.title}</div>
-                      <div className="text-xs text-text-dim flex items-center gap-2 mt-0.5">
-                        <Clock size={11} />
-                        {isToday ? 'Today' : formatDateLabel(event.date)} · {formatTimeLabel(event.startTime)}
+                      <div className="text-sm font-medium text-text line-clamp-1">{event.title}</div>
+                      <div className="text-xs text-text-dim flex min-w-0 items-center gap-2 mt-0.5">
+                        <Clock size={11} className="shrink-0" />
+                        <span className="min-w-0 truncate">{isToday ? 'Today' : formatDateLabel(event.date)} · {formatTimeLabel(event.startTime)}</span>
                       </div>
                     </div>
                     {event.type === 'exam' && (
