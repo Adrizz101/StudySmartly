@@ -16,7 +16,7 @@ export const generateDeck = createServerFn({ method: 'POST' }).middleware([requi
     for (let start = 0; start < count; start += 6) {
       const length = Math.min(6, count - start);
       const result = await structuredAI(deckSchema,
-        'You are an editorial presentation designer at Gamma quality and a source-grounded researcher at NotebookLM quality. These are polished presentations, NOT study guides. Build varied bento, timeline, comparison, process, dossier, spotlight and metric layouts. Include substantive specific detail, not filler. Titles <=65 characters; body <=400 characters; at most 4 bullets and 4 cards per slide; each card text <=200 characters. Do not invent numeric metrics. Include visual image prompts where useful. Return precisely the requested batch length.',
+        'You are an editorial presentation designer at Gamma quality and a source-grounded researcher at NotebookLM quality. These are polished presentations, NOT study guides. Return only content conforming to the supplied structured-output schema; do not add prose or markdown. Build varied bento, timeline, comparison, process, dossier, spotlight and metric layouts. Include substantive specific detail, not filler. Titles <=65 characters; body <=400 characters; at most 4 bullets and 4 cards per slide; each card text <=200 characters. Do not invent numeric metrics. Include visual image prompts where useful. Return precisely the requested batch length.',
         `${data.prompt}\nStudent cover: ${data.metadata}\nApproved outline: ${data.outline}\nTotal slides ${count}. Generate slides ${start+1}-${start+length}. Previous headings: ${slides.map(s => s.heading).join('; ')}. First overall slide is a title cover; last is a meaningful conclusion.`, data.sources, runId);
       if (result.output.slides.length !== length) throw new Error('The generated slide count did not match. No partial deck has been saved.');
       slides.push(...result.output.slides); title ||= result.output.title; subject ||= result.output.subject; runId = result.runId;
@@ -27,7 +27,7 @@ export const outlineDeck = createServerFn({ method: 'POST' }).middleware([requir
   .inputValidator(input.extend({ count: z.number() })).handler(async ({ data }) => {
     validateSlideCount(data.count);
     const { structuredAI } = await import('./learning-ai.server');
-    return (await structuredAI(z.object({ headings: z.array(z.string()) }), 'Plan an editorial presentation. Return one specific heading per slide, exact requested count.', `${data.prompt}\n${data.count} slides`, data.sources)).output;
+    return (await structuredAI(z.object({ headings: z.array(z.string()) }), 'Plan an editorial presentation. Return one specific heading per slide, exact requested count. Return only content conforming to the supplied structured-output schema; do not add prose or markdown.', `${data.prompt}\n${data.count} slides`, data.sources)).output;
   });
 export const editDeckSlide = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
   .inputValidator(input.extend({ slide: z.string() })).handler(async ({ data }) => {
