@@ -81,8 +81,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "StudySmart" },
-      { name: "description", content: "StudySmart study dashboard" },
+      { title: "StudySmartly" },
+      { name: "description", content: "StudySmartly study dashboard" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -91,7 +91,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+      { rel: "icon", href: "/favicon.jpg", type: "image/jpeg" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&display=swap" },
     ],
@@ -144,7 +144,7 @@ function AuthGate({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  if (loading) return <div className="flex min-h-screen items-center justify-center bg-bg text-text">StudySmart</div>;
+  if (loading) return <div className="flex min-h-screen items-center justify-center bg-bg text-text">StudySmartly</div>;
   if (!session) return <AuthScreen />;
   return <>{children}</>;
 }
@@ -155,7 +155,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ClientOnly fallback={<div className="flex min-h-screen items-center justify-center bg-bg text-text">StudySmart</div>}>
+      <ClientOnly fallback={<div className="flex min-h-screen items-center justify-center bg-bg text-text">StudySmartly</div>}>
         <AuthGate>
           <AppProvider>
             <StudyLayout><RouteAnimationContainer><Outlet /></RouteAnimationContainer></StudyLayout>
