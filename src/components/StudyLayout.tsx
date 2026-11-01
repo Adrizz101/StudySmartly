@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { Sidebar, TopBar } from '@/components/Sidebar';
 import type { ViewKey } from '@/types';
+import { AnimatedRoute } from '@/components/animated-route';
 
 export function StudyLayout({ children }: { children: ReactNode }) {
   const pathname = useLocation({ select: (location) => location.pathname });
@@ -18,7 +19,7 @@ export function StudyLayout({ children }: { children: ReactNode }) {
           if (window.matchMedia('(min-width: 1024px)').matches) setSidebarCollapsed((value) => !value);
           else setMobileOpen(true);
         }} />
-        <main key={pathname} className="study-content route-transition mx-auto w-full max-w-7xl flex-1 p-4 lg:p-6">{children}</main>
+        <main className="study-content mx-auto w-full max-w-7xl flex-1 p-4 lg:p-6"><AnimatedRoute>{children}</AnimatedRoute></main>
       </div>
     </div>
   );
