@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { BookOpen, CalendarDays, CheckCircle2, Clock3, Plus, RefreshCw, Settings2, Target, Trash2 } from 'lucide-react';
+import { BookOpen, CalendarDays, CheckCircle2, Clock3, FileText, Plus, RefreshCw, Settings2, Target, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useApp } from '@/store';
+import InteractiveLoader from '@/components/ui/InteractiveLoader';
+import { readSource } from '@/lib/source-files';
+import { extractSyllabusTopics } from '@/lib/learning-ai.functions';
 
 type Priority = 'low' | 'normal' | 'high';
 type Topic = { id: string; user_id: string; course_id: string | null; subject: string; chapter: string; concept: string; mastery_score: number; priority: Priority; last_practiced_at: string | null };
@@ -29,6 +32,11 @@ export default function AdaptivePlanner() {
   const [notice, setNotice] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [userId, setUserId] = useState('');
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [importMode, setImportMode] = useState<'paste' | 'file'>('paste');
+  const [syllabusText, setSyllabusText] = useState('');
+  const [syllabusFile, setSyllabusFile] = useState<File | null>(null);
+  const [extracting, setExtracting] = useState(false);
 
   const loadPlanner = useCallback(async () => {
     setBusy(true); setError('');
@@ -68,6 +76,43 @@ export default function AdaptivePlanner() {
       setNotice('Topic added to your learning list.');
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not add topic.'); }
     finally { setSaving(false); }
+  }
+
+
+  async function bulkImportTopics() {
+    setExtracting(true); setError(''); setNotice('');
+    try {
+      let source = null;
+      if (importMode === 'paste' && !syllabusText.trim()) throw new Error('Paste your syllabus text first.');
+      if (importMode === 'file' && !syllabusFile) throw new Error('Choose a PDF, text file or image first.');
+      if (importMode === 'file' && syllabusFile) source = await readSource(syllabusFile);
+      const text = importMode === 'paste' ? syllabusText.trim() : source?.text ?? '';
+      const result = await extractSyllabusTopics({
+        data: { text, sources: source ? [source] : [] },
+      });
+      if (!result.topics.length) throw new Error('No syllabus topics could be identified. Try a clearer or more complete source.');
+      const rows = result.topics.slice(0, 300).map(topic => ({
+        user_id: userId,
+        subject: topic.subject.trim(),
+        chapter: topic.chapter.trim(),
+        concept: topic.concept.trim(),
+        priority: topic.priority.toLowerCase() as Priority,
+        mastery_score: topic.mastery,
+        course_id: courses.find(course => course.name.toLowerCase() === topic.subject.trim().toLowerCase())?.id ?? null,
+        evidence: { source: 'bulk_syllabus_import' },
+      })).filter(topic => topic.subject && topic.chapter && topic.concept);
+      if (!rows.length) throw new Error('The extraction did not return any complete topics.');
+      const { data, error: insertError } = await (supabase as any).from('learning_topics')
+        .upsert(rows, { onConflict: 'user_id,subject,chapter,concept', ignoreDuplicates: true })
+        .select('*');
+      if (insertError) throw insertError;
+      const added = (data || []) as Topic[];
+      setTopics(prev => [...added, ...prev]);
+      setNotice(`Successfully added ${added.length} topics to your planner!${result.topics.length > 300 ? ' (First 300 imported.)' : ''}`);
+      setSyllabusText(''); setSyllabusFile(null); setShowBulkImport(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not import syllabus topics.');
+    } finally { setExtracting(false); }
   }
 
   async function savePreferences() {
@@ -184,7 +229,16 @@ export default function AdaptivePlanner() {
       {[{label:'Topics tracked',value:topics.length,icon:BookOpen},{label:'Planned sessions',value:upcoming.length,icon:CalendarDays},{label:'Completed',value:completedCount,icon:CheckCircle2},{label:'Weak topics',value:topics.filter(t=>t.mastery_score<50).length,icon:Target}].map(s=><div key={s.label} className="glass rounded-xl p-4"><s.icon size={19} className="text-accent-500 mb-2"/><div className="text-2xl font-bold text-text">{s.value}</div><div className="text-xs text-text-muted">{s.label}</div></div>)}
     </div>
     <div className="grid lg:grid-cols-[1fr_1.2fr] gap-4">
-      <section className="glass rounded-xl p-5 space-y-4"><div><h2 className="font-semibold text-text">Add a learning topic</h2><p className="text-xs text-text-muted mt-1">Track chapters and concepts that need revision.</p></div>
+      <section className="glass rounded-xl p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="font-semibold text-text">Bulk Import</h2><p className="text-xs text-text-muted mt-1">Extract chapters and concepts from a syllabus using AI.</p></div><Button type="button" variant="outline" onClick={() => setShowBulkImport(v => !v)}><FileText size={16}/>{showBulkImport ? 'Close import' : 'Bulk Import'}</Button></div>
+        {showBulkImport && <div className="rounded-lg border border-border p-4 space-y-3">
+          <div className="flex gap-2"><Button type="button" size="sm" variant={importMode === 'paste' ? 'default' : 'outline'} onClick={() => setImportMode('paste')}>Paste Text</Button><Button type="button" size="sm" variant={importMode === 'file' ? 'default' : 'outline'} onClick={() => setImportMode('file')}>Upload File</Button></div>
+          {importMode === 'paste' ? <label className="block text-sm text-text-muted">Paste syllabus or chapter list<textarea className="learning-input mt-1 min-h-40 w-full resize-y" value={syllabusText} onChange={e => setSyllabusText(e.target.value)} placeholder="Paste your syllabus here. Include subject and chapter headings where possible." rows={7}/></label> :
+            <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border p-5 text-center text-sm text-text-muted"><Upload size={22}/><span>{syllabusFile ? syllabusFile.name : 'Choose a PDF, TXT file or image'}</span><span className="text-xs">PDF, TXT, PNG, JPG or WEBP · Max 20 MB</span><input className="sr-only" type="file" accept=".pdf,.txt,.md,.csv,image/*" onChange={e => setSyllabusFile(e.target.files?.[0] ?? null)}/></label>}
+          {extracting ? <InteractiveLoader/> : <Button type="button" onClick={() => void bulkImportTopics()} disabled={saving || busy || extracting}><FileText size={16}/> Extract &amp; Add Topics</Button>}
+          <p className="text-xs text-text-muted">Existing topics are kept; duplicate subject/chapter/concept entries are skipped.</p>
+        </div>}
+        <div className="border-t border-border pt-4"><h2 className="font-semibold text-text">Add a learning topic manually</h2><p className="text-xs text-text-muted mt-1">Use this form for individual topics.</p></div>
         <form onSubmit={addTopic} className="space-y-3">
           <label className="block text-sm text-text-muted">Subject<input className="learning-input mt-1" value={subject} onChange={e=>setSubject(e.target.value)} placeholder="e.g. Mathematics" required/></label>
           <label className="block text-sm text-text-muted">Chapter<input className="learning-input mt-1" value={chapter} onChange={e=>setChapter(e.target.value)} placeholder="e.g. Polynomials" required/></label>
