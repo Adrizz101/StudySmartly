@@ -126,7 +126,7 @@ export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile, collap
   return (
     <>
       {/* Desktop */}
-      <aside className={`hidden lg:flex shrink-0 glass border-r border-border h-screen sticky top-0 transition-[width] duration-200 ${collapsed ? 'w-[4.5rem]' : 'w-64'}`}>
+      <aside className={`hidden lg:flex shrink-0 glass border-r border-border h-screen sticky top-0 sidebar-shell ${collapsed ? 'w-[4.5rem]' : 'w-64'}`}>
         <div className="flex flex-col w-full min-w-0">
           <div className={`flex ${collapsed ? 'justify-center' : 'justify-end'} px-2 pt-2`}>
             <Button variant="source" size="icon" aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={onToggleCollapse}>
