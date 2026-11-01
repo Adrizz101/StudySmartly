@@ -232,7 +232,6 @@ export default function AdaptivePlanner() {
     </div>
     <div className="grid lg:grid-cols-[1fr_1.2fr] gap-4">
       <section className="glass rounded-xl p-5 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="font-semibold text-text">Bulk Import</h2><p className="text-xs text-text-muted mt-1">Extract chapters and concepts from a syllabus using AI.</p></div><Button type="button" variant="outline" onClick={() => setShowBulkImport(v => !v)}><FileText size={16}/>{showBulkImport ? 'Close import' : 'Bulk Import'}</Button></div>
         {showBulkImport && <div className="rounded-lg border border-border p-4 space-y-3">
           <div className="flex gap-2"><Button type="button" size="sm" variant={importMode === 'paste' ? 'default' : 'outline'} onClick={() => setImportMode('paste')}>Paste Text</Button><Button type="button" size="sm" variant={importMode === 'file' ? 'default' : 'outline'} onClick={() => setImportMode('file')}>Upload File</Button></div>
           {importMode === 'paste' ? <label className="block text-sm text-text-muted">Paste syllabus or chapter list<textarea className="learning-input mt-1 min-h-40 w-full resize-y" value={syllabusText} onChange={e => setSyllabusText(e.target.value)} placeholder="Paste your syllabus here. Include subject and chapter headings where possible." rows={7}/></label> :
@@ -246,7 +245,12 @@ export default function AdaptivePlanner() {
           <label className="block text-sm text-text-muted">Chapter<input className="learning-input mt-1" value={chapter} onChange={e=>setChapter(e.target.value)} placeholder="e.g. Polynomials" required/></label>
           <label className="block text-sm text-text-muted">Concept / topic<input className="learning-input mt-1" value={concept} onChange={e=>setConcept(e.target.value)} placeholder="e.g. Zeroes of a polynomial" required/></label>
           <div className="grid grid-cols-2 gap-3"><label className="text-sm text-text-muted">Priority<select className="learning-input mt-1" value={priority} onChange={e=>setPriority(e.target.value as Priority)}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option></select></label><label className="text-sm text-text-muted">Current mastery: {mastery}%<input className="learning-input mt-1" type="range" min="0" max="100" step="5" value={mastery} onChange={e=>setMastery(Number(e.target.value))}/></label></div>
-          <Button type="submit" disabled={saving || busy}><Plus size={16}/> Add topic</Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="submit" disabled={saving || busy}><Plus size={16}/> Add topic</Button>
+            <Button type="button" variant="outline" onClick={() => { setShowBulkImport(v => !v); setError(''); setNotice(''); }} disabled={extracting}>
+              <Upload size={16}/> {showBulkImport ? 'Close Bulk Import' : 'Bulk Import'}
+            </Button>
+          </div>
         </form>
       </section>
       <section className="glass rounded-xl p-5"><h2 className="font-semibold text-text mb-3">Topics to focus on</h2>
