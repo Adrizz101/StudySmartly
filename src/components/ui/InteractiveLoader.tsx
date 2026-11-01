@@ -11,6 +11,8 @@ const STATUS_MESSAGES = [
 ];
 const ATOMS = ['∑', 'π', '√', '∫', '∞', 'Δ', 'λ', 'E=mc²', 'H₂O', 'Na⁺', 'x²', 'θ'];
 
+type GameAtom = { id: string; symbol: string; top: number; left: number; isPopping: boolean };
+
 function readPreference(): LoaderMode {
   if (typeof window === 'undefined') return 'standard';
   try {
@@ -33,7 +35,17 @@ export default function InteractiveLoader() {
   const [messageIndex, setMessageIndex] = useState(0);
   const [typedMessage, setTypedMessage] = useState(STATUS_MESSAGES[0]);
   const [brainPower, setBrainPower] = useState(0);
-  const [popCount, setPopCount] = useState(0);
+  const [atoms, setAtoms] = useState<GameAtom[]>(() =>
+    ATOMS.map((symbol, index) => ({ id: `${symbol}-${index}`, symbol, top: 50, left: 50, isPopping: false })),
+  );
+
+  useEffect(() => {
+    setAtoms((current) => current.map((atom) => ({
+      ...atom,
+      top: 14 + Math.random() * 68,
+      left: 4 + Math.random() * 88,
+    })));
+  }, []);
 
   useEffect(() => {
     const message = STATUS_MESSAGES[messageIndex];
@@ -76,7 +88,8 @@ export default function InteractiveLoader() {
         .atom-game-area { position:relative; width:100%; height:190px; margin-top:8px; overflow:hidden; border-radius:16px; background:radial-gradient(ellipse at center,hsl(var(--primary)/.11),transparent 70%); }
         .atom-game-score { position:absolute; z-index:2; top:10px; left:12px; border:1px solid hsl(var(--border)); border-radius:999px; padding:6px 10px; background:hsl(var(--card)/.88); font-size:12px; font-weight:700; }
         .atom-game-pop { position:absolute; z-index:3; top:8px; right:10px; border:1px solid hsl(var(--border)); border-radius:999px; padding:6px 10px; background:hsl(var(--card)/.88); color:hsl(var(--muted-foreground)); font-size:11px; }
-        .atom-bubble { position:absolute; bottom:-30px; display:grid; place-items:center; width:42px; height:42px; border:1px solid hsl(var(--primary)/.35); border-radius:50%; background:hsl(var(--card)/.92); color:hsl(var(--primary)); font-size:13px; font-weight:700; box-shadow:0 5px 18px hsl(var(--primary)/.12); cursor:pointer; animation:atom-rise var(--rise-duration) linear var(--rise-delay) infinite; }
+        .atom-bubble { position:absolute; display:grid; place-items:center; width:42px; height:42px; border:1px solid hsl(var(--primary)/.35); border-radius:50%; background:hsl(var(--card)/.92); color:hsl(var(--primary)); font-size:13px; font-weight:700; box-shadow:0 5px 18px hsl(var(--primary)/.12); cursor:pointer; animation:atom-rise var(--rise-duration) linear var(--rise-delay) infinite; }
+        .atom-bubble.is-popping { animation:none; opacity:0; transform:scale(0); transition:transform 300ms ease,opacity 300ms ease; pointer-events:none; }
         .atom-bubble:focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:3px; }
         @media (prefers-reduced-motion: reduce) { .interactive-loader-icon,.interactive-loader-orbit,.interactive-loader-cursor,.atom-bubble { animation:none; } }
       `}</style>
@@ -105,23 +118,35 @@ export default function InteractiveLoader() {
             <div className="atom-game-area" aria-label="Pop the floating science and maths symbols">
               <div className="atom-game-score">⚡ Brain Power: {brainPower}</div>
               <div className="atom-game-pop">Tap atoms to pop</div>
-              {ATOMS.map((symbol, index) => (
+              {atoms.map((atom, index) => (
                 <button
                   type="button"
-                  key={symbol}
-                  className="atom-bubble"
-                  aria-label={`Pop ${symbol}`}
-                  onClick={() => { setBrainPower((score) => score + 1); setPopCount((count) => count + 1); }}
+                  key={atom.id}
+                  className={`atom-bubble${atom.isPopping ? ' is-popping' : ''}`}
+                  aria-label={`Pop ${atom.symbol}`}
+                  disabled={atom.isPopping}
+                  onClick={() => {
+                    if (atom.isPopping) return;
+                    setBrainPower((score) => score + 1);
+                    setAtoms((current) => current.map((item) =>
+                      item.id === atom.id ? { ...item, isPopping: true } : item,
+                    ));
+                    window.setTimeout(() => {
+                      setAtoms((current) => current.filter((item) => item.id !== atom.id));
+                    }, 300);
+                  }}
                   style={{
-                    left: `${6 + ((index * 29 + popCount * 13) % 88)}%`,
+                    top: `${atom.top}%`,
+                    left: `${atom.left}%`,
                     animationDelay: `${(index % 6) * -0.65}s`,
                     animationDuration: `${5.5 + (index % 4) * 0.8}s`,
                     ['--rise-duration' as string]: `${5.5 + (index % 4) * 0.8}s`,
                     ['--rise-delay' as string]: `${(index % 6) * -0.65}s`,
                   } as CSSProperties}
                 >
-                  {symbol}
+                  {atom.symbol}
                 </button>
+              ))}
               ))}
             </div>
             <p className="interactive-loader-subtle">Pop as many floating atoms as you can. Your score resets when this wait ends.</p>
