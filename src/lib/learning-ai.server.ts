@@ -1,5 +1,5 @@
 import { createOpenAI } from '@ai-sdk/openai';
-import { generateText, Output } from 'ai';
+import { generateObject } from 'ai';
 import { z } from 'zod';
 import type { SourceInput } from './learning-models';
 
@@ -47,7 +47,7 @@ export async function structuredAI<T>(
         baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
         apiKey: process.env['GEMINI_API_KEY'] || '',
       }),
-      model: 'gemini-3.8-flash',
+      model: 'gemini-2.5-flash',
       supportsImages: true,
     },
     {
@@ -70,7 +70,7 @@ export async function structuredAI<T>(
         baseURL: 'https://openrouter.ai/api/v1',
         apiKey: process.env['OPENROUTER_API_KEY'] || '',
       }),
-      model: 'openrouter/free',
+      model: 'meta-llama/llama-3.3-70b-instruct:free',
       supportsImages: true,
     },
   ];
@@ -99,19 +99,19 @@ export async function structuredAI<T>(
     }
 
     try {
-      const { output } = await generateText({
+      const { object } = await generateObject({
         model: provider.client(provider.model),
-        output: Output.object({ schema }),
-        instructions,
+        schema,
+        system: instructions,
         messages,
         maxRetries: 2,
       });
 
-      if (!output) {
+      if (!object) {
         throw new Error('The AI provider returned no structured output.');
       }
 
-      return { output, runId: runId || `${provider.name}-run` };
+      return { output: object, runId: runId || `${provider.name}-run` };
     } catch (error) {
       const message = errorMessage(error);
       failures.push(`${provider.name} (${provider.model}): ${message}`);
