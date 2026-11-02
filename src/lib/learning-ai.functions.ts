@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import { z } from 'zod';
-import { deckSchema, boardSchema, examSchema, mistakeAnalysisSchema, validateSlideCount } from './learning-models';
+import { deckSchema, boardSchema, examSchema, mistakeAnalysisSchema, revisionPackageSchema, validateSlideCount } from './learning-models';
 
 const source = z.object({ name: z.string(), text: z.string(), images: z.array(z.string().startsWith('data:image/')) });
 const input = z.object({ prompt: z.string().min(1).max(100000), sources: z.array(source), consent: z.literal(true) });
@@ -118,4 +118,23 @@ export const extractSyllabusTopics = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const { extractTopicsFromText } = await import('./learning-ai.server');
     return extractTopicsFromText(data.text, data.images);
+  });
+
+
+export const generateRevisionPackage = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({
+    title: z.string().min(1).max(200),
+    transcript: z.string().min(1).max(100000),
+    consent: z.literal(true),
+  }))
+  .handler(async ({ data }) => {
+    const { structuredAI } = await import('./learning-ai.server');
+    const result = await structuredAI(
+      revisionPackageSchema,
+      'Create a source-grounded lecture revision package. Write concise, well-organised summary notes, extract the important definitions that are explicitly supported by the transcript, and create exactly three useful four-option practice MCQs. Each correctIndex is zero-based. Ensure exactly one correct answer per question and provide a brief explanation. Do not invent facts absent from the transcript; if a term is unclear, omit it rather than guessing.',
+      `Lecture: ${data.title}\nCreate a revision package from this transcript:\n${data.transcript}`,
+      [],
+    );
+    return result.output;
   });
