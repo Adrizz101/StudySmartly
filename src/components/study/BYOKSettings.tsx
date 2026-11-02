@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import { Button } from '@/components/ui/button';
 import { getUserAIKeyStatus, saveUserAIKeys } from '@/lib/user-ai-keys.functions';
-import { KeyRound, ShieldCheck, ExternalLink, Eye, EyeOff, ChevronDown } from 'lucide-react';
+import { KeyRound, ShieldCheck, ExternalLink, Eye, ChevronDown } from 'lucide-react';
 
 type KeyStatus = { gemini: boolean; openrouter: boolean };
 
