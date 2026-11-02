@@ -98,7 +98,7 @@ export default function FlashcardStudio(){
    }
  },[]);
  const selectedDeck=decks.find(d=>d.id===selected);
- const due=useMemo(()=>cards.filter(c=>c.deck_id===selected&&new Date(c.due_at)<=new Date()&&(!reviewTopic||c.topic===reviewTopic)).sort((a,b)=>a.due_at.localeCompare(b.due_at)),[cards,selected,reviewTopic]);
+ const due=useMemo(()=>cards.filter(c=>c.deck_id===selected&&new Date(c.due_at)<=new Date()&&(!reviewTopic||(c.topic||c.subject||'General')===reviewTopic)).sort((a,b)=>a.due_at.localeCompare(b.due_at)),[cards,selected,reviewTopic]);
  const current=due[index];
 
  async function createDeck(){
