@@ -1,12 +1,14 @@
 import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import { z } from 'zod';
-import { saveUserAIKey } from './user-ai-keys.server';
+import { deleteUserAIKey, saveUserAIKey } from './user-ai-keys.server';
 import { supabaseAdmin } from '@/integrations/supabase/client.server';
 
 const keyInput = z.object({
   geminiKey: z.string().max(500).default(''),
   openRouterKey: z.string().max(500).default(''),
+  removeGemini: z.boolean().default(false),
+  removeOpenRouter: z.boolean().default(false),
 });
 
 export const saveUserAIKeys = createServerFn({ method: 'POST' })
@@ -14,8 +16,10 @@ export const saveUserAIKeys = createServerFn({ method: 'POST' })
   .inputValidator(keyInput)
   .handler(async ({ data, context }) => {
     const userId = context.userId;
-    await saveUserAIKey(userId, 'gemini', data.geminiKey);
-    await saveUserAIKey(userId, 'openrouter', data.openRouterKey);
+    if (data.removeGemini) await deleteUserAIKey(userId, 'gemini');
+    else if (data.geminiKey.trim()) await saveUserAIKey(userId, 'gemini', data.geminiKey);
+    if (data.removeOpenRouter) await deleteUserAIKey(userId, 'openrouter');
+    else if (data.openRouterKey.trim()) await saveUserAIKey(userId, 'openrouter', data.openRouterKey);
     return { success: true };
   });
 
