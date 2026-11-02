@@ -13,7 +13,8 @@ interface DashboardProps {
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
   const { courses, events, tutorSessions, documents, transcriptions, settings } = useApp();
-  const [nextSession, setNextSession] = useState<{ deckId: string; subject: string; topic: string; count: number } | null>(null);
+  type NextSession = { kind: 'flashcards'; deckId: string; subject: string; topic: string; count: number } | { kind: 'topic'; subject: string; topic: string; chapter: string; mastery: number };
+  const [nextSession, setNextSession] = useState<NextSession | null>(null);
   const [nextSessionLoading, setNextSessionLoading] = useState(true);
   const [nextSessionError, setNextSessionError] = useState(false);
 
@@ -38,8 +39,28 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           group.count += 1;
           groups.set(key, group);
         }
-        const recommendation = [...groups.values()].sort((a, b) => b.count - a.count)[0] ?? null;
-        if (active) { setNextSession(recommendation); setNextSessionError(false); }
+        const dueRecommendation = [...groups.values()].sort((a, b) => b.count - a.count)[0];
+        if (dueRecommendation) {
+          if (active) { setNextSession({ kind: 'flashcards', ...dueRecommendation }); setNextSessionError(false); }
+        } else {
+          const { data: weakTopic, error: topicError } = await (supabase as any).from('learning_topics')
+            .select('subject, chapter, concept, mastery_score')
+            .lt('mastery_score', 50)
+            .order('mastery_score', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          if (topicError) throw topicError;
+          if (active) {
+            setNextSession(weakTopic ? {
+              kind: 'topic',
+              subject: String(weakTopic.subject || 'General'),
+              topic: String(weakTopic.concept || weakTopic.chapter || 'Revision'),
+              chapter: String(weakTopic.chapter || ''),
+              mastery: Number(weakTopic.mastery_score ?? 0),
+            } : null);
+            setNextSessionError(false);
+          }
+        }
       } catch (error) {
         console.warn('[Dashboard] Could not load due flashcards:', error);
         if (active) { setNextSession(null); setNextSessionError(true); }
@@ -53,6 +74,13 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
   function startRecommendedSession() {
     if (!nextSession) { onNavigate('tutor'); return; }
+    if (nextSession.kind === 'topic') {
+      const prompt = 'Teach me this weak topic using a clear, step-by-step visual lesson on the AI Whiteboard. Subject: ' + nextSession.subject + '. Chapter: ' + nextSession.chapter + '. Topic: ' + nextSession.topic + '. My current mastery score is ' + nextSession.mastery + '%. Start with the foundations, use a labelled diagram or structured explanation where useful, and finish with a short recall check.';
+      try { window.sessionStorage.setItem('studysmartly_whiteboard_prompt', prompt); }
+      catch (error) { console.warn('[Dashboard] Could not persist Whiteboard topic handoff:', error); }
+      onNavigate('tutor');
+      return;
+    }
     try {
       window.sessionStorage.setItem('studysmartly_flashcard_handoff', JSON.stringify({
         deckId: nextSession.deckId, subject: nextSession.subject, topic: nextSession.topic,
@@ -127,9 +155,9 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
               <div className="mt-3 space-y-1 text-sm">
                 <p className="text-text"><span className="text-text-muted">Subject:</span> {nextSession.subject}</p>
                 <p className="text-text"><span className="text-text-muted">Topic:</span> {nextSession.topic}</p>
-                <p className="text-text-muted"><span className="text-text">Reason:</span> You have {nextSession.count} flashcard{nextSession.count === 1 ? '' : 's'} due for review.</p>
+                <p className="text-text-muted"><span className="text-text">Reason:</span> {nextSession.kind === 'flashcards' ? 'You have ' + nextSession.count + ' flashcard' + (nextSession.count === 1 ? '' : 's') + ' due for review.' : 'Your mastery is ' + nextSession.mastery + '%, below the 50% target. Study it on the AI Whiteboard.'}</p>
               </div>
-            ) : <p className="mt-2 max-w-xl text-sm text-text-muted">{nextSessionError ? 'Your review schedule could not be loaded. You can still start a visual lesson.' : 'No flashcards are due right now. Start a visual lesson on a topic you want to strengthen.'}</p>}
+            ) : <p className="mt-2 max-w-xl text-sm text-text-muted">{nextSessionError ? 'Your review schedule could not be loaded. You can still start a visual lesson.' : 'No flashcards are due and no topics are below 50% mastery. Keep up your revision.'}</p>}
           </div>
           <Button onClick={startRecommendedSession} disabled={nextSessionLoading} className="relative min-h-12 shrink-0 px-6 text-base font-semibold">
             Start Session

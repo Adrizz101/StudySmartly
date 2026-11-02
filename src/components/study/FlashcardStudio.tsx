@@ -13,22 +13,26 @@ import type { Attempt } from '@/lib/learning-models';
 import { load } from '@/lib/storage';
 
 type Deck = { id:string; title:string; subject:string; source:string; created_at:string };
-type Card = { id:string; deck_id:string; question:string; answer:string; explanation:string; subject:string; topic:string; difficulty:'easy'|'normal'|'hard'; due_at:string; interval_days:number; ease_factor:number; repetitions:number; lapses:number };
-type Rating = 'easy'|'medium'|'hard';
+type Card = { id:string; deck_id:string; question:string; answer:string; explanation:string; subject:string; topic:string; type:'basic'|'mcq'; options:string[]; correct_option_index:number|null; difficulty:'easy'|'normal'|'hard'; due_at:string; interval_days:number; ease_factor:number; repetitions:number; lapses:number };
+type Rating = 'again'|'hard'|'good'|'easy';
 const nowIso = () => new Date().toISOString();
 
 function schedule(card:Card, rating:Rating) {
-  // SM-2 quality values: Hard=3, Medium=4, Easy=5.
-  const quality = rating === 'easy' ? 5 : rating === 'medium' ? 4 : 3;
+  const quality = rating === 'again' ? 0 : rating === 'hard' ? 3 : rating === 'good' ? 4 : 5;
   const ease = Math.max(1.3, Math.min(3.5, card.ease_factor + (0.1 - (5-quality) * (0.08 + (5-quality) * 0.02))));
-  const repetitions = card.repetitions + 1;
-  const interval = repetitions === 1 ? 1 : repetitions === 2 ? 6 : Math.max(1, Math.round(Math.max(1, card.interval_days) * ease * (rating === 'hard' ? 0.8 : 1)));
+  const failed = rating === 'again';
+  const repetitions = failed ? 0 : card.repetitions + 1;
+  const interval = failed ? 0
+    : rating === 'hard' ? 1
+    : rating === 'good' ? (repetitions === 1 ? 1 : repetitions === 2 ? 6 : Math.max(1, Math.round(Math.max(1, card.interval_days) * ease)))
+    : (repetitions === 1 ? 4 : repetitions === 2 ? 8 : Math.max(1, Math.round(Math.max(1, card.interval_days) * ease * 1.3)));
+  const now = Date.now();
   return {
     repetitions,
-    lapses: card.lapses + (rating === 'hard' ? 1 : 0),
+    lapses: card.lapses + (failed ? 1 : 0),
     ease_factor: Number(ease.toFixed(2)),
     interval_days: interval,
-    due_at: new Date(Date.now() + interval * 86400000).toISOString(),
+    due_at: new Date(now + interval * 86400000).toISOString(),
     last_reviewed_at: nowIso(),
     updated_at: nowIso(),
   };
@@ -56,7 +60,7 @@ function getMistakeSource() {
 export default function FlashcardStudio(){
  const navigate=useNavigate();
  const [decks,setDecks]=useState<Deck[]>([]),[cards,setCards]=useState<Card[]>([]),[selected,setSelected]=useState(''),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const [title,setTitle]=useState(''),[subject,setSubject]=useState('General'),[sourceText,setSourceText]=useState(''),[sources,setSources]=useState<SourceInput[]>([]),[mistakeText,setMistakeText]=useState(''),[count,setCount]=useState(12),[consent,setConsent]=useState(false),[revealed,setRevealed]=useState(false),[index,setIndex]=useState(0),[reviewTopic,setReviewTopic]=useState('');
+ const [title,setTitle]=useState(''),[subject,setSubject]=useState('General'),[sourceText,setSourceText]=useState(''),[sources,setSources]=useState<SourceInput[]>([]),[mistakeText,setMistakeText]=useState(''),[count,setCount]=useState(12),[consent,setConsent]=useState(false),[revealed,setRevealed]=useState(false),[index,setIndex]=useState(0),[reviewTopic,setReviewTopic]=useState(''),[selectedOption,setSelectedOption]=useState<number|null>(null);
  const generate=useServerFn(generateFlashcards);
  const loadDecks=useCallback(async()=>{
    setLoading(true);setError('');
@@ -114,7 +118,7 @@ export default function FlashcardStudio(){
      const source=mistakeText?'mistake_analyzer':'ai_generated';
      const {data:deck,error:deckError}=await supabase.from('flashcard_decks').insert({user_id:auth.user.id,title:title.trim(),subject:subject.trim()||'General',source}).select('*').single();
      if(deckError)throw deckError;
-     const rows=result.cards.map(c=>({...c,deck_id:deck.id,user_id:auth.user!.id,subject:subject.trim()||'General',due_at:nowIso(),interval_days:0,ease_factor:2.5,repetitions:0,lapses:0}));
+     const rows=result.cards.map(c=>({question:c.question,answer:c.answer,explanation:c.explanation,topic:c.topic,type:c.type,options:c.options,correct_option_index:c.correctOptionIndex,difficulty:c.difficulty,deck_id:deck.id,user_id:auth.user!.id,subject:subject.trim()||'General',due_at:nowIso(),interval_days:0,ease_factor:2.5,repetitions:0,lapses:0}));
      const {data:saved,error:saveError}=await supabase.from('flashcards').insert(rows).select('*');
      if(saveError){await supabase.from('flashcard_decks').delete().eq('id',deck.id).eq('user_id',auth.user.id);throw saveError;}
      setDecks(prev=>[deck as Deck,...prev]);setCards(prev=>[...(saved as Card[]),...prev]);setSelected(deck.id);setIndex(0);setRevealed(false);setTitle('');setSourceText('');setSources([]);setMistakeText('');setNotice(`Created ${saved.length} cards. Your first review is ready.`);
@@ -127,12 +131,12 @@ export default function FlashcardStudio(){
    const next=schedule(current,rating);
    try{
      const {data:auth}=await supabase.auth.getUser();if(!auth.user)throw new Error('Sign in again to save this review.');
-     const {data:reviewRow,error:reviewError}=await supabase.from('flashcard_reviews').insert({card_id:current.id,user_id:auth.user.id,rating:rating==='easy'?3:rating==='medium'?2:1,previous_interval_days:current.interval_days,next_interval_days:next.interval_days}).select('id').single();
+     const {data:reviewRow,error:reviewError}=await supabase.from('flashcard_reviews').insert({card_id:current.id,user_id:auth.user.id,rating:rating==='easy'?3:rating==='good'?2:rating==='hard'?1:0,previous_interval_days:current.interval_days,next_interval_days:next.interval_days}).select('id').single();
      if(reviewError)throw reviewError;
      const {error:updateError}=await supabase.from('flashcards').update(next).eq('id',current.id).eq('user_id',auth.user.id);
      if(updateError){if(reviewRow?.id)await supabase.from('flashcard_reviews').delete().eq('id',reviewRow.id).eq('user_id',auth.user.id);throw updateError;}
-     setCards(prev=>prev.map(c=>c.id===current.id?{...c,...next}:c));setRevealed(false);setIndex(i=>Math.min(i,Math.max(0,due.length-2)));
-     setNotice(`Reviewed · next review in ${next.interval_days} day${next.interval_days===1?'':'s'}.`);
+     setCards(prev=>prev.map(c=>c.id===current.id?{...c,...next}:c));setRevealed(false);setSelectedOption(null);setIndex(i=>rating==='again'?Math.min(i+1,Math.max(0,due.length-1)):Math.min(i,Math.max(0,due.length-2)));
+     setNotice(rating==='again'?'Marked Again · this card stays due for another attempt in this session.':`Reviewed · next review in ${next.interval_days} day${next.interval_days===1?'':'s'}.`);
    }catch(e){setError(e instanceof Error?e.message:'Could not save review.');}
    finally{setBusy(false);}
  }
@@ -151,16 +155,25 @@ export default function FlashcardStudio(){
     <div className="flex flex-wrap items-center justify-between gap-3 min-w-0"><h2 className="font-semibold flex items-center gap-2"><Brain size={18}/> Review session</h2>{selectedDeck&&<span className="text-xs text-text-muted break-words">{selectedDeck.title}{reviewTopic?' · '+reviewTopic:''}</span>}</div>
     {!selectedDeck?<p className="text-sm text-text-muted py-8 text-center">Create a deck to begin your first review.</p>:!current?<div className="text-center py-10"><Check className="mx-auto text-accent-400 mb-3" size={32}/><h3 className="font-semibold">You’re clear for now</h3><p className="text-sm text-text-muted mt-1">No cards from this deck are due. Come back when the next review is scheduled.</p></div>:<div className="space-y-5 min-w-0">
       <div className="flex flex-wrap justify-between gap-2 text-xs text-text-muted"><span>Card {index+1} of {due.length}</span><span>{current.topic||current.subject}</span></div>
-      <button type="button" onClick={()=>setRevealed(value=>!value)} aria-label={revealed?'Show flashcard front':'Flip flashcard to reveal answer'} className="w-full min-h-56 sm:min-h-64 rounded-2xl border border-border bg-surface-hover/70 p-5 sm:p-8 flex flex-col justify-center text-center hover:border-accent-500/60 transition-colors">
-       <p className="text-xs uppercase tracking-wider text-accent-400 mb-4">{revealed?'BACK · ANSWER':'FRONT · QUESTION'}</p><span className="text-lg sm:text-2xl font-semibold whitespace-pre-wrap break-words">{revealed?current.answer:current.question}</span>
-       {revealed&&current.explanation&&<span className="text-sm text-text-muted mt-5 whitespace-pre-wrap break-words">{current.explanation}</span>}
-       <span className="text-xs text-text-dim mt-5">{revealed?'Tap to show question':'Tap to flip and reveal'}</span>
-      </button>
-      {!revealed?<Button className="w-full" onClick={()=>setRevealed(true)}>Reveal answer</Button>:<div className="space-y-3">
+      <div className="w-full min-h-56 sm:min-h-64 rounded-2xl border border-border bg-surface-hover/70 p-5 sm:p-8 flex flex-col justify-center text-center">
+       <p className="text-xs uppercase tracking-wider text-accent-400 mb-4">{revealed?'BACK · ANSWER':'FRONT · QUESTION'}</p>
+       <p className="text-lg sm:text-2xl font-semibold whitespace-pre-wrap break-words">{current.question}</p>
+       {!revealed && current.type==='mcq' && <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-2">{(current.options||[]).map((option, optionIndex)=><Button key={optionIndex} type="button" variant="outline" disabled={busy} onClick={()=>{setSelectedOption(optionIndex);setRevealed(true);}} className="h-auto min-h-11 whitespace-normal text-left justify-start">{String.fromCharCode(65+optionIndex)}. {option}</Button>)}</div>}
+       {!revealed && current.type!=='mcq' && <Button className="mt-5 w-full" onClick={()=>setRevealed(true)}>Reveal answer</Button>}
+       {revealed && current.type==='mcq' && selectedOption!==null && <p role="status" className={selectedOption===current.correct_option_index?'mt-4 text-sm font-semibold text-emerald-400':'mt-4 text-sm font-semibold text-amber-400'}>{selectedOption===current.correct_option_index?'Correct answer.':'Not quite. The correct option is '+String.fromCharCode(65+(current.correct_option_index??0))+'.'}</p>}
+       {revealed && <p className="mt-5 text-base sm:text-xl font-semibold whitespace-pre-wrap break-words">{current.answer}</p>}
+       {revealed && current.explanation && <p className="text-sm text-text-muted mt-4 whitespace-pre-wrap break-words">{current.explanation}</p>}
+      </div>
+      {!revealed?<></>:<div className="space-y-3">
         <Button variant="outline" className="w-full" onClick={explainOnWhiteboard}><PencilRuler size={16}/>Explain this on Whiteboard</Button>
-        <div className="grid grid-cols-3 gap-2">{(['hard','medium','easy'] as const).map(label=><Button key={label} variant="outline" disabled={busy} onClick={()=>void review(label)} className="min-w-0 capitalize">{label}</Button>)}</div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <Button variant="outline" disabled={busy} onClick={()=>void review('again')} className="min-w-0">Again</Button>
+          <Button variant="outline" disabled={busy} onClick={()=>void review('hard')} className="min-w-0">Hard</Button>
+          <Button variant="outline" disabled={busy} onClick={()=>void review('good')} className="min-w-0">Good</Button>
+          <Button variant="outline" disabled={busy} onClick={()=>void review('easy')} className="min-w-0">Easy</Button>
+        </div>
       </div>}
-      <div className="flex items-center justify-between gap-2"><Button variant="ghost" size="sm" disabled={index===0} onClick={()=>{setIndex(i=>i-1);setRevealed(false)}}><ChevronLeft size={16}/>Previous</Button><Button variant="ghost" size="sm" disabled={index>=due.length-1} onClick={()=>{setIndex(i=>i+1);setRevealed(false)}}>Next<ChevronRight size={16}/></Button></div>
+      <div className="flex items-center justify-between gap-2"><Button variant="ghost" size="sm" disabled={index===0} onClick={()=>{setIndex(i=>i-1);setRevealed(false);setSelectedOption(null)}}><ChevronLeft size={16}/>Previous</Button><Button variant="ghost" size="sm" disabled={index>=due.length-1} onClick={()=>{setIndex(i=>i+1);setRevealed(false);setSelectedOption(null)}}>Next<ChevronRight size={16}/></Button></div>
     </div>}
    </div>
    <aside className="space-y-4 min-w-0">
@@ -171,7 +184,7 @@ export default function FlashcardStudio(){
       <label className="block text-xs text-text-muted">Cards to generate<input className="learning-input mt-1" type="number" min="5" max="40" value={count} onChange={e=>setCount(Math.max(5,Math.min(40,Number(e.target.value)||5)))}/></label>
       <AIConsent consent={consent} onConsent={setConsent}/><Button className="w-full" disabled={busy||!title.trim()||(!sourceText.trim()&&!sources.length&&!mistakeText)} onClick={()=>void createDeck()}><Sparkles size={16}/>Generate deck</Button>{busy&&<InteractiveLoader/>}
     </div>
-    <div className="glass rounded-2xl p-4 sm:p-5 min-w-0"><div className="flex items-center justify-between gap-2 mb-3"><h2 className="font-semibold flex items-center gap-2"><BookOpen size={18}/> Your decks</h2><Button variant="ghost" size="sm" onClick={()=>void loadDecks()}><RotateCcw size={15}/></Button></div>{loading?<p className="text-sm text-text-muted">Loading…</p>:decks.length===0?<p className="text-sm text-text-muted">No decks yet.</p>:<div className="space-y-2">{decks.map(d=><button key={d.id} onClick={()=>{setSelected(d.id);setIndex(0);setRevealed(false)}} className={`w-full min-w-0 text-left p-3 rounded-xl border break-words ${selected===d.id?'border-accent-500 bg-accent-500/10':'border-border hover:bg-surface-hover'}`}><span className="block text-sm font-medium break-words">{d.title}</span><span className="text-xs text-text-muted">{d.subject} · {cards.filter(c=>c.deck_id===d.id).length} cards</span></button>)}</div>}</div>
+    <div className="glass rounded-2xl p-4 sm:p-5 min-w-0"><div className="flex items-center justify-between gap-2 mb-3"><h2 className="font-semibold flex items-center gap-2"><BookOpen size={18}/> Your decks</h2><Button variant="ghost" size="sm" onClick={()=>void loadDecks()}><RotateCcw size={15}/></Button></div>{loading?<p className="text-sm text-text-muted">Loading…</p>:decks.length===0?<p className="text-sm text-text-muted">No decks yet.</p>:<div className="space-y-2">{decks.map(d=><button key={d.id} onClick={()=>{setSelected(d.id);setIndex(0);setRevealed(false);setSelectedOption(null)}} className={`w-full min-w-0 text-left p-3 rounded-xl border break-words ${selected===d.id?'border-accent-500 bg-accent-500/10':'border-border hover:bg-surface-hover'}`}><span className="block text-sm font-medium break-words">{d.title}</span><span className="text-xs text-text-muted">{d.subject} · {cards.filter(c=>c.deck_id===d.id).length} cards</span></button>)}</div>}</div>
    </aside>
   </section>
  </div>;
