@@ -1,3 +1,4 @@
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -158,7 +159,7 @@ function RootComponent() {
       <ClientOnly fallback={<div className="flex min-h-screen items-center justify-center bg-bg text-text">StudySmartly</div>}>
         <AuthGate>
           <AppProvider>
-            <StudyLayout><RouteAnimationContainer><Outlet /></RouteAnimationContainer></StudyLayout>
+            <StudyLayout><RouteAnimationContainer><ErrorBoundary featureName="Page"><Outlet /></ErrorBoundary></RouteAnimationContainer></StudyLayout>
           </AppProvider>
         </AuthGate>
       </ClientOnly>

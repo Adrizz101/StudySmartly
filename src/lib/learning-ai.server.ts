@@ -98,30 +98,37 @@ export async function structuredAI<T>(
       continue;
     }
 
-    try {
-      const { object } = await generateObject({
-        model: provider.client(provider.model),
-        schema,
-        system: instructions,
-        messages,
-        maxRetries: 2,
-      });
-
-      if (!object) {
-        throw new Error('The AI provider returned no structured output.');
+    let providerError: unknown;
+    // Explicit schema validation plus one controlled retry for malformed output.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const repairInstruction = attempt === 0
+          ? instructions
+          : instructions + '\nYour previous response did not satisfy the required schema. Correct every validation issue and return only a complete response matching the schema exactly.';
+        const { object } = await generateObject({
+          model: provider.client(provider.model),
+          schema,
+          system: repairInstruction,
+          messages,
+          maxRetries: 0,
+        });
+        const parsed = schema.safeParse(object);
+        if (parsed.success) {
+          return { output: parsed.data, runId: runId || provider.name + '-run' };
+        }
+        providerError = new Error(parsed.error.issues.map((issue) => (issue.path.join('.') || 'response') + ': ' + issue.message).join('; '));
+      } catch (error) {
+        providerError = error;
       }
-
-      return { output: object, runId: runId || `${provider.name}-run` };
-    } catch (error) {
-      const message = errorMessage(error);
-      failures.push(`${provider.name} (${provider.model}): ${message}`);
-      console.warn(
-        `[AI Failover] ${provider.name} failed: ${message}. Trying the next provider.`,
-      );
+      if (attempt === 0) console.warn('[AI Validation] ' + provider.name + ' response was invalid; retrying once.');
     }
+    const message = errorMessage(providerError ?? new Error('Invalid AI response'));
+    failures.push(provider.name + ' (' + provider.model + '): ' + message);
+    console.warn('[AI Failover] ' + provider.name + ' failed after one validation retry: ' + message);
   }
 
-  throw new Error(`All configured AI providers failed. ${failures.join(' | ')}`);
+  console.error('[AI] All configured providers failed:', failures);
+  throw new Error('StudySmartly could not generate a valid response right now. Please try again in a moment.');
 }
 
 

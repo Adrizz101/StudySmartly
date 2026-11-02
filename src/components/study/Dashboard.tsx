@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { useApp } from '@/store';
 import { ViewKey } from '@/types';
@@ -11,6 +13,54 @@ interface DashboardProps {
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
   const { courses, events, tutorSessions, documents, transcriptions, settings } = useApp();
+  const [nextSession, setNextSession] = useState<{ deckId: string; subject: string; topic: string; count: number } | null>(null);
+  const [nextSessionLoading, setNextSessionLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function loadNextSession() {
+      setNextSessionLoading(true);
+      try {
+        const { data, error } = await supabase.from('flashcards')
+          .select('id, deck_id, subject, topic, due_at')
+          .lte('due_at', new Date().toISOString())
+          .order('due_at', { ascending: true }).limit(500);
+        if (error) throw error;
+        const groups = new Map<string, { deckId: string; subject: string; topic: string; count: number }>();
+        for (const card of data ?? []) {
+          const deckId = String(card.deck_id ?? '');
+          const subject = String(card.subject || 'General');
+          const topic = String(card.topic || subject);
+          if (!deckId) continue;
+          const key = deckId + '::' + subject + '::' + topic;
+          const group = groups.get(key) ?? { deckId, subject, topic, count: 0 };
+          group.count += 1;
+          groups.set(key, group);
+        }
+        const recommendation = [...groups.values()].sort((a, b) => b.count - a.count)[0] ?? null;
+        if (active) setNextSession(recommendation);
+      } catch (error) {
+        console.warn('[Dashboard] Could not load due flashcards:', error);
+        if (active) setNextSession(null);
+      } finally {
+        if (active) setNextSessionLoading(false);
+      }
+    }
+    void loadNextSession();
+    return () => { active = false; };
+  }, []);
+
+  function startRecommendedSession() {
+    if (!nextSession) { onNavigate('tutor'); return; }
+    try {
+      window.sessionStorage.setItem('studysmartly_flashcard_handoff', JSON.stringify({
+        deckId: nextSession.deckId, subject: nextSession.subject, topic: nextSession.topic,
+      }));
+    } catch (error) {
+      console.warn('[Dashboard] Could not persist study-session handoff:', error);
+    }
+    onNavigate('flashcards');
+  }
 
   const activeCourses = courses.filter((c) => c.active);
   const today = new Date().toISOString().slice(0, 10);
@@ -65,6 +115,26 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           />
         </div>
       </div>
+
+      <section className="relative overflow-hidden rounded-2xl glass surface-elevated border border-accent-500/25 p-5 sm:p-6 motion-card" aria-labelledby="next-study-session-title">
+        <div className="absolute -right-10 -top-12 h-44 w-44 rounded-full bg-accent-500/10 blur-3xl" />
+        <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+          <div className="min-w-0">
+            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-accent-400">Your learning recommendation</span>
+            <h3 id="next-study-session-title" className="mt-2 text-xl sm:text-2xl font-bold text-text">Your Next Best Study Session</h3>
+            {nextSessionLoading ? <p className="mt-2 text-sm text-text-muted">Checking your review schedule…</p> : nextSession ? (
+              <div className="mt-3 space-y-1 text-sm">
+                <p className="text-text"><span className="text-text-muted">Subject:</span> {nextSession.subject}</p>
+                <p className="text-text"><span className="text-text-muted">Topic:</span> {nextSession.topic}</p>
+                <p className="text-text-muted">You have {nextSession.count} flashcard{nextSession.count === 1 ? '' : 's'} due for review.</p>
+              </div>
+            ) : <p className="mt-2 max-w-xl text-sm text-text-muted">No flashcards are due right now. Start a visual lesson on a topic you want to strengthen.</p>}
+          </div>
+          <Button onClick={startRecommendedSession} disabled={nextSessionLoading} className="relative min-h-12 shrink-0 px-6 text-base font-semibold">
+            {nextSession ? 'Start Session' : 'Start Whiteboard Session'}
+          </Button>
+        </div>
+      </section>
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">

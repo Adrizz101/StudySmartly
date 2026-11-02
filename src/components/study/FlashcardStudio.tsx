@@ -56,7 +56,7 @@ function getMistakeSource() {
 export default function FlashcardStudio(){
  const navigate=useNavigate();
  const [decks,setDecks]=useState<Deck[]>([]),[cards,setCards]=useState<Card[]>([]),[selected,setSelected]=useState(''),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const [title,setTitle]=useState(''),[subject,setSubject]=useState('General'),[sourceText,setSourceText]=useState(''),[sources,setSources]=useState<SourceInput[]>([]),[mistakeText,setMistakeText]=useState(''),[count,setCount]=useState(12),[consent,setConsent]=useState(false),[revealed,setRevealed]=useState(false),[index,setIndex]=useState(0);
+ const [title,setTitle]=useState(''),[subject,setSubject]=useState('General'),[sourceText,setSourceText]=useState(''),[sources,setSources]=useState<SourceInput[]>([]),[mistakeText,setMistakeText]=useState(''),[count,setCount]=useState(12),[consent,setConsent]=useState(false),[revealed,setRevealed]=useState(false),[index,setIndex]=useState(0),[reviewTopic,setReviewTopic]=useState('');
  const generate=useServerFn(generateFlashcards);
  const loadDecks=useCallback(async()=>{
    setLoading(true);setError('');
@@ -76,20 +76,29 @@ export default function FlashcardStudio(){
    try {
      const raw=window.sessionStorage.getItem('studysmartly_flashcard_handoff');
      if(!raw)return;
-     const handoff=JSON.parse(raw) as {title?:string;subject?:string;sourceText?:string};
+     const handoff=JSON.parse(raw) as {title?:string;subject?:string;sourceText?:string;deckId?:string;topic?:string};
+     let consumed = false;
+     if(typeof handoff.deckId==='string'&&handoff.deckId){
+       setSelected(handoff.deckId);
+       setReviewTopic(typeof handoff.topic==='string'?handoff.topic:'');
+       setSubject(typeof handoff.subject==='string'&&handoff.subject.trim()?handoff.subject:'General');
+       setNotice('Your ' + (handoff.topic || handoff.subject || 'selected') + ' review session is ready.');
+       consumed = true;
+     }
      if(typeof handoff.sourceText==='string'&&handoff.sourceText.trim()){
        setTitle(typeof handoff.title==='string'&&handoff.title.trim()?handoff.title:'Lecture revision');
        setSubject(typeof handoff.subject==='string'&&handoff.subject.trim()?handoff.subject:'General');
        setSourceText(handoff.sourceText);
        setNotice('Lecture transcript loaded. Review the source and generate your Phase 3 flashcard deck.');
-       window.sessionStorage.removeItem('studysmartly_flashcard_handoff');
+       consumed = true;
      }
+     if(consumed) window.sessionStorage.removeItem('studysmartly_flashcard_handoff');
    } catch {
      setError('Could not load the lecture transcript. Paste it into the source notes field.');
    }
  },[]);
  const selectedDeck=decks.find(d=>d.id===selected);
- const due=useMemo(()=>cards.filter(c=>c.deck_id===selected&&new Date(c.due_at)<=new Date()).sort((a,b)=>a.due_at.localeCompare(b.due_at)),[cards,selected]);
+ const due=useMemo(()=>cards.filter(c=>c.deck_id===selected&&new Date(c.due_at)<=new Date()&&(!reviewTopic||c.topic===reviewTopic)).sort((a,b)=>a.due_at.localeCompare(b.due_at)),[cards,selected,reviewTopic]);
  const current=due[index];
 
  async function createDeck(){
@@ -139,7 +148,7 @@ export default function FlashcardStudio(){
   {error&&<div role="alert" className="learning-error break-words">{error}</div>}{notice&&<div role="status" className="rounded-xl bg-accent-500/10 text-accent-400 p-3 text-sm break-words">{notice}</div>}
   <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)] gap-4 min-w-0">
    <div className="glass rounded-2xl p-4 sm:p-6 min-w-0 space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-3 min-w-0"><h2 className="font-semibold flex items-center gap-2"><Brain size={18}/> Review session</h2>{selectedDeck&&<span className="text-xs text-text-muted break-words">{selectedDeck.title}</span>}</div>
+    <div className="flex flex-wrap items-center justify-between gap-3 min-w-0"><h2 className="font-semibold flex items-center gap-2"><Brain size={18}/> Review session</h2>{selectedDeck&&<span className="text-xs text-text-muted break-words">{selectedDeck.title}{reviewTopic?' · '+reviewTopic:''}</span>}</div>
     {!selectedDeck?<p className="text-sm text-text-muted py-8 text-center">Create a deck to begin your first review.</p>:!current?<div className="text-center py-10"><Check className="mx-auto text-accent-400 mb-3" size={32}/><h3 className="font-semibold">You’re clear for now</h3><p className="text-sm text-text-muted mt-1">No cards from this deck are due. Come back when the next review is scheduled.</p></div>:<div className="space-y-5 min-w-0">
       <div className="flex flex-wrap justify-between gap-2 text-xs text-text-muted"><span>Card {index+1} of {due.length}</span><span>{current.topic||current.subject}</span></div>
       <button type="button" onClick={()=>setRevealed(value=>!value)} aria-label={revealed?'Show flashcard front':'Flip flashcard to reveal answer'} className="w-full min-h-56 sm:min-h-64 rounded-2xl border border-border bg-surface-hover/70 p-5 sm:p-8 flex flex-col justify-center text-center hover:border-accent-500/60 transition-colors">
