@@ -72,6 +72,22 @@ export default function FlashcardStudio(){
    finally{setLoading(false);}
  },[]);
  useEffect(()=>{void loadDecks();},[loadDecks]);
+ useEffect(()=>{
+   try {
+     const raw=window.sessionStorage.getItem('studysmartly_flashcard_handoff');
+     if(!raw)return;
+     const handoff=JSON.parse(raw) as {title?:string;subject?:string;sourceText?:string};
+     if(typeof handoff.sourceText==='string'&&handoff.sourceText.trim()){
+       setTitle(typeof handoff.title==='string'&&handoff.title.trim()?handoff.title:'Lecture revision');
+       setSubject(typeof handoff.subject==='string'&&handoff.subject.trim()?handoff.subject:'General');
+       setSourceText(handoff.sourceText);
+       setNotice('Lecture transcript loaded. Review the source and generate your Phase 3 flashcard deck.');
+       window.sessionStorage.removeItem('studysmartly_flashcard_handoff');
+     }
+   } catch {
+     setError('Could not load the lecture transcript. Paste it into the source notes field.');
+   }
+ },[]);
  const selectedDeck=decks.find(d=>d.id===selected);
  const due=useMemo(()=>cards.filter(c=>c.deck_id===selected&&new Date(c.due_at)<=new Date()).sort((a,b)=>a.due_at.localeCompare(b.due_at)),[cards,selected]);
  const current=due[index];
