@@ -1,8 +1,6 @@
 import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import { z } from 'zod';
-import { deleteUserAIKey, saveUserAIKey } from './user-ai-keys.server';
-import { supabaseAdmin } from '@/integrations/supabase/client.server';
 
 const keyInput = z.object({
   geminiKey: z.string().max(500).default(''),
@@ -16,6 +14,7 @@ export const saveUserAIKeys = createServerFn({ method: 'POST' })
   .inputValidator(keyInput)
   .handler(async ({ data, context }) => {
     const userId = context.userId;
+    const { deleteUserAIKey, saveUserAIKey } = await import('./user-ai-keys.server');
     if (data.removeGemini) await deleteUserAIKey(userId, 'gemini');
     else if (data.geminiKey.trim()) await saveUserAIKey(userId, 'gemini', data.geminiKey);
     if (data.removeOpenRouter) await deleteUserAIKey(userId, 'openrouter');
@@ -26,6 +25,7 @@ export const saveUserAIKeys = createServerFn({ method: 'POST' })
 export const getUserAIKeyStatus = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const admin = supabaseAdmin as any;
     const { data, error } = await admin
       .from('user_ai_keys')
