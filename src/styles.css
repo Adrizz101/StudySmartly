@@ -649,3 +649,41 @@ button, a { overflow-wrap: anywhere; }
   .whiteboard-workspace { height: auto; min-height: 0; }
   .drawing-surface { min-height: 360px; }
 }
+
+
+/* Mobile workspace normalization: stack study screens and constrain every child
+   to the viewport so nested grids, toolbars and cards cannot create side-scroll. */
+@media (max-width: 639px) {
+  .study-content,
+  .study-content > *,
+  .learning-workspace,
+  .learning-workspace > * {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .study-content,
+  .learning-workspace {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .learning-workspace [class*="grid-cols-"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100%;
+    min-width: 0;
+  }
+  .learning-workspace .flex-wrap { flex-wrap: wrap; }
+  .learning-workspace input,
+  .learning-workspace textarea,
+  .learning-workspace select {
+    width: 100%;
+    min-width: 0;
+  }
+  .board-actions,
+  .studio-toolbar,
+  .exam-bar {
+    width: 100%;
+    min-width: 0;
+  }
+}
