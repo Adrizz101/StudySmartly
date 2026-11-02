@@ -63,27 +63,10 @@ export default function Settings() {
     }
   };
 
-  const getAccountId = async (): Promise<string | null> => {
-    try {
-      const { data, error } = await supabase.auth.getSession();
-      if (error) {
-        console.warn('[ANALYTICS] Could not retrieve the signed-in account:', error);
-        return null;
-      }
-      return data.session?.user?.id ?? null;
-    } catch (error) {
-      console.warn('[ANALYTICS] Session lookup failed:', error);
-      return null;
-    }
-  };
-
   const submitFeatureRequest = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!requestedFeature.trim()) return;
-    const accountId = await getAccountId();
     trackEvent('feature_request_submitted', {
-      account_id: accountId,
-      student_segment: 'high_school_student',
       requested_feature_category: requestCategory,
     });
     setRequestedFeature('');
