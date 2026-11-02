@@ -101,12 +101,6 @@ export async function structuredAI<T>(
     await consumeDailyAIUsage(userId);
   }
 
-  if (!providers.some((provider) => provider.apiKey)) {
-    throw new Error(
-      'No AI provider API keys are configured. Add GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY to your server environment.',
-    );
-  }
-
   const failures: string[] = [];
   for (const provider of providers) {
     if ('enabled' in provider && provider.enabled === false) {
