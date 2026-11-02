@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import BYOKSettings from './BYOKSettings';
 import { useState, type FormEvent } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
@@ -19,7 +20,6 @@ import {
 export default function Settings() {
   const { settings, updateSettings, setMode, setAccent } = useApp();
   const reduceMotion = useReducedMotion();
-  const [showAiKey, setShowAiKey] = useState(false);
   const [showImageKey, setShowImageKey] = useState(false);
   const [requestedFeature, setRequestedFeature] = useState('');
   const [requestCategory, setRequestCategory] = useState('Study Tools');
@@ -86,7 +86,7 @@ export default function Settings() {
       requested_feature_category: requestCategory,
     });
     setRequestedFeature('');
-    setSubmissionNotice('Request metadata recorded in the local analytics console. The feature description is not transmitted or stored.');
+    setSubmissionNotice('Feature request metadata submitted. Your written description is not collected by analytics.');
   };
 
   const submitFeedback = async (event: FormEvent<HTMLFormElement>) => {
@@ -100,14 +100,13 @@ export default function Settings() {
       feedback_type: feedbackType,
     });
     setFeedbackText('');
-    setSubmissionNotice('Feedback metadata recorded in the local analytics console. Your written feedback is not transmitted or stored.');
+    setSubmissionNotice('Feedback metadata submitted. Your written feedback is not collected by analytics.');
   };
 
   const updatePomodoro = (key: keyof typeof settings.pomodoro, value: number | boolean) => {
     updateSettings({ pomodoro: { ...settings.pomodoro, [key]: value } });
   };
 
-  const aiStatus = getConnectorStatus(settings.aiApiKey);
   const imageStatus = getConnectorStatus(settings.imageApiKey);
 
   return (
@@ -115,7 +114,7 @@ export default function Settings() {
       <SettingsCard icon={Sparkles} title="StudySmartly Academy">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="max-w-xl text-sm leading-6 text-text-muted">
-            Explore the dashboard, study tools, exam practice, and personalisation settings in an interactive eight-step guided tour.
+            Explore the dashboard, study tools, exam practice, and AI key settings in an interactive guided tour.
           </p>
           <Button type="button" onClick={() => window.dispatchEvent(new Event('studysmartly:open-academy'))} className="min-h-11 shrink-0">
             <Sparkles size={16} className="mr-2" /> Open StudySmartly Academy
@@ -302,56 +301,11 @@ export default function Settings() {
         </div>
       </SettingsCard>
 
-      {/* API Connectors */}
-      <SettingsCard icon={Plug} title="API Connectors">
-        <div className="space-y-5">
-          {/* AI Connector */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-text flex items-center gap-2">
-                <Key size={15} className="text-accent-500" />
-                OpenAI / OpenRouter API Key
-              </label>
-              <StatusBadge status={aiStatus} />
-            </div>
-            <div className="relative">
-              <input
-                type={showAiKey ? 'text' : 'password'}
-                value={settings.aiApiKey}
-                onChange={(e) => updateSettings({ aiApiKey: e.target.value })}
-                placeholder="sk-..."
-                className="w-full px-3.5 py-2.5 pr-10 rounded-xl bg-surface-hover border border-border text-text text-sm focus:outline-none focus:border-accent-500 font-mono"
-              />
-              <Button variant="source"
-                onClick={() => setShowAiKey(!showAiKey)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-text-dim hover:text-text transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-              >
-                {showAiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-              </Button>
-            </div>
-            <div className="grid grid-cols-2 gap-3 mt-2">
-              <div>
-                <label className="text-xs text-text-muted block mb-1">API Base URL</label>
-                <input
-                  value={settings.aiBaseUrl}
-                  onChange={(e) => updateSettings({ aiBaseUrl: e.target.value })}
-                  placeholder="https://api.openai.com/v1"
-                  className="w-full px-3 py-2 rounded-lg bg-surface-hover border border-border text-text text-xs focus:outline-none focus:border-accent-500 font-mono"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-text-muted block mb-1">Model</label>
-                <input
-                  value={settings.aiModel}
-                  onChange={(e) => updateSettings({ aiModel: e.target.value })}
-                  placeholder="gpt-4o-mini"
-                  className="w-full px-3 py-2 rounded-lg bg-surface-hover border border-border text-text text-xs focus:outline-none focus:border-accent-500 font-mono"
-                />
-              </div>
-            </div>
-          </div>
+      <BYOKSettings />
 
-          {/* Image Connector */}
+      <SettingsCard icon={ImageIcon} title="Image Connector">
+        <div className="space-y-5">
+          {/* Image provider key remains an optional local browser setting. */}
           <div className="pt-2 border-t border-border">
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-text flex items-center gap-2">
@@ -382,12 +336,14 @@ export default function Settings() {
 
           <div className="flex items-center gap-2 text-xs text-text-dim pt-2 border-t border-border">
             <Shield size={13} />
-            All keys are stored locally in your browser under localStorage and never sent to any server except the provider you configure.
+            
+          </div>
+          <div className="flex items-center gap-2 text-xs text-text-dim pt-2 border-t border-border">
+            <Shield size={13} />
+            The optional image-provider key is stored in this browser. AI tutor keys are encrypted server-side in your account.
           </div>
         </div>
       </SettingsCard>
-
-
 
       {/* Feedback and feature requests */}
       <SettingsCard icon={FileText} title="Feedback & Feature Requests">
@@ -455,7 +411,7 @@ export default function Settings() {
 
           {submissionNotice && <p role="status" className="text-xs text-text-muted">{submissionNotice}</p>}
           <p className="text-xs text-text-dim leading-relaxed">
-            Privacy notice: this prototype logs only event metadata to the browser console. Written descriptions are not sent to a server or saved. Account IDs are included only when a Supabase session is available.
+            Analytics records only event metadata for signed-in accounts. Written feedback and feature descriptions are not included in analytics.
           </p>
         </div>
       </SettingsCard>
