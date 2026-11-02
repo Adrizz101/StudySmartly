@@ -76,10 +76,7 @@ export default function Settings() {
   const submitFeedback = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!feedbackText.trim()) return;
-    const accountId = await getAccountId();
     trackEvent('feature_feedback_submitted', {
-      account_id: accountId,
-      student_segment: 'high_school_student',
       feature_name: feedbackFeature,
       feedback_type: feedbackType,
     });
