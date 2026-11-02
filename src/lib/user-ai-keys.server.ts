@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/integrations/supabase/client.server';
+import { getRequest } from '@tanstack/react-start/server';
 
 type ProviderName = 'gemini' | 'openrouter';
 const admin = supabaseAdmin as any;
@@ -86,4 +87,15 @@ export async function consumeDailyAIUsage(userId: string) {
     throw new Error('You have reached today’s limit of 15 AI requests on the shared free keys. Add your own Gemini or OpenRouter API key in Settings to continue with your own provider quota. Your limit resets at 00:00 UTC.');
   }
   return data;
+}
+
+export async function getAuthenticatedAIUserId(): Promise<string> {
+  const request = getRequest();
+  const authorization = request?.headers.get('authorization');
+  if (!authorization?.startsWith('Bearer ')) throw new Error('Unauthorized: sign in before using AI.');
+  const token = authorization.slice(7);
+  const { data, error } = await admin.auth.getClaims(token);
+  const userId = data?.claims?.sub;
+  if (error || typeof userId !== 'string' || !userId) throw new Error('Unauthorized: your session is invalid. Please sign in again.');
+  return userId;
 }
