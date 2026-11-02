@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/integrations/supabase/client.server';
 
 type ProviderName = 'gemini' | 'openrouter';
+const admin = supabaseAdmin as any;
 type EncryptedKeyRow = { provider: ProviderName; encrypted_key: string; iv: string; auth_tag: string };
 
 function getEncryptionKey() {
@@ -45,7 +46,7 @@ async function decryptUserAIKey(row: EncryptedKeyRow) {
 }
 
 export async function getUserAIKeys(userId: string): Promise<Partial<Record<ProviderName, string>>> {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await admin
     .from('user_ai_keys')
     .select('provider, encrypted_key, iv, auth_tag')
     .eq('user_id', userId);
@@ -59,7 +60,7 @@ export async function getUserAIKeys(userId: string): Promise<Partial<Record<Prov
 
 export async function saveUserAIKey(userId: string, provider: ProviderName, value: string) {
   if (!value.trim()) {
-    const { error } = await supabaseAdmin.from('user_ai_keys').delete().eq('user_id', userId).eq('provider', provider);
+    const { error } = await admin.from('user_ai_keys').delete().eq('user_id', userId).eq('provider', provider);
     if (error) throw new Error('Could not remove the saved AI key.');
     return;
   }
@@ -76,7 +77,7 @@ export async function saveUserAIKey(userId: string, provider: ProviderName, valu
 
 export async function consumeDailyAIUsage(userId: string) {
   const today = new Date().toISOString().slice(0, 10);
-  const { data, error } = await supabaseAdmin.rpc('increment_ai_usage', {
+  const { data, error } = await admin.rpc('increment_ai_usage', {
     p_user_id: userId,
     p_usage_date: today,
   });
