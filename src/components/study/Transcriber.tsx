@@ -1,14 +1,27 @@
 import { Button } from '@/components/ui/button';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useApp } from '@/store';
+import { useNavigate } from '@tanstack/react-router';
+import { useServerFn } from '@tanstack/react-start';
+import { generateRevisionPackage } from '@/lib/learning-ai.functions';
+import type { RevisionPackage } from '@/lib/learning-models';
+import { AIConsent } from '@/components/learning/AIConsent';
 import { Transcription } from '@/types';
 import {
   Mic, Square, Download, Trash2, Plus, FileAudio,
-  Volume2, Clock, Pause, Play, AlertCircle, Copy, Check,
+  Volume2, Clock, Pause, Play, AlertCircle, Copy, Check, BookOpen, Sparkles, Layers3,
 } from 'lucide-react';
 
 export default function Transcriber() {
   const { transcriptions, setTranscriptions } = useApp();
+  const navigate = useNavigate();
+  const generateRevision = useServerFn(generateRevisionPackage);
+  const [revisionTarget, setRevisionTarget] = useState('');
+  const [revisionTitle, setRevisionTitle] = useState('');
+  const [revisionPackage, setRevisionPackage] = useState<RevisionPackage | null>(null);
+  const [revisionBusy, setRevisionBusy] = useState(false);
+  const [revisionError, setRevisionError] = useState('');
+  const [aiConsent, setAiConsent] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [currentText, setCurrentText] = useState('');
@@ -153,9 +166,14 @@ export default function Transcriber() {
 
     const finalText = finalTextRef.current.trim();
     if (finalText.length > 0) {
+      const lectureTitle = title.trim() || `Lecture ${new Date().toLocaleDateString()}`;
+      setRevisionTarget(finalText);
+      setRevisionTitle(lectureTitle);
+      setRevisionPackage(null);
+      setRevisionError('');
       const t: Transcription = {
         id: crypto.randomUUID(),
-        title: title.trim() || `Lecture ${new Date().toLocaleDateString()}`,
+        title: lectureTitle,
         text: finalText,
         createdAt: Date.now(),
         duration: elapsed,
@@ -187,6 +205,37 @@ export default function Transcriber() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, []);
+
+  async function createRevisionPackage(text = revisionTarget, lectureTitle = revisionTitle) {
+    if (!text.trim()) return;
+    setRevisionBusy(true);
+    setRevisionError('');
+    try {
+      if (!aiConsent) throw new Error('Confirm AI processing consent before generating revision notes.');
+      const result = await generateRevision({
+        data: { title: lectureTitle || 'Lecture notes', transcript: text, consent: true },
+      });
+      setRevisionPackage(result);
+    } catch (cause) {
+      setRevisionError(cause instanceof Error ? cause.message : 'Could not generate the revision package.');
+    } finally {
+      setRevisionBusy(false);
+    }
+  }
+
+  function openFlashcards() {
+    if (!revisionTarget.trim()) return;
+    try {
+      window.sessionStorage.setItem('studysmartly_flashcard_handoff', JSON.stringify({
+        title: revisionTitle || 'Lecture revision',
+        subject: 'General',
+        sourceText: revisionTarget,
+      }));
+    } catch {
+      setRevisionError('Could not pass the transcript to Flashcards. Copy the transcript and paste it there instead.');
+    }
+    void navigate({ to: '/flashcards' });
+  }
 
   const formatDuration = (s: number) => {
     const m = Math.floor(s / 60);
@@ -301,6 +350,63 @@ export default function Transcriber() {
         </div>
       </div>
 
+      {revisionTarget && (
+        <section className="glass rounded-2xl p-5 sm:p-6 space-y-4 min-w-0 w-full">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-text text-lg">Lecture revision studio</h3>
+              <p className="text-sm text-text-muted mt-1 break-words">{revisionTitle}</p>
+            </div>
+            <span className="text-xs text-accent-400">Transcript ready</span>
+          </div>
+          <AIConsent consent={aiConsent} onConsent={setAiConsent} />
+          <div className="flex flex-wrap gap-2">
+            <Button variant="source" disabled={revisionBusy || !aiConsent} onClick={() => void createRevisionPackage()}>
+              <Sparkles size={16} /> {revisionBusy ? 'Generating…' : 'Generate Revision Package'}
+            </Button>
+            <Button variant="outline" disabled={!revisionTarget.trim()} onClick={openFlashcards}>
+              <Layers3 size={16} /> Generate Flashcards
+            </Button>
+          </div>
+          {revisionError && <p role="alert" className="text-sm text-study-rose-500 break-words">{revisionError}</p>}
+          {revisionPackage && (
+            <div className="space-y-4 border-t border-border pt-4">
+              <section>
+                <h4 className="font-semibold text-text flex items-center gap-2"><BookOpen size={16}/> Summary notes</h4>
+                <p className="text-sm text-text-muted leading-relaxed whitespace-pre-wrap mt-2">{revisionPackage.summary}</p>
+              </section>
+              <section>
+                <h4 className="font-semibold text-text">Important definitions</h4>
+                <dl className="space-y-3 mt-2">
+                  {revisionPackage.definitions.map((item, index) => (
+                    <div key={index} className="rounded-xl border border-border p-3">
+                      <dt className="font-medium text-sm text-text">{item.term}</dt>
+                      <dd className="text-sm text-text-muted mt-1">{item.definition}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+              <section>
+                <h4 className="font-semibold text-text">Practice MCQs</h4>
+                <div className="space-y-3 mt-2">
+                  {revisionPackage.mcqs.map((item, index) => (
+                    <article key={index} className="rounded-xl border border-border p-3">
+                      <p className="font-medium text-sm text-text">{index + 1}. {item.question}</p>
+                      <ol className="list-[upper-alpha] pl-5 mt-2 space-y-1 text-sm text-text-muted">
+                        {item.options.map((option, optionIndex) => (
+                          <li key={optionIndex} className={optionIndex === item.correctIndex ? 'text-accent-400 font-medium' : ''}>{option}</li>
+                        ))}
+                      </ol>
+                      <p className="text-xs text-text-muted mt-2">{item.explanation}</p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* Saved transcriptions */}
       {transcriptions.length > 0 && (
         <div>
@@ -336,6 +442,14 @@ export default function Transcriber() {
                       <Trash2 size={14} />
                     </Button>
                   </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <Button variant="outline" size="sm" onClick={() => {
+                    setRevisionTarget(t.text);
+                    setRevisionTitle(t.title);
+                    setRevisionPackage(null);
+                    setRevisionError('');
+                  }}>Use for revision</Button>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-text-dim mb-2">
                   <span className="flex items-center gap-1"><Clock size={11} /> {formatDuration(t.duration)}</span>
