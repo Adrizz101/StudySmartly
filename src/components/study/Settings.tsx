@@ -610,7 +610,7 @@ export default function Settings() {
         </div>
       </section>
 
-      <p className="text-xs text-text-dim text-center">Settings save automatically to your browser.</p>
+      <p className="text-xs text-text-dim text-center">Preferences save automatically in this browser. Gemini and OpenRouter BYOK credentials are encrypted and saved to your account.</p>
     </div>
   );
 }
