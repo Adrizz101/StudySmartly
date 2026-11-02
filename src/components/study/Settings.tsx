@@ -20,6 +20,7 @@ import {
 export default function Settings() {
   const { settings, updateSettings, setMode, setAccent } = useApp();
   const reduceMotion = useReducedMotion();
+  const [showAiKey, setShowAiKey] = useState(false);
   const [showImageKey, setShowImageKey] = useState(false);
   const [requestedFeature, setRequestedFeature] = useState('');
   const [requestCategory, setRequestCategory] = useState('Study Tools');
@@ -107,6 +108,7 @@ export default function Settings() {
     updateSettings({ pomodoro: { ...settings.pomodoro, [key]: value } });
   };
 
+  const aiStatus = getConnectorStatus(settings.aiApiKey);
   const imageStatus = getConnectorStatus(settings.imageApiKey);
 
   return (
@@ -302,6 +304,41 @@ export default function Settings() {
       </SettingsCard>
 
       <BYOKSettings />
+
+      <SettingsCard icon={Plug} title="Legacy OpenAI-Compatible Connector">
+        <div className="space-y-4">
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <label className="flex items-center gap-2 text-sm font-medium text-text"><Key size={15} className="text-accent-500" /> OpenAI-Compatible API Key</label>
+              <StatusBadge status={aiStatus} />
+            </div>
+            <div className="relative">
+              <input
+                type={showAiKey ? 'text' : 'password'}
+                value={settings.aiApiKey}
+                onChange={(event) => updateSettings({ aiApiKey: event.target.value })}
+                placeholder="Optional legacy connector key"
+                autoComplete="off"
+                className="w-full rounded-xl border border-border bg-surface-hover px-3.5 py-2.5 pr-10 font-mono text-sm text-text focus:border-accent-500 focus:outline-none"
+              />
+              <Button variant="source" onClick={() => setShowAiKey(!showAiKey)} className="absolute right-3 top-1/2 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center text-text-dim">
+                {showAiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              </Button>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs text-text-muted">API Base URL</label>
+                <input value={settings.aiBaseUrl} onChange={(event) => updateSettings({ aiBaseUrl: event.target.value })} placeholder="https://api.openai.com/v1" className="w-full rounded-lg border border-border bg-surface-hover px-3 py-2 font-mono text-xs text-text focus:border-accent-500 focus:outline-none" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-text-muted">Model</label>
+                <input value={settings.aiModel} onChange={(event) => updateSettings({ aiModel: event.target.value })} placeholder="gpt-4o-mini" className="w-full rounded-lg border border-border bg-surface-hover px-3 py-2 font-mono text-xs text-text focus:border-accent-500 focus:outline-none" />
+              </div>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-text-dim">This legacy connector is stored in this browser and is separate from the encrypted Gemini/OpenRouter BYOK keys used by server AI features.</p>
+          </div>
+        </div>
+      </SettingsCard>
 
       <SettingsCard icon={ImageIcon} title="Image Connector">
         <div className="space-y-5">
