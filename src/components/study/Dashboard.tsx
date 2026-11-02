@@ -15,6 +15,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   const { courses, events, tutorSessions, documents, transcriptions, settings } = useApp();
   const [nextSession, setNextSession] = useState<{ deckId: string; subject: string; topic: string; count: number } | null>(null);
   const [nextSessionLoading, setNextSessionLoading] = useState(true);
+  const [nextSessionError, setNextSessionError] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -38,10 +39,10 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           groups.set(key, group);
         }
         const recommendation = [...groups.values()].sort((a, b) => b.count - a.count)[0] ?? null;
-        if (active) setNextSession(recommendation);
+        if (active) { setNextSession(recommendation); setNextSessionError(false); }
       } catch (error) {
         console.warn('[Dashboard] Could not load due flashcards:', error);
-        if (active) setNextSession(null);
+        if (active) { setNextSession(null); setNextSessionError(true); }
       } finally {
         if (active) setNextSessionLoading(false);
       }
@@ -126,12 +127,12 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
               <div className="mt-3 space-y-1 text-sm">
                 <p className="text-text"><span className="text-text-muted">Subject:</span> {nextSession.subject}</p>
                 <p className="text-text"><span className="text-text-muted">Topic:</span> {nextSession.topic}</p>
-                <p className="text-text-muted">You have {nextSession.count} flashcard{nextSession.count === 1 ? '' : 's'} due for review.</p>
+                <p className="text-text-muted"><span className="text-text">Reason:</span> You have {nextSession.count} flashcard{nextSession.count === 1 ? '' : 's'} due for review.</p>
               </div>
-            ) : <p className="mt-2 max-w-xl text-sm text-text-muted">No flashcards are due right now. Start a visual lesson on a topic you want to strengthen.</p>}
+            ) : <p className="mt-2 max-w-xl text-sm text-text-muted">{nextSessionError ? 'Your review schedule could not be loaded. You can still start a visual lesson.' : 'No flashcards are due right now. Start a visual lesson on a topic you want to strengthen.'}</p>}
           </div>
           <Button onClick={startRecommendedSession} disabled={nextSessionLoading} className="relative min-h-12 shrink-0 px-6 text-base font-semibold">
-            {nextSession ? 'Start Session' : 'Start Whiteboard Session'}
+            Start Session
           </Button>
         </div>
       </section>
