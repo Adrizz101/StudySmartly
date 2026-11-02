@@ -40,6 +40,21 @@ export const syllabusExtractionSchema = z.object({
 });
 export type SyllabusExtraction = z.infer<typeof syllabusExtractionSchema>;
 
+export const revisionPackageSchema = z.object({
+  summary: z.string().min(1),
+  definitions: z.array(z.object({
+    term: z.string().min(1),
+    definition: z.string().min(1),
+  })).min(1).max(30),
+  mcqs: z.array(z.object({
+    question: z.string().min(1),
+    options: z.array(z.string()).length(4),
+    correctIndex: z.number().int().min(0).max(3),
+    explanation: z.string().min(1),
+  })).length(3),
+});
+export type RevisionPackage = z.infer<typeof revisionPackageSchema>;
+
 export const mistakeAnalysisSchema = z.object({
   summary: z.string().min(1),
   strengths: z.array(z.string()).max(4),
