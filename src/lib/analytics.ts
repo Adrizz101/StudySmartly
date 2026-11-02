@@ -12,7 +12,7 @@ export function trackEvent(eventName: string, properties: AnalyticsProperties = 
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) return;
 
-      const excluded = new Set(['account_id', 'user_id', 'email', 'prompt', 'content', 'description', 'feedback_text', 'api_key']);
+      const excluded = new Set(['account_id', 'user_id', 'student_segment', 'email', 'prompt', 'content', 'description', 'feedback_text', 'api_key']);
       const safeProperties = Object.fromEntries(
         Object.entries(properties)
           .filter(([key, value]) => !excluded.has(key.toLowerCase()) &&
