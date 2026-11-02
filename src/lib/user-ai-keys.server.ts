@@ -99,3 +99,8 @@ export async function getAuthenticatedAIUserId(): Promise<string> {
   if (error || typeof userId !== 'string' || !userId) throw new Error('Unauthorized: your session is invalid. Please sign in again.');
   return userId;
 }
+
+export async function deleteUserAIKey(userId: string, provider: ProviderName) {
+  const { error } = await admin.from('user_ai_keys').delete().eq('user_id', userId).eq('provider', provider);
+  if (error) throw new Error('Could not remove the saved AI key.');
+}
