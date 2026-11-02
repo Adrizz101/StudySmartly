@@ -80,7 +80,7 @@ export default function BYOKSettings() {
             </div>
             <div className="relative">
               <input id="byok-gemini" type={showGemini ? 'text' : 'password'} autoComplete="off" value={geminiKey} onChange={(event) => setGeminiKey(event.target.value)} placeholder={status.gemini ? 'Enter a new key to replace the saved key' : 'Paste your Gemini API key'} className="w-full rounded-xl border border-border bg-surface-hover px-3.5 py-3 pr-12 font-mono text-sm text-text focus:border-accent-500 focus:outline-none" />
-              <button type="button" onClick={() => setShowGemini((value) => !value)} aria-label={showGemini ? 'Hide Gemini key' : 'Show Gemini key'} className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover"><Eye size={16} /></button>
+              <button type="button" onClick={() => setShowGemini((value) => !value)} aria-label={showGemini ? 'Hide Gemini key' : 'Show Gemini key'} className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover">{showGemini ? <EyeOff size={16} /> : <Eye size={16} />}</button>
             </div>
             {status.gemini && <label className="mt-2 flex items-center gap-2 text-xs text-text-muted"><input type="checkbox" checked={removeGemini} onChange={(event) => setRemoveGemini(event.target.checked)} /> Remove saved Gemini key</label>}
           </div>
@@ -92,7 +92,7 @@ export default function BYOKSettings() {
             </div>
             <div className="relative">
               <input id="byok-openrouter" type={showOpenRouter ? 'text' : 'password'} autoComplete="off" value={openRouterKey} onChange={(event) => setOpenRouterKey(event.target.value)} placeholder={status.openrouter ? 'Enter a new key to replace the saved key' : 'Paste your OpenRouter API key'} className="w-full rounded-xl border border-border bg-surface-hover px-3.5 py-3 pr-12 font-mono text-sm text-text focus:border-accent-500 focus:outline-none" />
-              <button type="button" onClick={() => setShowOpenRouter((value) => !value)} aria-label={showOpenRouter ? 'Hide OpenRouter key' : 'Show OpenRouter key'} className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover"><Eye size={16} /></button>
+              <button type="button" onClick={() => setShowOpenRouter((value) => !value)} aria-label={showOpenRouter ? 'Hide OpenRouter key' : 'Show OpenRouter key'} className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover">{showOpenRouter ? <EyeOff size={16} /> : <Eye size={16} />}</button>
             </div>
             {status.openrouter && <label className="mt-2 flex items-center gap-2 text-xs text-text-muted"><input type="checkbox" checked={removeOpenRouter} onChange={(event) => setRemoveOpenRouter(event.target.checked)} /> Remove saved OpenRouter key</label>}
           </div>
