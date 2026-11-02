@@ -14,15 +14,15 @@ function getEncryptionKey() {
 }
 
 async function cryptoKey() {
-  return globalThis.crypto.subtle.importKey('raw', getEncryptionKey(), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+  return globalThis.crypto.subtle.importKey('raw', getEncryptionKey().buffer as ArrayBuffer, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 }
 
 export async function encryptUserAIKey(value: string) {
   const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
   const encrypted = new Uint8Array(await globalThis.crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
+    { name: 'AES-GCM', iv: iv.buffer as ArrayBuffer },
     await cryptoKey(),
-    new TextEncoder().encode(value),
+    new TextEncoder().encode(value).buffer as ArrayBuffer,
   ));
   const tagLength = 16;
   const ciphertext = encrypted.slice(0, -tagLength);
@@ -39,9 +39,9 @@ async function decryptUserAIKey(row: EncryptedKeyRow) {
   combined.set(ciphertext);
   combined.set(tag, ciphertext.length);
   const plaintext = await globalThis.crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: fromHex(row.iv) },
+    { name: 'AES-GCM', iv: fromHex(row.iv).buffer as ArrayBuffer },
     await cryptoKey(),
-    combined,
+    combined.buffer as ArrayBuffer,
   );
   return new TextDecoder().decode(plaintext);
 }
