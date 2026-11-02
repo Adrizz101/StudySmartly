@@ -1,9 +1,9 @@
-import { supabaseAdmin } from '@/integrations/supabase/client.server';
+import { createClient } from '@supabase/supabase-js';
 import { getRequest } from '@tanstack/react-start/server';
 
 type ProviderName = 'gemini' | 'openrouter';
-const admin = supabaseAdmin as any;
 type EncryptedKeyRow = { provider: ProviderName; encrypted_key: string; iv: string; auth_tag: string };
+type UserSupabaseClient = any;
 
 function getEncryptionKey() {
   const hex = process.env['USER_AI_KEYS_ENCRYPTION_KEY'];
@@ -46,8 +46,29 @@ async function decryptUserAIKey(row: EncryptedKeyRow) {
   return new TextDecoder().decode(plaintext);
 }
 
-export async function getUserAIKeys(userId: string): Promise<Partial<Record<ProviderName, string>>> {
-  const { data, error } = await admin
+export async function getAuthenticatedAIContext(): Promise<{ userId: string; supabase: UserSupabaseClient }> {
+  const request = getRequest();
+  const authorization = request?.headers.get('authorization');
+  if (!authorization?.startsWith('Bearer ')) throw new Error('Unauthorized: sign in before using AI.');
+  const token = authorization.slice(7);
+  const url = process.env['SUPABASE_URL'];
+  const publishableKey = process.env['SUPABASE_PUBLISHABLE_KEY'];
+  if (!url || !publishableKey) throw new Error('Supabase server configuration is missing.');
+
+  const supabase = createClient(url, publishableKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+  });
+  const { data, error } = await supabase.auth.getClaims(token);
+  const userId = data?.claims?.sub;
+  if (error || typeof userId !== 'string' || !userId) {
+    throw new Error('Unauthorized: your session is invalid. Please sign in again.');
+  }
+  return { userId, supabase };
+}
+
+export async function getUserAIKeys(userId: string, supabase: UserSupabaseClient): Promise<Partial<Record<ProviderName, string>>> {
+  const { data, error } = await supabase
     .from('user_ai_keys')
     .select('provider, encrypted_key, iv, auth_tag')
     .eq('user_id', userId);
@@ -59,15 +80,10 @@ export async function getUserAIKeys(userId: string): Promise<Partial<Record<Prov
   return keys;
 }
 
-export async function saveUserAIKey(userId: string, provider: ProviderName, value: string) {
-  if (!value.trim()) {
-    const { error } = await admin.from('user_ai_keys').delete().eq('user_id', userId).eq('provider', provider);
-    if (error) throw new Error('Could not remove the saved AI key.');
-    return;
-  }
-  if (value.length > 500 || /\s/.test(value)) throw new Error('The API key format is invalid.');
+export async function saveUserAIKey(userId: string, provider: ProviderName, value: string, supabase: UserSupabaseClient) {
+  if (value.length > 500 || /\\s/.test(value)) throw new Error('The API key format is invalid.');
   const encrypted = await encryptUserAIKey(value.trim());
-  const { error } = await admin.from('user_ai_keys').upsert({
+  const { error } = await supabase.from('user_ai_keys').upsert({
     user_id: userId,
     provider,
     ...encrypted,
@@ -76,31 +92,16 @@ export async function saveUserAIKey(userId: string, provider: ProviderName, valu
   if (error) throw new Error('Could not securely save the AI key.');
 }
 
-export async function consumeDailyAIUsage(userId: string) {
-  const today = new Date().toISOString().slice(0, 10);
-  const { data, error } = await admin.rpc('increment_ai_usage', {
-    p_user_id: userId,
-    p_usage_date: today,
-  });
+export async function deleteUserAIKey(userId: string, provider: ProviderName, supabase: UserSupabaseClient) {
+  const { error } = await supabase.from('user_ai_keys').delete().eq('user_id', userId).eq('provider', provider);
+  if (error) throw new Error('Could not remove the saved AI key.');
+}
+
+export async function consumeDailyAIUsage(supabase: UserSupabaseClient) {
+  const { data, error } = await supabase.rpc('increment_ai_usage');
   if (error) throw new Error('Could not verify your daily AI usage. Please try again.');
   if (typeof data !== 'number') {
     throw new Error('You have reached today’s limit of 15 AI requests on the shared free keys. Add your own Gemini or OpenRouter API key in Settings to continue with your own provider quota. Your limit resets at 00:00 UTC.');
   }
   return data;
-}
-
-export async function getAuthenticatedAIUserId(): Promise<string> {
-  const request = getRequest();
-  const authorization = request?.headers.get('authorization');
-  if (!authorization?.startsWith('Bearer ')) throw new Error('Unauthorized: sign in before using AI.');
-  const token = authorization.slice(7);
-  const { data, error } = await admin.auth.getClaims(token);
-  const userId = data?.claims?.sub;
-  if (error || typeof userId !== 'string' || !userId) throw new Error('Unauthorized: your session is invalid. Please sign in again.');
-  return userId;
-}
-
-export async function deleteUserAIKey(userId: string, provider: ProviderName) {
-  const { error } = await admin.from('user_ai_keys').delete().eq('user_id', userId).eq('provider', provider);
-  if (error) throw new Error('Could not remove the saved AI key.');
 }
