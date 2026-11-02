@@ -397,21 +397,26 @@ export default function DrawingBoard() {
 
       const ink = getComputedStyle(document.documentElement).getPropertyValue('--board-tutor').trim() || '#0f9f6e';
       const currentBottom = elements.reduce((bottom, element) => Math.max(bottom, element.y + element.height), 0);
+      const hasDiagramImage = typeof result.diagram_image_prompt === 'string' && result.diagram_image_prompt.trim().length > 0;
       const firstY = elements.length === 0 ? 100 : currentBottom + 180;
       let normalized: Record<string, unknown>[];
       try {
         normalized = sanitizeBoardElements(result.board_elements).map((element, index) => {
           const text = (typeof element.text === 'string' ? element.text : '').replace(/[$\\]/g, '').trim();
           const lineCount = Math.max(1, text.split(/\r?\n/).length);
-          const width = Math.max(450, text.length * 14, Math.abs(element.width));
+          // Diagram labels stay compact and retain their AI-planned positions around
+          // the illustration. Non-image lessons keep the established vertical layout.
+          const width = hasDiagramImage
+            ? Math.min(360, Math.max(180, text.length * 11, Math.abs(element.width)))
+            : Math.max(450, text.length * 14, Math.abs(element.width));
           const height = Math.min(160, Math.max(72, lineCount * 28 + 28, Math.min(160, Math.abs(element.height))));
           return {
             ...element,
             id: typeof element.id === 'string' && element.id.trim() ? element.id : createBoardElementId(),
             type: element.type,
-            x: Math.max(100, element.x),
-            y: firstY + index * 180,
-            width: Math.max(width, Math.abs(element.width)),
+            x: hasDiagramImage ? Math.max(20, Math.min(1450, element.x)) : Math.max(100, element.x),
+            y: hasDiagramImage ? Math.max(40, Math.min(1650, element.y)) : firstY + index * 180,
+            width,
             height,
             strokeColor: ink,
             backgroundColor: typeof element.backgroundColor === 'string' ? element.backgroundColor : DEFAULT_BACKGROUND,
@@ -421,7 +426,7 @@ export default function DrawingBoard() {
                 ? { label: { text, fontSize: 20, autoResize: true } }
                 : {}),
             ...(element.type === 'arrow' || element.type === 'line'
-              ? { points: [[0, 0], [Math.max(1, width), Math.max(1, height)]] as [number, number][] }
+              ? { points: [[0, 0], [Math.max(1, Math.abs(element.width)), Math.max(1, Math.abs(element.height))]] as [number, number][] }
               : {}),
           };
         });
@@ -431,7 +436,7 @@ export default function DrawingBoard() {
       // Fetch a textbook-style illustration when the model requests one. If the
       // image service is unavailable, continue with the AI-generated board labels.
       let generatedImageElement: Record<string, any> | null = null;
-      if (typeof result.diagram_image_prompt === 'string' && result.diagram_image_prompt.trim()) {
+      if (hasDiagramImage) {
         try {
           const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(result.diagram_image_prompt.trim())}?width=800&height=600&nologo=true`;
           const response = await fetch(imageUrl);
@@ -450,10 +455,11 @@ export default function DrawingBoard() {
           generatedImageElement = {
             id: createBoardElementId(),
             type: 'image',
-            x: 250,
-            y: 200,
-            width: 800,
-            height: 600,
+            // Centered in the 1600 × 1800 tutor coordinate space.
+            x: 550,
+            y: 700,
+            width: 500,
+            height: 400,
             angle: 0,
             strokeColor: DEFAULT_STROKE,
             backgroundColor: DEFAULT_BACKGROUND,
