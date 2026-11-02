@@ -336,10 +336,6 @@ export default function Settings() {
 
           <div className="flex items-center gap-2 text-xs text-text-dim pt-2 border-t border-border">
             <Shield size={13} />
-            
-          </div>
-          <div className="flex items-center gap-2 text-xs text-text-dim pt-2 border-t border-border">
-            <Shield size={13} />
             The optional image-provider key is stored in this browser. AI tutor keys are encrypted server-side in your account.
           </div>
         </div>
