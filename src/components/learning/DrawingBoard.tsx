@@ -3,7 +3,7 @@ import { Excalidraw, convertToExcalidrawElements, exportToBlob } from '@excalidr
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import '@excalidraw/excalidraw/index.css';
 import { useServerFn } from '@tanstack/react-start';
-import { Sparkles, Download, Moon, Sun, Square, Pause, Play, History, MessageCircle, Plus } from 'lucide-react';
+import { Sparkles, Download, Moon, Sun, Square, Pause, Play, History, MessageCircle, Plus, Mic, MicOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { explainBoard } from '@/lib/learning-ai.functions';
 import { load, save } from '@/lib/storage';
@@ -146,6 +146,8 @@ export default function DrawingBoard() {
   const [busy, setBusy] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
   const [error, setError] = useState('');
   const [dark, setDark] = useState(false);
   const [messages, setMessages] = useState<BoardMessage[]>(readMessages);
@@ -179,6 +181,7 @@ export default function DrawingBoard() {
   }, []);
 
   useEffect(() => () => {
+    try { recognitionRef.current?.stop(); } catch { /* Speech recognition may already be stopped. */ }
     runRef.current += 1;
     timersRef.current.forEach(clearTimeout);
     cancelWaitsRef.current.forEach((cancel) => cancel());
@@ -305,13 +308,58 @@ export default function DrawingBoard() {
     });
   }
 
-  async function ask() {
+  function startVoiceInput() {
+    if (typeof window === 'undefined') return;
+    if ('speechSynthesis' in window && (window.speechSynthesis.speaking || window.speechSynthesis.pending || isSpeaking || isPaused)) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      setIsPaused(false);
+    }
+    if (isListening) {
+      try { recognitionRef.current?.stop(); } catch { /* already stopped */ }
+      setIsListening(false);
+      return;
+    }
+    const SpeechRecognitionConstructor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionConstructor) {
+      setError('Voice input is not supported in this browser. Try Chrome or Edge.');
+      return;
+    }
+    setError('');
+    const recognition = new SpeechRecognitionConstructor();
+    recognition.lang = 'en-US';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onresult = (event: any) => {
+      const transcript = String(event.results?.[0]?.[0]?.transcript || '').trim();
+      if (transcript) {
+        setPrompt(transcript);
+        setIsListening(false);
+        void ask(transcript);
+      }
+    };
+    recognition.onerror = (event: any) => {
+      setIsListening(false);
+      if (event.error !== 'no-speech' && event.error !== 'aborted') setError(`Voice input error: ${event.error}`);
+    };
+    recognition.onend = () => setIsListening(false);
+    recognitionRef.current = recognition;
+    try {
+      setIsListening(true);
+      recognition.start();
+    } catch {
+      setIsListening(false);
+      setError('Could not start the microphone. Check browser permissions and try again.');
+    }
+  }
+
+  async function ask(questionOverride?: string) {
     try {
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
     } catch (speechError) {
       console.error('Unable to clear speech synthesis before starting a new tutor request:', speechError);
     }
-    const question = prompt.trim();
+    const question = (questionOverride ?? prompt).trim();
     if (!api || !question) return;
     // A new doubt always interrupts the current voice and any in-progress drawing.
     stopPlayback();
@@ -634,6 +682,9 @@ export default function DrawingBoard() {
               onChange={(event) => { if (busy) stopPlayback(); setPrompt(event.target.value); }}
               onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void ask(); } }} />
             <div className="board-actions">
+              <Button type="button" variant="outline" className="board-voice" onClick={startVoiceInput} aria-label={isListening ? 'Stop microphone input' : 'Speak a question'}>
+                {isListening ? <MicOff size={16} /> : <Mic size={16} />} {isListening ? 'Listening…' : 'Mic'}
+              </Button>
               <Button className="board-send" disabled={!prompt.trim()} onClick={() => void ask()}>
                 <Sparkles size={16} /> {busy ? 'Ask this doubt' : 'Explain on board'}
               </Button>
