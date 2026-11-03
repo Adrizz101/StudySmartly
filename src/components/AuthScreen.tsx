@@ -37,7 +37,14 @@ export function AuthScreen() {
       setNotice("A new verification code has been sent. Check your inbox and spam folder.");
       return true;
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not send the verification code. Please try again.");
+      // Preserve the original Supabase/network error instead of hiding it behind a generic message.
+      const message =
+        requestError instanceof Error
+          ? requestError.message
+          : requestError && typeof requestError === "object" && "message" in requestError && typeof requestError.message === "string"
+            ? requestError.message
+            : "Could not send the verification code. Please try again.";
+      setError(message);
       return false;
     } finally {
       setBusy(false);
