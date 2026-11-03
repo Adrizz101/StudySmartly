@@ -1,4 +1,5 @@
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { initializePwaInstall } from "@/lib/pwa-install";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -158,6 +159,7 @@ function RootComponent() {
   useSupabaseAuthRedirect();
 
   useEffect(() => {
+    initializePwaInstall();
     if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return;
 
     let refreshing = false;
