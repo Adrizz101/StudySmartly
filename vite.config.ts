@@ -67,6 +67,7 @@ export default defineConfig({
         ],
       },
       generateSW: {
+        swDest: "sw.js",
         globPatterns: ["**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,woff2}"],
         navigateFallback: "/",
         navigateFallbackDenylist: [/^\/api\//],
