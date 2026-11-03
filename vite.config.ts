@@ -34,7 +34,7 @@ export default defineConfig({
     // build hook is skipped by this framework's SSR client build.
     TanStackNitroPWAPlugin({
       registerType: "autoUpdate",
-      strategies: "inject-manifest",
+      strategies: "build-sw",
       includeAssets: ["favicon.jpg", "logo.jpg"],
       manifest: {
         name: "StudySmartly",
@@ -66,7 +66,7 @@ export default defineConfig({
           },
         ],
       },
-      injectManifest: {
+      buildSW: {
         swSrc: "src/sw.js",
         swDest: "sw.js",
         globPatterns: ["**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,woff2}"],
