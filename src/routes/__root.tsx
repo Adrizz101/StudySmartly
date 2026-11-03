@@ -83,7 +83,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "StudySmartly" },
-      { name: "description", content: "StudySmartly study dashboard" },
+      { name: "description", content: "The 100% free AI-powered visual study platform." },
+      { name: "theme-color", content: "#09090b" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -153,6 +156,23 @@ function AuthGate({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   useSupabaseAuthRedirect();
+
+  useEffect(() => {
+    if (!import.meta.env.PROD) return;
+
+    let active = true;
+    void import("virtual:pwa-register")
+      .then(({ registerSW }) => {
+        if (active) registerSW({ immediate: true });
+      })
+      .catch((error) => {
+        console.error("[PWA] Service worker registration failed:", error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
