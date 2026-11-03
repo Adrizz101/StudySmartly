@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { InstallAppButton } from '@/components/InstallAppButton';
 import { ViewKey } from '@/types';
 import { LayoutDashboard, Calendar, Bot, FileText, Mic, Settings, Menu, X, PenTool, ClipboardCheck, LogOut, BrainCircuit, Layers3 } from 'lucide-react';
 import { useApp } from '@/store';
@@ -95,6 +96,7 @@ export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile, collap
       </nav>
 
       <div className={`py-4 border-t border-border space-y-2 ${compact ? 'px-2' : 'px-3'}`}>
+        <InstallAppButton compact={compact} />
         {!compact && <div className="flex items-center justify-between px-3">
           <span className="text-xs text-text-dim">
             {settings.userName ? `Hi, ${settings.userName}` : 'Welcome back'}
