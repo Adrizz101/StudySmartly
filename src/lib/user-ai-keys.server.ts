@@ -81,7 +81,7 @@ export async function getUserAIKeys(userId: string, supabase: UserSupabaseClient
 }
 
 export async function saveUserAIKey(userId: string, provider: ProviderName, value: string, supabase: UserSupabaseClient) {
-  if (value.length > 500 || /\\s/.test(value)) throw new Error('The API key format is invalid.');
+  if (value.length > 500 || /\s/.test(value)) throw new Error('The API key format is invalid.');
   const encrypted = await encryptUserAIKey(value.trim());
   const { error } = await supabase.from('user_ai_keys').upsert({
     user_id: userId,
