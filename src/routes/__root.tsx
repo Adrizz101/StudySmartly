@@ -158,19 +158,24 @@ function RootComponent() {
   useSupabaseAuthRedirect();
 
   useEffect(() => {
-    if (!import.meta.env.PROD) return;
+    if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return;
 
-    let active = true;
-    void import("virtual:pwa-register")
-      .then(({ registerSW }) => {
-        if (active) registerSW({ immediate: true });
-      })
+    let refreshing = false;
+    const handleControllerChange = () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    };
+
+    navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
+    void navigator.serviceWorker
+      .register("/sw.js", { scope: "/" })
       .catch((error) => {
         console.error("[PWA] Service worker registration failed:", error);
       });
 
     return () => {
-      active = false;
+      navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
     };
   }, []);
 
