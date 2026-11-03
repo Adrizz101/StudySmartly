@@ -34,7 +34,7 @@ export default defineConfig({
     // build hook is skipped by this framework's SSR client build.
     TanStackNitroPWAPlugin({
       registerType: "autoUpdate",
-      strategies: "generate-sw",
+      strategies: "inject-manifest",
       includeAssets: ["favicon.jpg", "logo.jpg"],
       manifest: {
         name: "StudySmartly",
@@ -66,56 +66,12 @@ export default defineConfig({
           },
         ],
       },
-      generateSW: {
+      injectManifest: {
+        swSrc: "src/sw.js",
         swDest: "sw.js",
         globPatterns: ["**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,woff2}"],
-        navigateFallback: "/",
-        navigateFallbackDenylist: [/^\/api\//],
-        runtimeCaching: [
-          {
-            urlPattern: ({ request, url }) =>
-              request.mode === "navigate" &&
-              url.origin === self.location.origin &&
-              !url.pathname.startsWith("/api/"),
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "study-pages",
-              networkTimeoutSeconds: 3,
-              expiration: {
-                maxEntries: 30,
-                maxAgeSeconds: 7 * 24 * 60 * 60,
-              },
-              cacheableResponse: { statuses: [200] },
-            },
-          },
-          {
-            urlPattern: ({ request, url }) =>
-              url.origin === self.location.origin &&
-              ["script", "style", "font", "image"].includes(request.destination),
-            handler: "StaleWhileRevalidate",
-            options: {
-              cacheName: "study-static-assets",
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 30 * 24 * 60 * 60,
-              },
-              cacheableResponse: { statuses: [200] },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\//,
-            handler: "StaleWhileRevalidate",
-            options: {
-              cacheName: "study-google-fonts",
-              expiration: {
-                maxEntries: 20,
-                maxAgeSeconds: 365 * 24 * 60 * 60,
-              },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
-      },
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+      }
     }),
   ],
 });
