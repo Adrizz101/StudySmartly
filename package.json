@@ -106,6 +106,7 @@
     "@vite-pwa/tanstack": "^0.0.1"
   },
   "engines": {
-    "node": ">=22.14.0"
-  }
+    "node": "24.x"
+  },
+  "packageManager": "pnpm@10.15.0"
 }
