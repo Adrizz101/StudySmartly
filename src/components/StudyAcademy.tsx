@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowLeft, ArrowRight, Calendar, Check, ClipboardCheck, FileText,
-  LayoutDashboard, Mic, PenTool, Sparkles, X, Zap,
+  LayoutDashboard, Mic, PenTool, Sparkles, X, Zap, KeyRound,
 } from 'lucide-react';
 
 const steps = [
@@ -14,6 +14,7 @@ const steps = [
   { title: 'Presentation Studio', icon: FileText, what: 'An AI-assisted slide workspace for turning a topic into a structured visual presentation.', how: 'Enter your topic and generate a slide deck. Review the visual layouts, edit slide text directly, and use the export option to create a PDF when your deck is ready.', when: 'Use it to create revision decks, study guides, or project presentations.', tip: 'Check facts, spelling, image relevance, and slide readability before exporting AI-generated material.' },
   { title: 'Lecture Transcriber', icon: Mic, what: 'A speech-to-text workspace designed to turn supported live audio into text notes.', how: 'Open the Transcriber and grant microphone permission when your browser asks. Start recording to capture and transcribe supported audio, then review the transcript and correct names or technical terms.', when: 'Use it during a live class or while reviewing a recorded lecture, where recording is permitted.', tip: 'Follow your school’s rules and get required permission before recording a teacher or other people. Keep your own concise summary alongside the transcript.' },
   { title: 'Pro Tips & Settings', icon: Zap, what: 'Settings lets you configure your account and personalise the study workspace.', how: 'Open Settings to set a password fallback after email-code sign-in, change theme and accent colour, adjust Pomodoro focus and break settings, configure optional connectors, and replay this Academy tour.', when: 'Visit Settings when you first configure the app, when preferences change, or whenever you need to revisit the tutorial.', tip: 'Built-in browser features and existing free connectors work without adding an API key. Optional provider keys may have their own pricing or usage limits.' },
+  { title: 'Unlimited AI & Limits', icon: KeyRound, what: 'StudySmartly is 100% free. Because I use shared free-tier AI keys, there is a limit of 15 AI actions per day so everyone gets a fair share. Want unlimited access? Go to Settings and paste in your own free Gemini or OpenRouter API key. The app will use your key and bypass all limits!', how: 'In Settings, open “Bring Your Own Key (Unlimited AI)”. Expand “How to get your free API keys” for step-by-step instructions for Google AI Studio and OpenRouter, then paste your key into the matching field and save.', when: 'Use your own provider key if you reach the shared daily allowance or want AI requests to use your own provider account.', tip: 'This bypasses StudySmartly’s shared 15-action cap, not your provider’s own quotas, model availability, or terms. Check the provider’s current free-tier conditions.' },
 ];
 
 type StudyAcademyProps = { onClose: () => void };
