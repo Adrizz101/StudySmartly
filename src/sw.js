@@ -47,18 +47,26 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith((async () => {
-      try {
-        const response = await fetch(request);
+      const cache = await caches.open(PAGE_CACHE);
+      const cached = await cache.match(request);
+      const refresh = fetch(request).then(async (response) => {
         if (response.ok) {
-          const cache = await caches.open(PAGE_CACHE);
           await cache.put(request, response.clone());
           const keys = await cache.keys();
           if (keys.length > 30) await cache.delete(keys[0]);
         }
         return response;
+      });
+
+      if (cached) {
+        event.waitUntil(refresh.catch(() => undefined));
+        return cached;
+      }
+
+      try {
+        return await refresh;
       } catch {
         return (
-          await caches.match(request) ||
           await caches.match("/") ||
           await caches.match("/index.html") ||
           Response.error()
