@@ -28,13 +28,17 @@ StudySmartly started as an experiment to escape proprietary no-code platforms. I
 *   **📝 PYQ Exam Arena:** Generates verified MCQs from past papers. Includes a **Mistake Analyzer** that diagnoses weak concepts and links directly to the Whiteboard for targeted explanations.
 *   **🎴 Smart Flashcards:** AI-generated basic and multiple-choice flashcards with answer feedback and SuperMemo-2 (SM-2) spaced repetition.
 *   **🎤 Lecture Transcriber:** Browser-native real-time audio-to-text for capturing live lectures.
-*   **📊 Presentation Studio:** Generates structured slide decks from prompts or uploaded notes.\n*   **🔑 Bring Your Own Key (BYOK):** Save your own Gemini or OpenRouter API key in Settings. Keys are encrypted with AES-256-GCM on the server, stored in Supabase, and never returned to the browser after saving.\n*   **⚖️ Transparent AI limits:** Shared system keys include 15 AI actions per account per UTC day. BYOK bypasses StudySmartly’s shared cap; each AI provider’s own quotas, model availability, and terms still apply.
+*   **📊 Presentation Studio:** Generates structured slide decks from prompts or uploaded notes.
+*   **🔑 Bring Your Own Key (BYOK):** Save your own Gemini or OpenRouter API key in Settings. Keys are encrypted with AES-256-GCM on the server, stored in Supabase, and never returned to the browser after saving.
+*   **⚖️ Transparent AI limits:** Shared system keys include 15 AI actions per account per UTC day. BYOK bypasses StudySmartly’s shared cap; each AI provider’s own quotas, model availability, and terms still apply.
 
 ## 🏗️ Technical Architecture
 
 StudySmartly is engineered for high availability and zero-cost scalability:
 
-*   **Dynamic AI Key Routing:** Uses the Vercel AI SDK to select a user-provided Gemini or OpenRouter key when one is saved, otherwise falling back to server-level provider keys. User keys are AES-256-GCM encrypted before storage in Supabase and decrypted only in server-side code. Structured outputs are validated with Zod and provider failover is handled server-side.\n*   **Daily Usage Enforcement:** A Supabase RPC atomically tracks shared-key usage and enforces 15 AI actions per account per UTC day. User-key requests bypass the shared counter.\n*   **Privacy-Conscious Analytics:** Signed-in event metadata is written to `analytics_events` with owner-bound insert policies; free-text prompts, feedback, credentials, and direct identifiers are excluded.
+*   **Dynamic AI Key Routing:** Uses the Vercel AI SDK to select a user-provided Gemini or OpenRouter key when one is saved, otherwise falling back to server-level provider keys. User keys are AES-256-GCM encrypted before storage in Supabase and decrypted only in server-side code. Structured outputs are validated with Zod and provider failover is handled server-side.
+*   **Daily Usage Enforcement:** A Supabase RPC atomically tracks shared-key usage and enforces 15 AI actions per account per UTC day. User-key requests bypass the shared counter.
+*   **Privacy-Conscious Analytics:** Signed-in event metadata is written to `analytics_events` with owner-bound insert policies; free-text prompts, feedback, credentials, and direct identifiers are excluded.
 *   **Imperative Canvas Rendering:** Bypasses React’s virtual DOM for high-performance drawing. Utilizes Excalidraw’s imperative API to execute batched, 30ms state-update loops.
 *   **Serverless Edge Architecture:** Deployed on Vercel's edge network with TanStack Start for type-safe, SSR-optimized routing.
 *   **Security & Data:** Powered by Supabase PostgreSQL, using Row-Level Security (RLS), authenticated server functions, PKCE authentication, and OTP sign-in. Encrypted BYOK records are user-scoped; daily usage counters are not directly accessible to clients.
