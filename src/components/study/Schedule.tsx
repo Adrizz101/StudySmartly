@@ -2,7 +2,9 @@ import { Button } from '@/components/ui/button';
 import { useState, useMemo, useEffect } from 'react';
 import { useApp } from '@/store';
 import { Course, ScheduleEvent } from '@/types';
-import { parseSyllabus, formatDateLabel, formatTimeLabel } from '@/lib/syllabus';
+import { formatDateLabel, formatTimeLabel } from '@/lib/syllabus';
+import { parseScheduleWithAI } from '@/lib/learning-ai.functions';
+import InteractiveLoader from '@/components/ui/InteractiveLoader';
 import { Modal } from '@/components/Modal';
 import {
   Plus, ChevronLeft, ChevronRight, Calendar as CalIcon, Trash2, FileText,
@@ -27,8 +29,28 @@ export default function Schedule() {
   const [showSyllabusModal, setShowSyllabusModal] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [isParsingSchedule, setIsParsingSchedule] = useState(false);
+  const [scheduleParseError, setScheduleParseError] = useState('');
 
   const monthYear = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  async function handleScheduleParse(text: string, courseId: string | null) {
+    setIsParsingSchedule(true);
+    setScheduleParseError('');
+    try {
+      const result = await parseScheduleWithAI({ data: { text } });
+      if (!result.events.length) throw new Error('No complete schedule events could be identified. Add clear dates and start/end times, then try again.');
+      const parsedEvents: ScheduleEvent[] = result.events.map((event) => ({
+        id: crypto.randomUUID(), title: event.title, courseId, date: event.date,
+        startTime: event.startTime, endTime: event.endTime,
+        type: event.type.toLowerCase() as ScheduleEvent['type'],
+      }));
+      addEvents(parsedEvents);
+      setShowSyllabusModal(false);
+    } catch (error) {
+      setScheduleParseError(error instanceof Error ? error.message : 'Could not parse this timetable. Please try again.');
+    } finally { setIsParsingSchedule(false); }
+  }
 
   const calendarDays = useMemo(() => {
     const year = currentDate.getFullYear();
@@ -321,13 +343,11 @@ export default function Schedule() {
       {/* Syllabus Modal */}
       <SyllabusModal
         open={showSyllabusModal}
-        onClose={() => setShowSyllabusModal(false)}
+        onClose={() => { if (!isParsingSchedule) setShowSyllabusModal(false); }}
         courses={courses}
-        onParse={(text, courseId) => {
-          const parsed = parseSyllabus(text, courseId);
-          addEvents(parsed);
-          setShowSyllabusModal(false);
-        }}
+        onParse={handleScheduleParse}
+        isParsing={isParsingSchedule}
+        parseError={scheduleParseError}
       />
     </div>
   );
@@ -535,11 +555,13 @@ function EventModal({ open, onClose, defaultDate, courses, onSave }: {
   );
 }
 
-function SyllabusModal({ open, onClose, courses, onParse }: {
+function SyllabusModal({ open, onClose, courses, onParse, isParsing, parseError }: {
   open: boolean;
   onClose: () => void;
   courses: Course[];
-  onParse: (text: string, courseId: string | null) => void;
+  onParse: (text: string, courseId: string | null) => Promise<void>;
+  isParsing: boolean;
+  parseError: string;
 }) {
   const [text, setText] = useState('');
   const [courseId, setCourseId] = useState<string | null>(null);
@@ -548,7 +570,7 @@ function SyllabusModal({ open, onClose, courses, onParse }: {
     <Modal open={open} onClose={onClose} title="Parse Syllabus Text" maxWidth="max-w-2xl">
       <div className="space-y-4">
         <p className="text-sm text-text-muted">
-          Paste your syllabus text below. The parser will detect days, times, event types, and create schedule entries automatically.
+          Paste your timetable or class schedule. AI will identify concise event titles, dates, times, and event types, then add the entries to your calendar.
         </p>
         <div>
           <label className="text-sm font-medium text-text-muted block mb-1.5">Assign to course (optional)</label>
@@ -573,21 +595,13 @@ function SyllabusModal({ open, onClose, courses, onParse }: {
             className="w-full px-3.5 py-2.5 rounded-xl bg-surface-hover border border-border text-text text-sm focus:outline-none focus:border-accent-500 resize-y font-mono"
           />
         </div>
-        <div className="flex gap-3">
-          <Button variant="source"
-            onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl glass hover:bg-surface-hover text-text font-medium text-sm transition-colors"
-          >
-            Cancel
-          </Button>
-          <Button variant="source"
-            onClick={() => onParse(text, courseId)}
-            disabled={!text.trim()}
-            className="flex-1 py-2.5 rounded-xl bg-accent-600 hover:bg-accent-700 disabled:opacity-50 disabled:cursor-not-allowed text-study-white font-medium text-sm transition-colors"
-          >
-            Parse & Add Events
-          </Button>
-        </div>
+        {parseError && <p role="alert" className="text-sm text-study-rose-500">{parseError}</p>}
+        {isParsing ? <InteractiveLoader /> : (
+          <div className="flex gap-3">
+            <Button variant="source" onClick={onClose} className="flex-1 py-2.5 rounded-xl glass hover:bg-surface-hover text-text font-medium text-sm transition-colors">Cancel</Button>
+            <Button variant="source" onClick={() => { void onParse(text, courseId); }} disabled={!text.trim()} className="flex-1 py-2.5 rounded-xl bg-accent-600 hover:bg-accent-700 disabled:opacity-50 disabled:cursor-not-allowed text-study-white font-medium text-sm transition-colors">Parse & Add Events</Button>
+          </div>
+        )}
       </div>
     </Modal>
   );
