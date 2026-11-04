@@ -165,3 +165,20 @@ export async function extractTopicsFromText(text: string, images: string[] = [])
   );
   return result.output;
 }
+
+export async function parseScheduleWithAI(text: string) {
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+  const { scheduleExtractionSchema } = await import('./learning-models');
+  const result = await structuredAI(
+    scheduleExtractionSchema,
+    "You are an expert timetable parser. Extract the event title, date, start time, and end time from the raw text. Ensure the title is short (e.g., 'Calculus II Lecture'). Calculate the exact dates based on the current date.",
+    `Current date: ${today} (Asia/Kolkata). Interpret relative dates and weekday names using this date. For a recurring weekday list such as Mon Wed Fri, create one event for each listed weekday occurrence in the next upcoming week, using the next future date for each weekday. Preserve explicit calendar dates when supplied. Convert all times to 24-hour HH:MM. Use a concise event title that excludes weekday and time information. Classify each event as Lecture, Exam, Assignment, Study, or Other. Ignore lines that do not describe a schedulable event. Do not invent missing dates or times; if a required field cannot be determined confidently, omit that event.\n\nRaw timetable text:\n${text}`,
+    [],
+  );
+  return result.output;
+}
