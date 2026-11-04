@@ -40,6 +40,8 @@ export default function AdaptivePlanner() {
   const [syllabusFile, setSyllabusFile] = useState<File | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [completingSessionIds, setCompletingSessionIds] = useState<string[]>([]);
+  const [deletingSessionIds, setDeletingSessionIds] = useState<string[]>([]);
+  const [clearingSchedule, setClearingSchedule] = useState(false);
 
   const loadPlanner = useCallback(async () => {
     setBusy(true); setError('');
@@ -194,6 +196,61 @@ export default function AdaptivePlanner() {
     finally { setSaving(false); }
   }
 
+  async function deleteStudySession(session: StudySession) {
+    if (deletingSessionIds.includes(session.id) || clearingSchedule) return;
+    setError(''); setNotice('');
+    const previousSessions = sessions;
+    setDeletingSessionIds(prev => [...prev, session.id]);
+    setSessions(prev => prev.filter(s => s.id !== session.id));
+    try {
+      const { data, error: deleteError } = await supabase
+        .from('study_sessions')
+        .delete()
+        .eq('id', session.id)
+        .eq('user_id', userId)
+        .select('id')
+        .maybeSingle();
+      if (deleteError) throw deleteError;
+      if (!data) throw new Error('This session could not be deleted. Refresh the planner and try again.');
+      setNotice('Study session deleted.');
+    } catch (e) {
+      setSessions(previousSessions);
+      setError(e instanceof Error ? e.message : 'Could not delete this study session.');
+    } finally {
+      setDeletingSessionIds(prev => prev.filter(id => id !== session.id));
+    }
+  }
+
+  async function clearSchedule() {
+    if (clearingSchedule || !userId) return;
+    const confirmed = window.confirm('Are you sure you want to delete your entire study schedule? This cannot be undone.');
+    if (!confirmed) return;
+
+    const now = new Date().toISOString();
+    const previousSessions = sessions;
+    const isFuturePlanned = (session: StudySession) =>
+      session.status === 'planned' && session.scheduled_start > now;
+
+    setError(''); setNotice('');
+    setClearingSchedule(true);
+    setSessions(prev => prev.filter(session => !isFuturePlanned(session)));
+    try {
+      const { error: deleteError } = await supabase
+        .from('study_sessions')
+        .delete()
+        .eq('user_id', userId)
+        .eq('status', 'planned')
+        .gt('scheduled_start', now);
+      if (deleteError) throw deleteError;
+      setNotice('Your future planned study sessions have been cleared.');
+    } catch (e) {
+      setSessions(previousSessions);
+      setError(e instanceof Error ? e.message : 'Could not clear your study schedule.');
+    } finally {
+      setClearingSchedule(false);
+    }
+  }
+
   async function completeStudySession(session: StudySession) {
     if (completingSessionIds.includes(session.id)) return;
     setError(''); setNotice('');
@@ -307,7 +364,7 @@ export default function AdaptivePlanner() {
 
   return <div className="learning-workspace space-y-6 motion-stagger">
     <header className="learning-heading"><div><span className="workspace-eyebrow">PLAN / ADAPTIVE STUDY PLANNER</span><h1>Adaptive Study Planner</h1><p className="text-sm text-text-muted mt-1">A realistic revision plan built around your weak topics, available time and existing commitments.</p></div>
-      <div className="flex gap-2"><Button variant="outline" onClick={() => setShowSettings(v => !v)}><Settings2 size={16}/> Preferences</Button><Button onClick={() => void generatePlan()} disabled={saving || busy || !topics.length}><RefreshCw size={16}/>{saving ? 'Working…' : 'Generate plan'}</Button></div>
+      <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setShowSettings(v => !v)}><Settings2 size={16}/> Preferences</Button><Button onClick={() => void generatePlan()} disabled={saving || busy || !topics.length}><RefreshCw size={16}/>{saving ? 'Working…' : 'Generate plan'}</Button><Button type="button" variant="ghost" onClick={() => void clearSchedule()} disabled={busy || clearingSchedule || upcoming.length === 0 || deletingSessionIds.length > 0} className="text-text-muted hover:text-destructive">{clearingSchedule ? <RefreshCw size={15} className="animate-spin"/> : <Trash2 size={15}/>} {clearingSchedule ? 'Clearing…' : 'Clear schedule'}</Button></div>
     </header>
     {error && <p role="alert" className="learning-error">{error}</p>}
     {notice && <p role="status" className="text-sm text-study-emerald-500">{notice}</p>}
@@ -354,7 +411,7 @@ export default function AdaptivePlanner() {
       </section>
     </div>
     <section className="glass rounded-xl p-5 motion-card"><div className="flex items-center justify-between mb-4"><div><h2 className="font-semibold text-text">Upcoming study sessions</h2><p className="text-xs text-text-muted mt-1">Scheduled around your availability and existing calendar events.</p></div><Clock3 size={18} className="text-accent-500"/></div>
-      {busy ? <div className="space-y-2" aria-busy="true" aria-label="Loading sessions"><div className="skeleton-glass h-16"/><div className="skeleton-glass h-16"/><div className="skeleton-glass h-16"/></div> : upcoming.length ? <div className="space-y-2">{upcoming.map((s,index)=><motion.article key={s.id} initial={reduceMotion?false:{opacity:0,y:16}} animate={{opacity:1,y:0}} transition={{duration:reduceMotion?0:0.3,delay:reduceMotion?0:index*0.07}} whileHover={reduceMotion?undefined:{scale:1.01}} whileTap={reduceMotion?undefined:{scale:0.99}} className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3"><div className="min-w-0 flex-1"><div className="text-sm font-medium text-text">{s.title}</div><div className="text-xs text-text-muted">{s.subject}{s.chapter? ` · ${s.chapter}`:''} · {dayLabel(new Date(s.scheduled_start))} · {new Date(s.scheduled_start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}–{new Date(s.scheduled_end).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div><div className="text-xs text-text-muted mt-1">{s.rationale}</div></div><span className="text-xs text-text-muted">{s.duration_minutes} min</span><Button variant="outline" size="sm" onClick={()=>void completeStudySession(s)} disabled={completingSessionIds.includes(s.id)}><CheckCircle2 size={14}/>{completingSessionIds.includes(s.id) ? 'Saving…' : 'Done'}</Button><Button variant="ghost" size="icon" aria-label="Mark session missed" onClick={()=>void updateSessionStatus(s,'missed')}><Clock3 size={14}/></Button></motion.article>)}</div> : <div className="text-center py-8"><CalendarDays className="mx-auto text-text-dim mb-2" size={30}/><p className="text-sm text-text-muted">No sessions planned yet.</p><p className="text-xs text-text-dim mt-1">Add topics, then generate your first revision plan.</p></div>}
+      {busy ? <div className="space-y-2" aria-busy="true" aria-label="Loading sessions"><div className="skeleton-glass h-16"/><div className="skeleton-glass h-16"/><div className="skeleton-glass h-16"/></div> : upcoming.length ? <div className="space-y-2">{upcoming.map((s,index)=><motion.article key={s.id} initial={reduceMotion?false:{opacity:0,y:16}} animate={{opacity:1,y:0}} transition={{duration:reduceMotion?0:0.3,delay:reduceMotion?0:index*0.07}} whileHover={reduceMotion?undefined:{scale:1.01}} whileTap={reduceMotion?undefined:{scale:0.99}} className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3"><div className="min-w-0 flex-1"><div className="text-sm font-medium text-text">{s.title}</div><div className="text-xs text-text-muted">{s.subject}{s.chapter? ` · ${s.chapter}`:''} · {dayLabel(new Date(s.scheduled_start))} · {new Date(s.scheduled_start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}–{new Date(s.scheduled_end).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div><div className="text-xs text-text-muted mt-1">{s.rationale}</div></div><span className="text-xs text-text-muted">{s.duration_minutes} min</span><Button variant="outline" size="sm" onClick={()=>void completeStudySession(s)} disabled={completingSessionIds.includes(s.id)}><CheckCircle2 size={14}/>{completingSessionIds.includes(s.id) ? 'Saving…' : 'Done'}</Button><Button variant="ghost" size="icon" aria-label="Mark session missed" onClick={()=>void updateSessionStatus(s,'missed')}><Clock3 size={14}/></Button><Button variant="ghost" size="icon" aria-label={`Delete session: ${s.title}`} title="Delete session" onClick={()=>void deleteStudySession(s)} disabled={deletingSessionIds.includes(s.id) || clearingSchedule || completingSessionIds.includes(s.id)} className="text-text-muted hover:text-destructive">{deletingSessionIds.includes(s.id) ? <RefreshCw size={14} className="animate-spin"/> : <Trash2 size={14}/>}</Button></motion.article>)}</div> : <div className="text-center py-8"><CalendarDays className="mx-auto text-text-dim mb-2" size={30}/><p className="text-sm text-text-muted">No sessions planned yet.</p><p className="text-xs text-text-dim mt-1">Add topics, then generate your first revision plan.</p></div>}
     </section>
   </div>;
 }
