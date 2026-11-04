@@ -21,6 +21,39 @@ const EVENT_TYPE_META: Record<ScheduleEvent['type'], { label: string; color: str
 
 const COURSE_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#f43f5e', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
 
+function normalizeScheduleDate(value: string): string | null {
+  const raw = value.trim();
+  const iso = raw.match(/^(\\d{4})-(\\d{1,2})-(\\d{1,2})/);
+  if (iso) {
+    const year = Number(iso[1]), month = Number(iso[2]), day = Number(iso[3]);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+    return null;
+  }
+  const timestamp = Date.parse(raw);
+  if (!Number.isFinite(timestamp)) return null;
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(timestamp));
+}
+
+function normalizeScheduleTime(value: string): string | null {
+  const raw = value.trim().toUpperCase().replace(/\\./g, '');
+  const match = raw.match(/^(\\d{1,2})(?::(\\d{2}))?(?::\\d{2})?\\s*(AM|PM)?$/);
+  if (!match) return null;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2] ?? '0');
+  const meridiem = match[3];
+  if (minutes > 59) return null;
+  if (meridiem) {
+    if (hours < 1 || hours > 12) return null;
+    hours = (hours % 12) + (meridiem === 'PM' ? 12 : 0);
+  } else if (hours > 23) return null;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
 export default function Schedule() {
   const { courses, addCourse, updateCourse, deleteCourse, events, addEvents, deleteEvent } = useApp();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -39,12 +72,31 @@ export default function Schedule() {
     setScheduleParseError('');
     try {
       const result = await parseScheduleWithAI({ data: { text } });
-      if (!result.events.length) throw new Error('No complete schedule events could be identified. Add clear dates and start/end times, then try again.');
-      const parsedEvents: ScheduleEvent[] = result.events.map((event) => ({
-        id: crypto.randomUUID(), title: event.title, courseId, date: event.date,
-        startTime: event.startTime, endTime: event.endTime,
-        type: event.type.toLowerCase() as ScheduleEvent['type'],
-      }));
+      if (!result.success) {
+        setScheduleParseError(result.error);
+        return;
+      }
+
+      const parsedEvents: ScheduleEvent[] = result.data.flatMap((event) => {
+        const date = normalizeScheduleDate(event.date);
+        const startTime = normalizeScheduleTime(event.startTime);
+        const endTime = normalizeScheduleTime(event.endTime);
+        if (!date || !startTime || !endTime || endTime <= startTime) return [];
+        return [{
+          id: crypto.randomUUID(),
+          title: event.title.trim(),
+          courseId,
+          date,
+          startTime,
+          endTime,
+          type: event.type.toLowerCase() as ScheduleEvent['type'],
+        }];
+      });
+
+      if (!parsedEvents.length) {
+        setScheduleParseError('No valid events were found. Check that each event has a recognizable date, start time and end time.');
+        return;
+      }
       addEvents(parsedEvents);
       setShowSyllabusModal(false);
     } catch (error) {
