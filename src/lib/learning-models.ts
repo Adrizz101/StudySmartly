@@ -44,13 +44,11 @@ export type SyllabusExtraction = z.infer<typeof syllabusExtractionSchema>;
 
 export const scheduleEventSchema = z.object({
   title: z.string().trim().min(2).max(100),
-  date: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/, 'Date must use YYYY-MM-DD.'),
-  startTime: z.string().regex(/^([01]\\d|2[0-3]):[0-5]\\d$/, 'Start time must use HH:MM.'),
-  endTime: z.string().regex(/^([01]\\d|2[0-3]):[0-5]\\d$/, 'End time must use HH:MM.'),
+  // Keep model output permissive; normalize and validate calendar values at the UI boundary.
+  date: z.string().trim().min(1).max(80),
+  startTime: z.string().trim().min(1).max(40),
+  endTime: z.string().trim().min(1).max(40),
   type: z.enum(['Lecture', 'Exam', 'Assignment', 'Study', 'Other']),
-}).refine((event) => event.endTime > event.startTime, {
-  message: 'Event end time must be after its start time.',
-  path: ['endTime'],
 });
 export const scheduleExtractionSchema = z.object({ events: z.array(scheduleEventSchema).max(250) });
 export type ScheduleExtraction = z.infer<typeof scheduleExtractionSchema>;
