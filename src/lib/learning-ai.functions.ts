@@ -138,3 +138,11 @@ export const generateRevisionPackage = createServerFn({ method: 'POST' })
     );
     return result.output;
   });
+
+export const parseScheduleWithAI = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ text: z.string().trim().min(1).max(100000) }))
+  .handler(async ({ data }) => {
+    const { parseScheduleWithAI: parseSchedule } = await import('./learning-ai.server');
+    return parseSchedule(data.text);
+  });
