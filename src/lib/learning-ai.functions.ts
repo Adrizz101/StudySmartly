@@ -143,6 +143,16 @@ export const parseScheduleWithAI = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ text: z.string().trim().min(1).max(100000) }))
   .handler(async ({ data }) => {
-    const { parseScheduleWithAI: parseSchedule } = await import('./learning-ai.server');
-    return parseSchedule(data.text);
+    try {
+      const { parseScheduleWithAI: parseSchedule } = await import('./learning-ai.server');
+      const result = await parseSchedule(data.text);
+      // Return only plain serializable data across the TanStack server-function boundary.
+      return { success: true as const, data: result.events };
+    } catch (error) {
+      console.error('[Schedule Parser] AI extraction failed:', error);
+      return {
+        success: false as const,
+        error: 'Could not parse schedule. Please check the format.',
+      };
+    }
   });
