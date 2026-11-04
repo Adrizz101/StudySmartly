@@ -2,9 +2,9 @@
  * The PWA build injects the hashed client assets into __WB_MANIFEST.
  */
 const precacheManifest = self.__WB_MANIFEST || [];
-const PRECACHE_CACHE = "studysmartly-precache-v1";
-const PAGE_CACHE = "studysmartly-pages-v1";
-const ASSET_CACHE = "studysmartly-assets-v1";
+const PRECACHE_CACHE = "studysmartly-precache-v2";
+const PAGE_CACHE = "studysmartly-pages-v2";
+const ASSET_CACHE = "studysmartly-assets-v2";
 const CURRENT_CACHES = [PRECACHE_CACHE, PAGE_CACHE, ASSET_CACHE];
 
 self.addEventListener("install", (event) => {
@@ -48,27 +48,22 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     event.respondWith((async () => {
       const cache = await caches.open(PAGE_CACHE);
-      const cached = await cache.match(request);
-      const refresh = fetch(request).then(async (response) => {
+
+      // Always prefer the current server document so its TanStack bootstrap
+      // payload matches the deployed client bundle. Cached HTML is offline-only.
+      try {
+        const response = await fetch(request, { cache: "no-store" });
         if (response.ok) {
           await cache.put(request, response.clone());
           const keys = await cache.keys();
           if (keys.length > 30) await cache.delete(keys[0]);
         }
         return response;
-      });
-
-      if (cached) {
-        event.waitUntil(refresh.catch(() => undefined));
-        return cached;
-      }
-
-      try {
-        return await refresh;
       } catch {
         return (
-          await caches.match("/") ||
-          await caches.match("/index.html") ||
+          (await cache.match(request)) ||
+          (await caches.match("/")) ||
+          (await caches.match("/index.html")) ||
           Response.error()
         );
       }
