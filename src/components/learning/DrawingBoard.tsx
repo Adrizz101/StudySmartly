@@ -393,15 +393,17 @@ export default function DrawingBoard() {
           consent: true,
         },
       });
+      if (result.success === false) throw new Error(result.error);
+      const boardResult = result.data;
       if (run !== runRef.current) return;
 
       const ink = getComputedStyle(document.documentElement).getPropertyValue('--board-tutor').trim() || '#0f9f6e';
       const currentBottom = elements.reduce((bottom, element) => Math.max(bottom, element.y + element.height), 0);
-      const hasDiagramImage = typeof result.diagram_image_prompt === 'string' && result.diagram_image_prompt.trim().length > 0;
+      const hasDiagramImage = typeof boardResult.diagram_image_prompt === 'string' && boardResult.diagram_image_prompt.trim().length > 0;
       const firstY = elements.length === 0 ? 100 : currentBottom + 180;
       let normalized: Record<string, unknown>[];
       try {
-        normalized = sanitizeBoardElements(result.board_elements).map((element, index) => {
+        normalized = sanitizeBoardElements(boardResult.board_elements).map((element, index) => {
           const text = (typeof element.text === 'string' ? element.text : '').replace(/[$\\]/g, '').trim();
           const lineCount = Math.max(1, text.split(/\r?\n/).length);
           // Diagram labels stay compact and retain their AI-planned positions around
@@ -438,7 +440,7 @@ export default function DrawingBoard() {
       let generatedImageElement: Record<string, any> | null = null;
       if (hasDiagramImage) {
         try {
-          const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(result.diagram_image_prompt.trim())}?width=800&height=600&nologo=true`;
+          const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(boardResult.diagram_image_prompt.trim())}?width=800&height=600&nologo=true`;
           const response = await fetch(imageUrl);
           if (!response.ok) throw new Error(`Image service returned HTTP ${response.status}`);
           const blob = await response.blob();
