@@ -95,8 +95,10 @@ export default function AdaptivePlanner() {
       const result = await extractSyllabusTopics({
         data: { text, images: source?.images ?? [] },
       });
-      if (!result.topics.length) throw new Error('No syllabus topics could be identified. Try a clearer or more complete source.');
-      const rows = result.topics.slice(0, 300).map(topic => ({
+      if (result.success === false) { setError(result.error); return; }
+      const extracted = result.data;
+      if (!extracted.topics.length) throw new Error('No syllabus topics could be identified. Try a clearer or more complete source.');
+      const rows = extracted.topics.slice(0, 300).map(topic => ({
         user_id: userId,
         subject: topic.subject.trim(),
         chapter: topic.chapter.trim(),
@@ -113,7 +115,7 @@ export default function AdaptivePlanner() {
       if (insertError) throw insertError;
       const added = (data || []) as Topic[];
       setTopics(prev => [...added, ...prev]);
-      setNotice(`Successfully added ${added.length} topics to your planner!${result.topics.length > 300 ? ' (First 300 imported.)' : ''}`);
+      setNotice(`Successfully added ${added.length} topics to your planner!${extracted.topics.length > 300 ? ' (First 300 imported.)' : ''}`);
       setSyllabusText(''); setSyllabusFile(null); setShowBulkImport(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not import syllabus topics.');
