@@ -118,7 +118,7 @@ export default function FlashcardStudio(){
      const source=mistakeText?'mistake_analyzer':'ai_generated';
      const {data:deck,error:deckError}=await supabase.from('flashcard_decks').insert({user_id:auth.user.id,title:title.trim(),subject:subject.trim()||'General',source}).select('*').single();
      if(deckError)throw deckError;
-     const rows=result.cards.map(c=>({question:c.question,answer:c.answer,explanation:c.explanation,topic:c.topic,type:c.type,options:c.options,correct_option_index:c.correctOptionIndex,difficulty:c.difficulty,deck_id:deck.id,user_id:auth.user!.id,subject:subject.trim()||'General',due_at:nowIso(),interval_days:0,ease_factor:2.5,repetitions:0,lapses:0}));
+     const rows=generated.cards.map(c=>({question:c.question,answer:c.answer,explanation:c.explanation,topic:c.topic,type:c.type,options:c.options,correct_option_index:c.correctOptionIndex,difficulty:c.difficulty,deck_id:deck.id,user_id:auth.user!.id,subject:subject.trim()||'General',due_at:nowIso(),interval_days:0,ease_factor:2.5,repetitions:0,lapses:0}));
      const {data:saved,error:saveError}=await supabase.from('flashcards').insert(rows).select('*');
      if(saveError){await supabase.from('flashcard_decks').delete().eq('id',deck.id).eq('user_id',auth.user.id);throw saveError;}
      setDecks(prev=>[deck as Deck,...prev]);setCards(prev=>[...(saved as Card[]),...prev]);setSelected(deck.id);setIndex(0);setRevealed(false);setTitle('');setSourceText('');setSources([]);setMistakeText('');setNotice(`Created ${saved.length} cards. Your first review is ready.`);
