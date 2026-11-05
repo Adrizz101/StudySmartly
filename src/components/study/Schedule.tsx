@@ -72,7 +72,7 @@ export default function Schedule() {
     setScheduleParseError('');
     try {
       const result = await parseScheduleWithAI({ data: { text } });
-      if (!result.success) {
+      if (result.success === false) {
         setScheduleParseError(result.error);
         return;
       }
