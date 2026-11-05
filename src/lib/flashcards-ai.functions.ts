@@ -1,7 +1,21 @@
-import { createServerFn } from '@tanstack/react-start';
+import { createMiddleware, createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import { z } from 'zod';
 import type { SourceInput } from './learning-models';
+
+
+type ServerResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: string };
+
+const safeServerBoundary = createMiddleware({ type: 'function' }).server(async ({ next }) => {
+  try {
+    return await next();
+  } catch (error) {
+    console.error('[Flashcards] Server function boundary failed:', error);
+    return { success: false as const, error: 'This request could not be completed. Please sign in again and retry.' };
+  }
+});
 
 const source = z.object({
   name: z.string().min(1).max(240),
@@ -36,9 +50,10 @@ const flashcardSchema = z.object({
   })).min(1).max(40),
 });
 export const generateFlashcards = createServerFn({ method: 'POST' })
-  .middleware([requireSupabaseAuth])
+  .middleware([safeServerBoundary, requireSupabaseAuth])
   .inputValidator(input)
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<ServerResult<z.infer<typeof flashcardSchema>>> => {
+    try {
     const { structuredAI } = await import('./learning-ai.server');
     const sources: SourceInput[] = [
       ...(data.sources as SourceInput[]),
@@ -52,5 +67,9 @@ export const generateFlashcards = createServerFn({ method: 'POST' })
       sources,
     );
     if (!result.output.cards.length) throw new Error('The AI did not produce any flashcards.');
-    return result.output;
+    return { success: true, data: result.output };
+    } catch (error) {
+      console.error('[Flashcards] Generation failed:', error);
+      return { success: false, error: 'Could not generate flashcards. Check your source material and try again.' };
+    }
   });
