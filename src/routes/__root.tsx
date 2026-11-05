@@ -185,9 +185,13 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <ClientOnly fallback={<div className="flex min-h-screen items-center justify-center bg-bg text-text">StudySmartly</div>}>
         <AuthGate>
-          <AppProvider>
-            <StudyLayout><RouteAnimationContainer><ErrorBoundary featureName="Page"><Outlet /></ErrorBoundary></RouteAnimationContainer></StudyLayout>
-          </AppProvider>
+          <ErrorBoundary featureName="Application">
+            <AppProvider>
+              <StudyLayout>
+                <RouteAnimationContainer><ErrorBoundary featureName="Page"><Outlet /></ErrorBoundary></RouteAnimationContainer>
+              </StudyLayout>
+            </AppProvider>
+          </ErrorBoundary>
         </AuthGate>
       </ClientOnly>
     </QueryClientProvider>
