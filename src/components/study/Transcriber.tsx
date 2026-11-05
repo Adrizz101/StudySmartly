@@ -215,7 +215,8 @@ export default function Transcriber() {
       const result = await generateRevision({
         data: { title: lectureTitle || 'Lecture notes', transcript: text, consent: true },
       });
-      setRevisionPackage(result);
+      if (result.success === false) { setRevisionError(result.error); return; }
+      setRevisionPackage(result.data);
     } catch (cause) {
       setRevisionError(cause instanceof Error ? cause.message : 'Could not generate the revision package.');
     } finally {
