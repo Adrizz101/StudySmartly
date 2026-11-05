@@ -21,8 +21,6 @@ async function safeResult<T>(
   }
 }
 
-// This outer middleware also converts authentication/middleware failures into
-// the same serializable result shape instead of allowing raw Error objects through.
 const safeServerBoundary = createMiddleware({ type: 'function' }).server(async ({ next }) => {
   try {
     return await next();
@@ -36,7 +34,7 @@ const source = z.object({ name: z.string(), text: z.string(), images: z.array(z.
 const input = z.object({ prompt: z.string().min(1).max(100000), sources: z.array(source), consent: z.literal(true) });
 export const generateDeck = createServerFn({ method: 'POST' }).middleware([safeServerBoundary, requireSupabaseAuth])
   .inputValidator(input.extend({ count: z.number(), metadata: z.string(), outline: z.string() }))
-  .handler(async ({ data }) => safeResult('generateDeck', 'Could not generate the presentation. Please try again.', async () => { data }));=> {
+  .handler(async ({ data }) => safeResult('generateDeck', 'Could not generate the presentation. Please try again.', async () => {
     const count = validateSlideCount(data.count);
     const { structuredAI } = await import('./learning-ai.server');
     const slides: z.infer<typeof deckSchema>['slides'] = [];
@@ -51,21 +49,21 @@ export const generateDeck = createServerFn({ method: 'POST' }).middleware([safeS
       slides.push(...result.output.slides); title ||= result.output.title; subject ||= result.output.subject; runId = result.runId;
     }
     return { title, subject, slides };
-  });
+  }));
 export const outlineDeck = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
-  .inputValidator(input.extend({ count: z.number() })).handler(async ({ data }) => safeResult('outlineDeck', 'Could not create the presentation outline. Please try again.', async () => { data }));=> {
+  .inputValidator(input.extend({ count: z.number() })).handler(async ({ data }) => safeResult('outlineDeck', 'Could not create the presentation outline. Please try again.', async () => {
     validateSlideCount(data.count);
     const { structuredAI } = await import('./learning-ai.server');
     return (await structuredAI(z.object({ headings: z.array(z.string()) }), 'Plan an editorial presentation. Return one specific heading per slide, exact requested count. Return only content conforming to the supplied structured-output schema; do not add prose or markdown.', `${data.prompt}\n${data.count} slides`, data.sources)).output;
-  });
+  }));
 export const editDeckSlide = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
-  .inputValidator(input.extend({ slide: z.string() })).handler(async ({ data }) => safeResult('editDeckSlide', 'Could not edit this slide. Please try again.', async () => { data }));=> {
+  .inputValidator(input.extend({ slide: z.string() })).handler(async ({ data }) => safeResult('editDeckSlide', 'Could not edit this slide. Please try again.', async () => {
     const { structuredAI } = await import('./learning-ai.server');
     const { deckSlideSchema } = await import('./learning-models');
     return (await structuredAI(deckSlideSchema, 'Edit only the selected slide following the student request. Preserve factual accuracy, citations and detail unless explicitly changed. Use at most 4 cards/bullets and concise text that fits a presentation.', `${data.prompt}\nCurrent slide: ${data.slide}`, data.sources)).output;
-  });
+  }));
 export const explainBoard = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
-  .inputValidator(input.extend({ board: z.string(), messages: z.array(z.object({ question: z.string(), answer: z.string(), citations: z.array(z.string()) })) })).handler(async ({ data }) => safeResult('explainBoard', 'Could not explain the whiteboard. Please try again.', async () => { data }));=> {
+  .inputValidator(input.extend({ board: z.string(), messages: z.array(z.object({ question: z.string(), answer: z.string(), citations: z.array(z.string()) })) })).handler(async ({ data }) => safeResult('explainBoard', 'Could not explain the whiteboard. Please try again.', async () => {
     const { structuredAI } = await import('./learning-ai.server');
     const tutorPrompt = [
       'You are an interactive visual tutor: a warm, encouraging, patient classroom teacher and precise educational whiteboard illustrator. Make the student feel comfortable asking questions; never shame them or imply that a doubt is obvious.',
@@ -83,9 +81,9 @@ export const explainBoard = createServerFn({ method: 'POST' }).middleware([requi
       `${data.prompt}\nSelected/current board: ${data.board}\nFull messages array (oldest to newest): ${JSON.stringify(data.messages)}`,
       data.sources,
     )).output;
-  });
+  }));
 export const prepareExam = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
-  .inputValidator(input.extend({ key: z.string() })).handler(async ({ data }) => safeResult('prepareExam', 'Could not prepare the exam. Check the source and try again.', async () => { data }));=> {
+  .inputValidator(input.extend({ key: z.string() })).handler(async ({ data }) => safeResult('prepareExam', 'Could not prepare the exam. Check the source and try again.', async () => {
     const { structuredAI } = await import('./learning-ai.server');
     const first = await structuredAI(examSchema, 'Extract only actual MCQ questions from the supplied past paper, exactly four options, preserve question wording. Do not invent past-paper questions. Tag subject, chapter and microconcept. Solve each independently with steps and explanation of each distractor. correct is zero-based 0-3 or null when uncertain. verified=false pending independent verification. Supplied official key is authoritative only when its question numbering maps unambiguously; report conflicting or ambiguous keys. No missing-image guesses.', `${data.prompt}\nAnswer key supplied by student:\n${data.key}`, data.sources);
     const second = await structuredAI(examSchema, 'Independently verify every extracted MCQ by solving again and checking source paper and student-supplied key. Preserve order, options and question wording exactly. Only set verified=true if the solution is unambiguous and the first pass and your independent solution agree, or an unambiguous supplied official key resolves it. Flag conflicts, missing figures and uncertain questions with verified=false and correct=null. Never fabricate verification or official provenance. Provide full steps and why each distractor fails.', `${data.prompt}\nSupplied key: ${data.key}\nFirst pass: ${JSON.stringify(first.output)}`, data.sources, first.runId);
@@ -97,7 +95,7 @@ export const prepareExam = createServerFn({ method: 'POST' }).middleware([requir
     });
     if (!questions.length) throw new Error('No four-option MCQs were found in these sources.');
     return { title: second.output.title, questions };
-  });
+  }));
 
 
 export const analyzeExamMistakes = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
@@ -107,7 +105,7 @@ export const analyzeExamMistakes = createServerFn({ method: 'POST' }).middleware
       answers: z.record(z.string(), z.number().int().min(0).max(3)),
     }),
   }))
-  .handler(async ({ data }) => safeResult('analyzeExamMistakes', 'Could not analyse these mistakes. Complete a test with verified incorrect answers, then retry.', async () => { data }));=> {
+  .handler(async ({ data }) => safeResult('analyzeExamMistakes', 'Could not analyse these mistakes. Complete a test with verified incorrect answers, then retry.', async () => {
     const missed = data.attempt.exam.questions.flatMap((q, index) => {
       const answer = data.attempt.answers[String(index)];
       if (!q.verified || q.correct === null || answer === undefined || answer === q.correct) return [];
@@ -134,7 +132,7 @@ export const analyzeExamMistakes = createServerFn({ method: 'POST' }).middleware
       [],
     );
     return result.output;
-  });
+  }));
 
 
 
@@ -144,10 +142,10 @@ export const extractSyllabusTopics = createServerFn({ method: 'POST' })
     text: z.string().max(1000000),
     images: z.array(z.string().startsWith('data:image/')).max(50).default([]),
   }))
-  .handler(async ({ data }) => safeResult('extractSyllabusTopics', 'Could not extract syllabus topics. Check the file or text and try again.', async () => { data }));=> {
+  .handler(async ({ data }) => safeResult('extractSyllabusTopics', 'Could not extract syllabus topics. Check the file or text and try again.', async () => {
     const { extractTopicsFromText } = await import('./learning-ai.server');
     return extractTopicsFromText(data.text, data.images);
-  });
+  }));
 
 
 export const generateRevisionPackage = createServerFn({ method: 'POST' })
@@ -157,7 +155,7 @@ export const generateRevisionPackage = createServerFn({ method: 'POST' })
     transcript: z.string().min(1).max(100000),
     consent: z.literal(true),
   }))
-  .handler(async ({ data }) => safeResult('generateRevisionPackage', 'Could not create the revision package. Please try again.', async () => { data }));=> {
+  .handler(async ({ data }) => safeResult('generateRevisionPackage', 'Could not create the revision package. Please try again.', async () => {
     const { structuredAI } = await import('./learning-ai.server');
     const result = await structuredAI(
       revisionPackageSchema,
@@ -166,7 +164,7 @@ export const generateRevisionPackage = createServerFn({ method: 'POST' })
       [],
     );
     return result.output;
-  });
+  }));
 
 export const parseScheduleWithAI = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
