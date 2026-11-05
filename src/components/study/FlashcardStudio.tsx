@@ -114,6 +114,8 @@ export default function FlashcardStudio(){
      await requireAISession();
      const combinedText=[sourceText.trim(),mistakeText].filter(Boolean).join('\n\nEXAM MISTAKE ANALYSIS\n');
      const result=await generate({data:{topic:title.trim(),subject:subject.trim()||'General',sourceText:combinedText,sources,count,consent:true}});
+      if(result.success===false){setError(result.error);return;}
+      const generated=result.data;
      const {data:auth}=await supabase.auth.getUser();if(!auth.user)throw new Error('Sign in again to save this deck.');
      const source=mistakeText?'mistake_analyzer':'ai_generated';
      const {data:deck,error:deckError}=await supabase.from('flashcard_decks').insert({user_id:auth.user.id,title:title.trim(),subject:subject.trim()||'General',source}).select('*').single();
