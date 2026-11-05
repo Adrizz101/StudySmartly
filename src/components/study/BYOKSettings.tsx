@@ -22,7 +22,9 @@ export default function BYOKSettings() {
   useEffect(() => {
     let active = true;
     loadStatus().then((result) => {
-      if (active) setStatus(result);
+      if (!active) return;
+      if (result.success === false) setNotice({ type: 'error', text: result.error });
+      else setStatus(result.data);
     }).catch(() => {
       if (active) setNotice({ type: 'error', text: 'Could not load your saved key status. Please refresh and try again.' });
     });
@@ -33,14 +35,16 @@ export default function BYOKSettings() {
     setBusy(true);
     setNotice(null);
     try {
-      await saveKeys({ data: {
+      const saved = await saveKeys({ data: {
         geminiKey,
         openRouterKey,
         removeGemini,
         removeOpenRouter,
       } });
+      if (saved.success === false) { setNotice({ type: 'error', text: saved.error }); return; }
       const next = await loadStatus();
-      setStatus(next);
+      if (next.success === false) { setNotice({ type: 'error', text: next.error }); return; }
+      setStatus(next.data);
       setGeminiKey('');
       setOpenRouterKey('');
       setRemoveGemini(false);
