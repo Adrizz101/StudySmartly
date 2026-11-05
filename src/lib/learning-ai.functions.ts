@@ -1,13 +1,42 @@
-import { createServerFn } from '@tanstack/react-start';
+import { createMiddleware, createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import { z } from 'zod';
 import { deckSchema, boardSchema, examSchema, mistakeAnalysisSchema, revisionPackageSchema, validateSlideCount } from './learning-models';
 
+
+type ServerResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: string };
+
+async function safeResult<T>(
+  feature: string,
+  friendlyMessage: string,
+  operation: () => Promise<T> | T,
+): Promise<ServerResult<T>> {
+  try {
+    return { success: true, data: await operation() };
+  } catch (error) {
+    console.error(`[Learning AI] ${feature} failed:`, error);
+    return { success: false, error: friendlyMessage };
+  }
+}
+
+// This outer middleware also converts authentication/middleware failures into
+// the same serializable result shape instead of allowing raw Error objects through.
+const safeServerBoundary = createMiddleware({ type: 'function' }).server(async ({ next }) => {
+  try {
+    return await next();
+  } catch (error) {
+    console.error('[Learning AI] Server function boundary failed:', error);
+    return { success: false as const, error: 'This request could not be completed. Please sign in again and retry.' };
+  }
+});
+
 const source = z.object({ name: z.string(), text: z.string(), images: z.array(z.string().startsWith('data:image/')) });
 const input = z.object({ prompt: z.string().min(1).max(100000), sources: z.array(source), consent: z.literal(true) });
-export const generateDeck = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
+export const generateDeck = createServerFn({ method: 'POST' }).middleware([safeServerBoundary, requireSupabaseAuth])
   .inputValidator(input.extend({ count: z.number(), metadata: z.string(), outline: z.string() }))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }) => safeResult('generateDeck', 'Could not generate the presentation. Please try again.', async () => { data }));=> {
     const count = validateSlideCount(data.count);
     const { structuredAI } = await import('./learning-ai.server');
     const slides: z.infer<typeof deckSchema>['slides'] = [];
@@ -24,19 +53,19 @@ export const generateDeck = createServerFn({ method: 'POST' }).middleware([requi
     return { title, subject, slides };
   });
 export const outlineDeck = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
-  .inputValidator(input.extend({ count: z.number() })).handler(async ({ data }) => {
+  .inputValidator(input.extend({ count: z.number() })).handler(async ({ data }) => safeResult('outlineDeck', 'Could not create the presentation outline. Please try again.', async () => { data }));=> {
     validateSlideCount(data.count);
     const { structuredAI } = await import('./learning-ai.server');
     return (await structuredAI(z.object({ headings: z.array(z.string()) }), 'Plan an editorial presentation. Return one specific heading per slide, exact requested count. Return only content conforming to the supplied structured-output schema; do not add prose or markdown.', `${data.prompt}\n${data.count} slides`, data.sources)).output;
   });
 export const editDeckSlide = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
-  .inputValidator(input.extend({ slide: z.string() })).handler(async ({ data }) => {
+  .inputValidator(input.extend({ slide: z.string() })).handler(async ({ data }) => safeResult('editDeckSlide', 'Could not edit this slide. Please try again.', async () => { data }));=> {
     const { structuredAI } = await import('./learning-ai.server');
     const { deckSlideSchema } = await import('./learning-models');
     return (await structuredAI(deckSlideSchema, 'Edit only the selected slide following the student request. Preserve factual accuracy, citations and detail unless explicitly changed. Use at most 4 cards/bullets and concise text that fits a presentation.', `${data.prompt}\nCurrent slide: ${data.slide}`, data.sources)).output;
   });
 export const explainBoard = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
-  .inputValidator(input.extend({ board: z.string(), messages: z.array(z.object({ question: z.string(), answer: z.string(), citations: z.array(z.string()) })) })).handler(async ({ data }) => {
+  .inputValidator(input.extend({ board: z.string(), messages: z.array(z.object({ question: z.string(), answer: z.string(), citations: z.array(z.string()) })) })).handler(async ({ data }) => safeResult('explainBoard', 'Could not explain the whiteboard. Please try again.', async () => { data }));=> {
     const { structuredAI } = await import('./learning-ai.server');
     const tutorPrompt = [
       'You are an interactive visual tutor: a warm, encouraging, patient classroom teacher and precise educational whiteboard illustrator. Make the student feel comfortable asking questions; never shame them or imply that a doubt is obvious.',
@@ -56,7 +85,7 @@ export const explainBoard = createServerFn({ method: 'POST' }).middleware([requi
     )).output;
   });
 export const prepareExam = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
-  .inputValidator(input.extend({ key: z.string() })).handler(async ({ data }) => {
+  .inputValidator(input.extend({ key: z.string() })).handler(async ({ data }) => safeResult('prepareExam', 'Could not prepare the exam. Check the source and try again.', async () => { data }));=> {
     const { structuredAI } = await import('./learning-ai.server');
     const first = await structuredAI(examSchema, 'Extract only actual MCQ questions from the supplied past paper, exactly four options, preserve question wording. Do not invent past-paper questions. Tag subject, chapter and microconcept. Solve each independently with steps and explanation of each distractor. correct is zero-based 0-3 or null when uncertain. verified=false pending independent verification. Supplied official key is authoritative only when its question numbering maps unambiguously; report conflicting or ambiguous keys. No missing-image guesses.', `${data.prompt}\nAnswer key supplied by student:\n${data.key}`, data.sources);
     const second = await structuredAI(examSchema, 'Independently verify every extracted MCQ by solving again and checking source paper and student-supplied key. Preserve order, options and question wording exactly. Only set verified=true if the solution is unambiguous and the first pass and your independent solution agree, or an unambiguous supplied official key resolves it. Flag conflicts, missing figures and uncertain questions with verified=false and correct=null. Never fabricate verification or official provenance. Provide full steps and why each distractor fails.', `${data.prompt}\nSupplied key: ${data.key}\nFirst pass: ${JSON.stringify(first.output)}`, data.sources, first.runId);
@@ -78,7 +107,7 @@ export const analyzeExamMistakes = createServerFn({ method: 'POST' }).middleware
       answers: z.record(z.string(), z.number().int().min(0).max(3)),
     }),
   }))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }) => safeResult('analyzeExamMistakes', 'Could not analyse these mistakes. Complete a test with verified incorrect answers, then retry.', async () => { data }));=> {
     const missed = data.attempt.exam.questions.flatMap((q, index) => {
       const answer = data.attempt.answers[String(index)];
       if (!q.verified || q.correct === null || answer === undefined || answer === q.correct) return [];
@@ -115,7 +144,7 @@ export const extractSyllabusTopics = createServerFn({ method: 'POST' })
     text: z.string().max(1000000),
     images: z.array(z.string().startsWith('data:image/')).max(50).default([]),
   }))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }) => safeResult('extractSyllabusTopics', 'Could not extract syllabus topics. Check the file or text and try again.', async () => { data }));=> {
     const { extractTopicsFromText } = await import('./learning-ai.server');
     return extractTopicsFromText(data.text, data.images);
   });
@@ -128,7 +157,7 @@ export const generateRevisionPackage = createServerFn({ method: 'POST' })
     transcript: z.string().min(1).max(100000),
     consent: z.literal(true),
   }))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }) => safeResult('generateRevisionPackage', 'Could not create the revision package. Please try again.', async () => { data }));=> {
     const { structuredAI } = await import('./learning-ai.server');
     const result = await structuredAI(
       revisionPackageSchema,
