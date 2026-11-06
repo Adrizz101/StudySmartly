@@ -21,7 +21,7 @@ export default defineConfig({
     nodePolyfills({
       // Keep native server modules (for example node:stream/promises) untouched.
       // OpenMAIC's browser bundle only needs the crypto compatibility shim.
-      include: ['crypto'],
+      include: ['crypto', 'stream', 'vm'],
       globals: { Buffer: true, global: true, process: true },
     }),
     tsConfigPaths(),
