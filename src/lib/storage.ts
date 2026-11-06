@@ -3,8 +3,9 @@ import { Settings, DEFAULT_SETTINGS, Connectors } from '@/types';
 const PREFIX = 'studysmart:';
 
 export function load<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
   try {
-    const raw = localStorage.getItem(PREFIX + key);
+    const raw = window.localStorage.getItem(PREFIX + key);
     if (!raw) return fallback;
     return JSON.parse(raw) as T;
   } catch {
@@ -13,8 +14,9 @@ export function load<T>(key: string, fallback: T): T {
 }
 
 export function save<T>(key: string, value: T): void {
+  if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(PREFIX + key, JSON.stringify(value));
+    window.localStorage.setItem(PREFIX + key, JSON.stringify(value));
   } catch {
     /* storage full or unavailable */
   }
