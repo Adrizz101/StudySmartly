@@ -1,0 +1,41 @@
+name: Refresh pnpm lockfile
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - package.json
+      - .github/workflows/refresh-pnpm-lock.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies and refresh lockfile
+        run: pnpm install --no-frozen-lockfile
+      - name: Commit lockfile
+        run: |
+          if ! git diff --quiet -- pnpm-lock.yaml; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add pnpm-lock.yaml
+            git commit -m "chore: refresh pnpm lockfile"
+            git push origin main
+          fi
