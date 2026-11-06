@@ -312,6 +312,12 @@ export default function DrawingBoard() {
       }
     };
     recognition.onerror = (event: any) => {
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        handsFreeRef.current = false;
+        setHandsFree(false);
+        setError('Microphone permission was denied. Allow microphone access in your browser settings, then enable Hands-free Mode again.');
+        return;
+      }
       if (event.error !== 'no-speech' && event.error !== 'aborted') {
         setError(`Hands-free voice error: ${event.error}`);
       }
@@ -832,6 +838,7 @@ export default function DrawingBoard() {
                 <Square size={15} /> Stop
               </Button>
             </div>
+            {handsFree && <p className="board-options" role="status">Listening continuously. Pause speaking to send your question; the microphone pauses while the AI draws and explains.</p>}
             <details className="board-options">
               <summary>Sources and AI consent</summary>
               <SourcePicker sources={sources} onChange={setSources} />
