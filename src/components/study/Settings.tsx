@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import BYOKSettings from './BYOKSettings';
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ChangeEvent } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,8 +14,10 @@ import {
   Sun, Moon, Palette, Clock, Key, Shield, User, Check,
   Bell, Volume2, Brain, Coffee, RotateCcw, Eye, EyeOff,
   AlertCircle, Scale, FileText, Image as ImageIcon, Plug,
-  Wifi, WifiOff, Github, Cpu, PenTool, Server, CalendarClock, AudioLines, Gauge, Layers, Sparkles, GraduationCap,
+  Wifi, WifiOff, Github, Cpu, PenTool, Server, CalendarClock, AudioLines, Gauge, Layers, Sparkles,
 } from 'lucide-react';
+
+const NEURAL_VOICE_REFERENCE_KEY = 'studysmartly_neural_voice_reference';
 
 export default function Settings() {
   const { settings, updateSettings, setMode, setAccent } = useApp();
@@ -32,6 +34,72 @@ export default function Settings() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [passwordNotice, setPasswordNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [voiceCloneSaved, setVoiceCloneSaved] = useState(() => {
+    try {
+      return typeof window !== 'undefined' && Boolean(window.localStorage.getItem(NEURAL_VOICE_REFERENCE_KEY));
+    } catch {
+      return false;
+    }
+  });
+  const [voiceCloneConfirmed, setVoiceCloneConfirmed] = useState(false);
+  const [voiceCloneNotice, setVoiceCloneNotice] = useState('');
+
+  const handleVoiceReferenceUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+    if (!voiceCloneConfirmed) {
+      setVoiceCloneNotice('Confirm that this is your own voice before saving a reference clip.');
+      return;
+    }
+    if (!file.type.startsWith('audio/')) {
+      setVoiceCloneNotice('Choose a supported audio file.');
+      return;
+    }
+    if (file.size > 2.5 * 1024 * 1024) {
+      setVoiceCloneNotice('The audio file must be 2.5 MB or smaller.');
+      return;
+    }
+
+    let audioContext: AudioContext | null = null;
+    try {
+      audioContext = new AudioContext();
+      const decoded = await audioContext.decodeAudioData(await file.arrayBuffer());
+      if (decoded.duration < 1 || decoded.duration > 10) {
+        setVoiceCloneNotice('Use a clear audio clip between 1 and 10 seconds.');
+        return;
+      }
+    } catch {
+      setVoiceCloneNotice('This audio file could not be decoded. Try another audio format.');
+      return;
+    } finally {
+      await audioContext?.close().catch(() => undefined);
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        if (typeof reader.result !== 'string') throw new Error('Invalid audio data');
+        window.localStorage.setItem(NEURAL_VOICE_REFERENCE_KEY, reader.result);
+        setVoiceCloneSaved(true);
+        setVoiceCloneNotice('Voice reference saved in this browser only. It is not uploaded to StudySmartly.');
+      } catch {
+        setVoiceCloneNotice('The clip could not be saved. Browser storage may be full.');
+      }
+    };
+    reader.onerror = () => setVoiceCloneNotice('Could not read the selected audio file.');
+    reader.readAsDataURL(file);
+  };
+
+  const removeVoiceReference = () => {
+    try {
+      window.localStorage.removeItem(NEURAL_VOICE_REFERENCE_KEY);
+      setVoiceCloneSaved(false);
+      setVoiceCloneNotice('Saved voice reference removed from this browser.');
+    } catch {
+      setVoiceCloneNotice('Could not remove the saved voice reference.');
+    }
+  };
 
   const updateAccountPassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -510,6 +578,41 @@ export default function Settings() {
             </p>
           </div>
 
+          <section className="rounded-2xl border border-emerald-300/20 bg-slate-950/55 p-5 sm:p-6 shadow-xl shadow-black/10">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-300/10 text-emerald-300">
+                <AudioLines size={21} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-lg font-bold text-white">Neural Voice Engine (Beta)</h3>
+                  <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200">Beta</span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  Pocket TTS runs locally in your browser. The first model download needs an internet connection; downloaded model assets are cached for later offline use. If the model fails to load, StudySmartly falls back to your browser's speech engine.
+                </p>
+                <p className="mt-2 text-xs leading-5 text-slate-400">
+                  Voice reference clips are stored as browser-local data and are not uploaded to StudySmartly. Only use a recording of your own voice; do not upload someone else's voice.
+                </p>
+                <label className="mt-4 flex items-start gap-2 text-sm text-slate-300">
+                  <input type="checkbox" checked={voiceCloneConfirmed} onChange={(event) => setVoiceCloneConfirmed(event.target.checked)} className="mt-1 accent-emerald-400" />
+                  <span>I confirm the reference clip is my own voice.</span>
+                </label>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-300/10 px-4 py-2.5 text-sm font-semibold text-emerald-100 transition-colors hover:bg-emerald-300/15">
+                    <AudioLines size={16} />
+                    {voiceCloneSaved ? 'Replace voice clip' : 'Upload voice clip'}
+                    <input type="file" accept="audio/*" onChange={(event) => void handleVoiceReferenceUpload(event)} disabled={!voiceCloneConfirmed} className="sr-only" />
+                  </label>
+                  {voiceCloneSaved && <Button type="button" variant="outline" onClick={removeVoiceReference}>Remove saved voice</Button>}
+                  <span className="text-xs text-slate-500">1–10 seconds · up to 2.5 MB</span>
+                </div>
+                {voiceCloneNotice && <p role="status" className="mt-3 text-xs text-emerald-200">{voiceCloneNotice}</p>}
+                {voiceCloneSaved && <p className="mt-2 text-xs text-slate-400">A local voice reference is saved in this browser.</p>}
+              </div>
+            </div>
+          </section>
+
           <div>
             <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
               <div>
@@ -535,12 +638,6 @@ export default function Settings() {
                   tag: 'Provider failover · Structured output',
                 },
                 {
-                  icon: GraduationCap,
-                  title: 'Immersive AI Classrooms',
-                  body: 'Integrated the MIT-licensed OpenMAIC engine to render multi-agent, interactive classrooms directly within the app, bridging the gap between static study notes and live, guided lectures.',
-                  tag: 'OpenMAIC · Interactive courseware',
-                },
-                {
                   icon: PenTool,
                   title: 'Imperative Canvas Rendering',
                   body: 'Integrates Excalidraw through its imperative API. AI-generated element data is converted, sanitized, and applied with updateScene(), while canvas persistence is kept separate from React state updates to avoid render feedback loops during scene changes.',
@@ -560,9 +657,9 @@ export default function Settings() {
                 },
                 {
                   icon: AudioLines,
-                  title: 'Native Web Speech Synthesis',
-                  body: 'Uses browser-native speech capabilities for spoken tutoring without requiring a separate cloud text-to-speech service. Voice availability and quality are delegated to the browser and operating system, keeping the speech layer lightweight.',
-                  tag: 'Web Speech API · Client-side audio',
+                  title: 'Neural Voice Engine (Beta)',
+                  body: 'Runs Pocket TTS locally in the browser using ONNX Runtime Web and WebAssembly. Model assets are cached after the first download; browser speech synthesis remains the fallback when local inference cannot start.',
+                  tag: 'Pocket TTS · Local inference · Native fallback',
                 },
                 {
                   icon: Gauge,
@@ -603,7 +700,7 @@ export default function Settings() {
               <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-white">Core Technology Stack</h3>
             </div>
             <div className="flex flex-wrap gap-2">
-              {['React 19', 'TanStack Start', 'TypeScript', 'Tailwind CSS', 'Framer Motion', 'Supabase', 'Vercel', 'Vercel AI SDK', 'Excalidraw', 'OpenMAIC', 'Zod', 'Node.js'].map((tech) => (
+              {['React 19', 'TanStack Start', 'TypeScript', 'Tailwind CSS', 'Framer Motion', 'Supabase', 'Vercel', 'Vercel AI SDK', 'Excalidraw', 'Zod', 'Node.js'].map((tech) => (
                 <span key={tech} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-300 shadow-sm shadow-black/10">
                   {tech}
                 </span>

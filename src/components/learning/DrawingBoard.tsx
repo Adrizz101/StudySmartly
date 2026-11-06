@@ -254,6 +254,7 @@ export default function DrawingBoard() {
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
     try {
+      stopNeuralVoice();
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
     } catch {
       /* Speech APIs may be unavailable in embedded browsers. */

@@ -5,7 +5,6 @@ import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 import { nitro } from "nitro/vite";
-import { nodePolyfills } from "vite-plugin-node-polyfills";
 
 export default defineConfig({
   server: {
@@ -15,25 +14,11 @@ export default defineConfig({
   },
   resolve: {
     dedupe: ["react", "react-dom", "@tanstack/react-router", "@tanstack/react-start"],
-    // Alias only exact Node built-in specifiers. In particular, the exact
-    // match leaves node:stream/promises native for Nitro's server adapter.
-    alias: [
-      { find: /^node:crypto$/, replacement: "crypto" },
-      { find: /^node:stream$/, replacement: "stream" },
-      { find: /^node:vm$/, replacement: "vm" },
-      { find: /^node:path$/, replacement: "path" },
-      { find: /^node:buffer$/, replacement: "buffer" },
-      { find: /^node:process$/, replacement: "process" },
-    ],
+  },
+  worker: {
+    format: "es",
   },
   plugins: [
-    // OpenMAIC needs Node built-ins in the browser bundle.
-    nodePolyfills({
-      include: ['crypto', 'stream', 'vm', 'path', 'buffer', 'process'],
-      globals: { Buffer: true, global: true, process: true },
-      // Keep Node protocol subpaths such as node:stream/promises native.
-      protocolImports: false,
-    }),
     tsConfigPaths(),
     // Prerender the public app shell so the PWA has a safe offline entry point.
     nitro({

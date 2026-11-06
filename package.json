@@ -78,8 +78,8 @@
     "vaul": "^1.1.2",
     "vite-tsconfig-paths": "^6.0.2",
     "zod": "^3.25.76",
-    "@yanzongzhen/openmaic-courseware-react": "^0.1.4",
-    "motion": "^12.23.24"
+    "motion": "^12.23.24",
+    "pocket-tts-js": "^0.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
@@ -106,8 +106,7 @@
     "vite": "8.1.5",
     "vitest": "^4.1.10",
     "@vite-pwa/tanstack": "^0.0.1",
-    "magicast": "^0.5.0",
-    "vite-plugin-node-polyfills": "^0.28.0"
+    "magicast": "^0.5.0"
   },
   "engines": {
     "node": "24.x",

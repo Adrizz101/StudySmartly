@@ -10,7 +10,6 @@ export type ViewKey =
   | 'studio'
   | 'exams'
   | 'transcriber'
-  | 'classroom'
   | 'settings';
 
 export interface Course {

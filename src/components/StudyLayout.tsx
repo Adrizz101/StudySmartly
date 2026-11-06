@@ -29,7 +29,7 @@ export function StudyLayout({ children }: { children: ReactNode }) {
     };
   }, []);
   const section = pathname.split('/')[1];
-  const view: ViewKey = section === 'schedule' || section === 'planner' || section === 'flashcards' || section === 'tutor' || section === 'studio' || section === 'exams' || section === 'transcriber' || section === 'classroom' || section === 'settings' ? section : 'dashboard';
+  const view: ViewKey = section === 'schedule' || section === 'planner' || section === 'flashcards' || section === 'tutor' || section === 'studio' || section === 'exams' || section === 'transcriber' || section === 'settings' ? section : 'dashboard';
   return (
     <div className="flex min-h-screen bg-bg">
       {academyOpen && <StudyAcademy onClose={() => setAcademyOpen(false)} />}

@@ -23,12 +23,11 @@ StudySmartly started as an experiment to escape proprietary no-code platforms. I
 
 ## ✨ Core Features
 
-*   **🎓 AI Classroom:** Render interactive, multi-agent OpenMAIC lessons for learning new topics from scratch.
-*   **🎨 AI Whiteboard:** A visual, speaking AI tutor. Generates spatial JSON schemas rendered stroke-by-stroke on an Excalidraw canvas, synchronized with browser-native text-to-speech. Includes an interactive "Atom Popper" mini-game during AI generation.
+*   **🎨 AI Whiteboard:** A visual AI tutor that generates spatial JSON schemas rendered stroke-by-stroke on an Excalidraw canvas, with spoken explanations powered by the local neural voice engine and a browser speech fallback. Includes an interactive "Atom Popper" mini-game during AI generation.
 *   **📅 Adaptive Study Planner:** A deterministic scheduling engine. Parses unstructured syllabus data (PDF/Text), extracts topics, and generates conflict-free revision time-blocks with spaced repetition.
 *   **📝 PYQ Exam Arena:** Generates verified MCQs from past papers. Includes a **Mistake Analyzer** that diagnoses weak concepts and links directly to the Whiteboard for targeted explanations.
 *   **🎴 Smart Flashcards:** AI-generated basic and multiple-choice flashcards with answer feedback and SuperMemo-2 (SM-2) spaced repetition.
-*   **🎤 Lecture Transcriber:** Browser-native real-time audio-to-text for capturing live lectures.
+*   **🎤 Lecture Transcriber:** Browser-native real-time audio-to-text for capturing live lectures, with neural playback for generated revision summaries.
 *   **📊 Presentation Studio:** Generates structured slide decks from prompts or uploaded notes.
 *   **🔑 Bring Your Own Key (BYOK):** Save your own Gemini or OpenRouter API key in Settings. Keys are encrypted with AES-256-GCM on the server, stored in Supabase, and never returned to the browser after saving.
 *   **⚖️ Transparent AI limits:** Shared system keys include 15 AI actions per account per UTC day. BYOK bypasses StudySmartly’s shared cap; each AI provider’s own quotas, model availability, and terms still apply.
@@ -40,7 +39,7 @@ StudySmartly is engineered for high availability and zero-cost scalability:
 *   **Dynamic AI Key Routing:** Uses the Vercel AI SDK to select a user-provided Gemini or OpenRouter key when one is saved, otherwise falling back to server-level provider keys. User keys are AES-256-GCM encrypted before storage in Supabase and decrypted only in server-side code. Structured outputs are validated with Zod and provider failover is handled server-side.
 *   **Daily Usage Enforcement:** A Supabase RPC atomically tracks shared-key usage and enforces 15 AI actions per account per UTC day. User-key requests bypass the shared counter.
 *   **Privacy-Conscious Analytics:** Signed-in event metadata is written to `analytics_events` with owner-bound insert policies; free-text prompts, feedback, credentials, and direct identifiers are excluded.
-*   **Immersive Courseware Rendering:** Integrates the OpenMAIC React rendering package (`@yanzongzhen/openmaic-courseware-react`) to display imported multi-agent classrooms, slides, quizzes, and interactive scenes directly in the app.
+*   **Neural Voice Rendering:** Uses `pocket-tts-js` and ONNX Runtime Web in a browser-managed Web Worker for local neural speech generation and optional reference-voice conditioning. Model files are cached after the first download; browser-native speech synthesis is the fallback. Reference audio is stored locally in the browser and is not sent to the app server.
 *   **Imperative Canvas Rendering:** Bypasses React’s virtual DOM for high-performance drawing. Utilizes Excalidraw’s imperative API to execute batched, 30ms state-update loops.
 *   **Serverless Edge Architecture:** Deployed on Vercel's edge network with TanStack Start for type-safe, SSR-optimized routing.
 *   **Security & Data:** Powered by Supabase PostgreSQL, using Row-Level Security (RLS), authenticated server functions, PKCE authentication, and OTP sign-in. Encrypted BYOK records are user-scoped; daily usage counters are not directly accessible to clients.

@@ -5,6 +5,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { useServerFn } from '@tanstack/react-start';
 import { generateRevisionPackage } from '@/lib/learning-ai.functions';
 import type { RevisionPackage } from '@/lib/learning-models';
+import { speakWithNeuralVoice } from '@/lib/neural-voice';
 import { AIConsent } from '@/components/learning/AIConsent';
 import { Transcription } from '@/types';
 import {
@@ -373,7 +374,12 @@ export default function Transcriber() {
           {revisionPackage && (
             <div className="space-y-4 border-t border-border pt-4">
               <section>
-                <h4 className="font-semibold text-text flex items-center gap-2"><BookOpen size={16}/> Summary notes</h4>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="font-semibold text-text flex items-center gap-2"><BookOpen size={16}/> Summary notes</h4>
+                  <Button type="button" variant="outline" size="sm" onClick={() => void speakWithNeuralVoice(revisionPackage.summary)}>
+                    <Volume2 size={15} /> Listen to Summary
+                  </Button>
+                </div>
                 <p className="text-sm text-text-muted leading-relaxed whitespace-pre-wrap mt-2">{revisionPackage.summary}</p>
               </section>
               <section>
