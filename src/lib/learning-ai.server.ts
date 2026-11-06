@@ -51,7 +51,7 @@ export async function structuredAI<T>(
             baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
             apiKey: personalKeys.gemini,
           }),
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.8-flash',
           supportsImages: true,
         }] : []),
         ...(personalKeys.openrouter ? [{
@@ -62,7 +62,7 @@ export async function structuredAI<T>(
             baseURL: 'https://openrouter.ai/api/v1',
             apiKey: personalKeys.openrouter,
           }),
-          model: 'meta-llama/llama-3.3-70b-instruct:free',
+          model: 'openrouter/free',
           supportsImages: true,
         }] : []),
       ]
@@ -75,7 +75,7 @@ export async function structuredAI<T>(
             baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
             apiKey: process.env['GEMINI_API_KEY'] || '',
           }),
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.8-flash',
           supportsImages: true,
         },
         {
@@ -86,7 +86,7 @@ export async function structuredAI<T>(
             baseURL: 'https://openrouter.ai/api/v1',
             apiKey: process.env['OPENROUTER_API_KEY'] || '',
           }),
-          model: 'meta-llama/llama-3.3-70b-instruct:free',
+          model: 'openrouter/free',
           supportsImages: true,
         },
       ];
