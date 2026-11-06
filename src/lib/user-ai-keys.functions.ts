@@ -48,6 +48,7 @@ export const saveUserAIKeys = createServerFn({ method: 'POST' })
 
 export const getUserAIKeyStatus = createServerFn({ method: 'POST' })
   .middleware([safeServerBoundary, requireSupabaseAuth])
+  .inputValidator(z.object({}))
   .handler(async ({ context }) => safeResult('getUserAIKeyStatus', 'Could not load saved AI key status. Please refresh and try again.', async () => {
     const supabase = context.supabase as any;
     const { data, error } = await supabase
