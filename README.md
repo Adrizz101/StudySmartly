@@ -66,7 +66,7 @@ Generate the BYOK encryption secret locally with `openssl rand -hex 32` and add 
 
 ## 🛠️ Local Development
 
-To run StudySmartly locally, you need Node.js and `pnpm` installed.
+To run StudySmartly locally, you need Node.js and `npm` installed.
 
 ```bash
 # 1. Clone the repository
@@ -74,7 +74,7 @@ git clone https://github.com/Adrizz101/StudySmartly.git
 cd StudySmartly
 
 # 2. Install dependencies
-pnpm install
+npm install --legacy-peer-deps
 
 # 3. Set up Environment Variables
 cp .env.example .env
@@ -82,4 +82,4 @@ cp .env.example .env
 # secrets server-side; never add a VITE_ prefix to them.
 
 # 4. Run the development server
-pnpm run dev
+npm run dev
