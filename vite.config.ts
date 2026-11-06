@@ -5,6 +5,7 @@ import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 import { nitro } from "nitro/vite";
+import { nodePolyfills } from "vite-plugin-node-polyfills";
 
 export default defineConfig({
   server: {
@@ -16,6 +17,8 @@ export default defineConfig({
     dedupe: ["react", "react-dom", "@tanstack/react-router", "@tanstack/react-start"],
   },
   plugins: [
+    // OpenMAIC uses Node built-ins in browser bundles (including node:crypto).
+    nodePolyfills(),
     tsConfigPaths(),
     // Prerender the public app shell so the PWA has a safe offline entry point.
     nitro({
