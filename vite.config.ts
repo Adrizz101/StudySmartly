@@ -19,9 +19,10 @@ export default defineConfig({
   plugins: [
     // OpenMAIC uses Node built-ins in browser bundles (including node:crypto).
     nodePolyfills({
-      // Keep native server modules (for example node:stream/promises) untouched.
-      // OpenMAIC's browser bundle only needs the crypto compatibility shim.
-      include: ['crypto', 'stream', 'vm'],
+      // Preserve Node's native stream/promises module in the Nitro server build.
+      // All other Node built-ins (including crypto and its browser dependencies)
+      // remain available to OpenMAIC's browser bundle.
+      exclude: ['stream/promises'],
       globals: { Buffer: true, global: true, process: true },
     }),
     tsConfigPaths(),
