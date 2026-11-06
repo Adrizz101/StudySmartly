@@ -109,7 +109,8 @@
     "magicast": "^0.5.0"
   },
   "engines": {
-    "node": "24.x"
+    "node": "24.x",
+    "pnpm": ">=10.15.0"
   },
   "packageManager": "pnpm@10.15.0"
 }
