@@ -15,24 +15,24 @@ export default defineConfig({
   },
   resolve: {
     dedupe: ["react", "react-dom", "@tanstack/react-router", "@tanstack/react-start"],
+    // Alias only exact Node built-in specifiers. In particular, the exact
+    // match leaves node:stream/promises native for Nitro's server adapter.
+    alias: [
+      { find: /^node:crypto$/, replacement: "crypto" },
+      { find: /^node:stream$/, replacement: "stream" },
+      { find: /^node:vm$/, replacement: "vm" },
+      { find: /^node:path$/, replacement: "path" },
+      { find: /^node:buffer$/, replacement: "buffer" },
+      { find: /^node:process$/, replacement: "process" },
+    ],
   },
   plugins: [
-    // Keep this Node-only subpath native for Nitro. The polyfill package maps
-    // the "stream" module to stream-browserify, which has no /promises entry.
-    {
-      name: "externalize-native-stream-promises",
-      enforce: "pre",
-      resolveId(source) {
-        if (source === "node:stream/promises") {
-          return { id: source, external: true };
-        }
-        return null;
-      },
-    },
     // OpenMAIC needs Node built-ins in the browser bundle.
     nodePolyfills({
       include: ['crypto', 'stream', 'vm', 'path', 'buffer', 'process'],
       globals: { Buffer: true, global: true, process: true },
+      // Keep Node protocol subpaths such as node:stream/promises native.
+      protocolImports: false,
     }),
     tsConfigPaths(),
     // Prerender the public app shell so the PWA has a safe offline entry point.
