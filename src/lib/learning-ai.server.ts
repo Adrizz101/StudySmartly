@@ -302,6 +302,9 @@ export async function parseScheduleWithAI(text: string) {
       return event.title.trim().length >= 2 && validDate && Boolean(start && end && end > start);
     });
     if (validEvents.length) return { events: validEvents };
+    console.error('[Schedule Parser] AI response contained no valid events:', {
+      rawAIResponse: JSON.stringify(result.output).slice(0, 12000),
+    });
     const fallback = fallbackScheduleEvents(text, today);
     if (fallback.length) {
       console.warn('[Schedule Parser] AI returned no complete events; regex fallback extracted events.', { count: fallback.length });
