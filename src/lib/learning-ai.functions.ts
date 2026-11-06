@@ -47,7 +47,7 @@ export const generateDeck = createServerFn({ method: 'POST' }).middleware([safeS
         `${data.prompt}\nStudent cover: ${data.metadata}\nApproved outline: ${data.outline}\nTotal slides ${count}. Generate slides ${start+1}-${start+length}. Previous headings: ${slides.map(s => s.heading).join('; ')}. First overall slide is a title cover; last is a meaningful conclusion.`, data.sources, runId);
       if (result.output.slides.length !== length) throw new Error('The generated slide count did not match. No partial deck has been saved.');
 
-      // Resolve stock imagery on the server so the Pexels API key is never exposed to the browser.
+      // Resolve keyless stock imagery server-side: Openverse -> Wikimedia Commons -> Pollinations.
       const { fetchWebImage } = await import('./web-images.server');
       const slidesWithImages = await Promise.all(result.output.slides.map(async (slide) => {
         const searchQuery = slide.imagePrompt.trim() || slide.heading;
@@ -56,7 +56,7 @@ export const generateDeck = createServerFn({ method: 'POST' }).middleware([safeS
         return {
           ...slide,
           image: webImage ?? fallbackImage,
-          imageSource: webImage ? 'pexels' as const : 'pollinations' as const,
+          imageSource: webImage ? 'openverse-or-wikimedia' as const : 'pollinations' as const,
         };
       }));
 
