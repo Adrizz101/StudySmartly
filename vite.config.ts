@@ -18,7 +18,12 @@ export default defineConfig({
   },
   plugins: [
     // OpenMAIC uses Node built-ins in browser bundles (including node:crypto).
-    nodePolyfills(),
+    nodePolyfills({
+      // Keep native server modules (for example node:stream/promises) untouched.
+      // OpenMAIC's browser bundle only needs the crypto compatibility shim.
+      include: ['crypto'],
+      globals: { Buffer: true, global: true, process: true },
+    }),
     tsConfigPaths(),
     // Prerender the public app shell so the PWA has a safe offline entry point.
     nitro({
