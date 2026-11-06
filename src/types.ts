@@ -49,6 +49,7 @@ export interface TutorSession {
 }
 
 export type SlideLayout = 'title' | 'bento' | 'timeline' | 'comparison' | 'process' | 'spotlight' | 'dossier' | 'stats' | 'content' | 'split' | 'summary';
+export type SlideLayoutType = 'title' | 'split' | 'bento' | 'timeline';
 export interface SlideCard { title: string; text: string; value: string }
 export type DeckTheme = 'editorial' | 'noir' | 'botanical';
 export type SlidePalette = 'emerald-dark' | 'indigo-dark' | 'bronze-dark' | 'slate-dark' | 'rose-dark' | 'teal-dark';
@@ -65,6 +66,7 @@ export interface Slide {
   body: string;
   bullets: string[];
   layout: SlideLayout;
+  layoutType?: SlideLayoutType | undefined;
   accent?: string | undefined;
   image?: string | undefined;
   imageSource?: 'openverse-or-wikimedia' | 'pollinations' | undefined;
