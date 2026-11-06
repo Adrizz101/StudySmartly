@@ -153,6 +153,7 @@ export default function DrawingBoard() {
   const recognitionRef = useRef<any>(null);
   const pendingTranscriptRef = useRef('');
   const transcriptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState('');
   const [dark, setDark] = useState(false);
   const [messages, setMessages] = useState<BoardMessage[]>(readMessages);
@@ -187,6 +188,10 @@ export default function DrawingBoard() {
 
   useEffect(() => () => {
     try { recognitionRef.current?.stop(); } catch { /* Speech recognition may already be stopped. */ }
+    if (transcriptTimerRef.current) clearTimeout(transcriptTimerRef.current);
+    if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+    transcriptTimerRef.current = null;
+    restartTimerRef.current = null;
     runRef.current += 1;
     timersRef.current.forEach(clearTimeout);
     cancelWaitsRef.current.forEach((cancel) => cancel());
@@ -252,7 +257,17 @@ export default function DrawingBoard() {
     }
   }
 
+  function scheduleHandsFreeRestart() {
+    if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+    restartTimerRef.current = setTimeout(() => {
+      restartTimerRef.current = null;
+      startHandsFreeListening();
+    }, 350);
+  }
+
   function stopRecognition() {
+    if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+    restartTimerRef.current = null;
     if (transcriptTimerRef.current) clearTimeout(transcriptTimerRef.current);
     transcriptTimerRef.current = null;
     pendingTranscriptRef.current = '';
@@ -313,9 +328,7 @@ export default function DrawingBoard() {
         void ask(transcript);
         return;
       }
-      if (handsFreeRef.current && !busyRef.current) {
-        window.setTimeout(() => startHandsFreeListening(), 350);
-      }
+      if (handsFreeRef.current && !busyRef.current) scheduleHandsFreeRestart();
     };
     recognitionRef.current = recognition;
     try {
@@ -354,6 +367,7 @@ export default function DrawingBoard() {
     setIsPaused(false);
     setBusy(false);
     animatingRef.current = false;
+    if (handsFreeRef.current) scheduleHandsFreeRestart();
   }
 
   function pausePlayback() {
@@ -595,7 +609,7 @@ export default function DrawingBoard() {
         if (drawingFinished && speechFinished && run === runRef.current) {
           busyRef.current = false;
           setBusy(false);
-          if (handsFreeRef.current) window.setTimeout(() => startHandsFreeListening(), 350);
+          if (handsFreeRef.current) scheduleHandsFreeRestart();
         }
       };
       if (typeof window !== 'undefined' && 'speechSynthesis' in window && typeof result.spoken_script === 'string' && result.spoken_script.trim()) {
@@ -675,7 +689,7 @@ export default function DrawingBoard() {
         setError(cause instanceof Error ? cause.message : 'Could not explain this board.');
         busyRef.current = false;
         setBusy(false);
-        if (handsFreeRef.current) window.setTimeout(() => startHandsFreeListening(), 350);
+        if (handsFreeRef.current) scheduleHandsFreeRestart();
         setIsSpeaking(false);
         setIsPaused(false);
       }
