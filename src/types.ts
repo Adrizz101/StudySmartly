@@ -9,7 +9,16 @@ export type ViewKey =
   | 'tutor'
   | 'studio'
   | 'exams'
+export type ViewKey =
+  | 'dashboard'
+  | 'schedule'
+  | 'planner'
+  | 'flashcards'
+  | 'tutor'
+  | 'studio'
+  | 'exams'
   | 'transcriber'
+  | 'classroom'
   | 'settings';
 
 export interface Course {
