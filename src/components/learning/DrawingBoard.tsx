@@ -147,7 +147,12 @@ export default function DrawingBoard() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [handsFree, setHandsFree] = useState(false);
+  const handsFreeRef = useRef(false);
+  const busyRef = useRef(false);
   const recognitionRef = useRef<any>(null);
+  const pendingTranscriptRef = useRef('');
+  const transcriptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState('');
   const [dark, setDark] = useState(false);
   const [messages, setMessages] = useState<BoardMessage[]>(readMessages);
@@ -247,7 +252,93 @@ export default function DrawingBoard() {
     }
   }
 
+  function stopRecognition() {
+    if (transcriptTimerRef.current) clearTimeout(transcriptTimerRef.current);
+    transcriptTimerRef.current = null;
+    pendingTranscriptRef.current = '';
+    try { recognitionRef.current?.stop(); } catch { /* Speech recognition may already be stopped. */ }
+    recognitionRef.current = null;
+    setIsListening(false);
+  }
+
+  function startHandsFreeListening() {
+    if (typeof window === 'undefined' || !handsFreeRef.current || busyRef.current || recognitionRef.current) return;
+    const SpeechRecognitionConstructor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionConstructor) {
+      setError('Hands-free voice input is not supported in this browser. Try Chrome or Edge.');
+      setHandsFree(false);
+      handsFreeRef.current = false;
+      return;
+    }
+    const recognition = new SpeechRecognitionConstructor();
+    recognition.lang = 'en-US';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.onresult = (event: any) => {
+      for (let index = event.resultIndex ?? 0; index < (event.results?.length ?? 0); index += 1) {
+        const result = event.results[index];
+        if (result?.isFinal) {
+          const phrase = String(result[0]?.transcript || '').trim();
+          if (phrase) pendingTranscriptRef.current = `${pendingTranscriptRef.current} ${phrase}`.trim();
+        }
+      }
+      if (pendingTranscriptRef.current) {
+        if (transcriptTimerRef.current) clearTimeout(transcriptTimerRef.current);
+        transcriptTimerRef.current = setTimeout(() => {
+          const transcript = pendingTranscriptRef.current.trim();
+          pendingTranscriptRef.current = '';
+          transcriptTimerRef.current = null;
+          if (transcript && handsFreeRef.current && !busyRef.current) {
+            try { recognition.stop(); } catch { /* already stopped */ }
+            setPrompt(transcript);
+            void ask(transcript);
+          }
+        }, 1100);
+      }
+    };
+    recognition.onerror = (event: any) => {
+      if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        setError(`Hands-free voice error: ${event.error}`);
+      }
+    };
+    recognition.onend = () => {
+      if (recognitionRef.current === recognition) recognitionRef.current = null;
+      setIsListening(false);
+      const transcript = pendingTranscriptRef.current.trim();
+      if (transcriptTimerRef.current) clearTimeout(transcriptTimerRef.current);
+      transcriptTimerRef.current = null;
+      pendingTranscriptRef.current = '';
+      if (transcript && handsFreeRef.current && !busyRef.current) {
+        setPrompt(transcript);
+        void ask(transcript);
+        return;
+      }
+      if (handsFreeRef.current && !busyRef.current) {
+        window.setTimeout(() => startHandsFreeListening(), 350);
+      }
+    };
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+      setIsListening(true);
+    } catch {
+      recognitionRef.current = null;
+      setIsListening(false);
+      setError('Could not start the microphone. Check browser permissions and try again.');
+    }
+  }
+
+  function toggleHandsFree() {
+    const next = !handsFreeRef.current;
+    handsFreeRef.current = next;
+    setHandsFree(next);
+    setError('');
+    if (next) startHandsFreeListening();
+    else stopRecognition();
+  }
+
   function stopPlayback() {
+    busyRef.current = false;
     runRef.current += 1;
     cancelWaitsRef.current.forEach((cancel) => cancel());
     cancelWaitsRef.current = [];
@@ -310,15 +401,14 @@ export default function DrawingBoard() {
   }
 
   function startVoiceInput() {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || handsFreeRef.current || busyRef.current) return;
     if ('speechSynthesis' in window && (window.speechSynthesis.speaking || window.speechSynthesis.pending || isSpeaking || isPaused)) {
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
       setIsPaused(false);
     }
     if (isListening) {
-      try { recognitionRef.current?.stop(); } catch { /* already stopped */ }
-      setIsListening(false);
+      stopRecognition();
       return;
     }
     const SpeechRecognitionConstructor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -343,7 +433,10 @@ export default function DrawingBoard() {
       setIsListening(false);
       if (event.error !== 'no-speech' && event.error !== 'aborted') setError(`Voice input error: ${event.error}`);
     };
-    recognition.onend = () => setIsListening(false);
+    recognition.onend = () => {
+      if (recognitionRef.current === recognition) recognitionRef.current = null;
+      setIsListening(false);
+    };
     recognitionRef.current = recognition;
     try {
       setIsListening(true);
@@ -362,8 +455,13 @@ export default function DrawingBoard() {
     }
     const question = (questionOverride ?? prompt).trim();
     if (!api || !question) return;
+    // Pause microphone capture before processing any spoken or typed question.
+    try { recognitionRef.current?.stop(); } catch { /* already stopped */ }
+    recognitionRef.current = null;
+    setIsListening(false);
     // A new doubt always interrupts the current voice and any in-progress drawing.
     stopPlayback();
+    busyRef.current = true;
     const run = runRef.current;
     setError('');
     setBusy(true);
@@ -494,7 +592,11 @@ export default function DrawingBoard() {
       let drawingFinished = false;
       let speechFinished = true;
       const finishIfDone = () => {
-        if (drawingFinished && speechFinished && run === runRef.current) setBusy(false);
+        if (drawingFinished && speechFinished && run === runRef.current) {
+          busyRef.current = false;
+          setBusy(false);
+          if (handsFreeRef.current) window.setTimeout(() => startHandsFreeListening(), 350);
+        }
       };
       if (typeof window !== 'undefined' && 'speechSynthesis' in window && typeof result.spoken_script === 'string' && result.spoken_script.trim()) {
         try {
@@ -571,7 +673,9 @@ export default function DrawingBoard() {
       if (run === runRef.current) {
         animatingRef.current = false;
         setError(cause instanceof Error ? cause.message : 'Could not explain this board.');
+        busyRef.current = false;
         setBusy(false);
+        if (handsFreeRef.current) window.setTimeout(() => startHandsFreeListening(), 350);
         setIsSpeaking(false);
         setIsPaused(false);
       }
@@ -691,7 +795,10 @@ export default function DrawingBoard() {
               onChange={(event) => { if (busy) stopPlayback(); setPrompt(event.target.value); }}
               onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void ask(); } }} />
             <div className="board-actions">
-              <Button type="button" variant="outline" className="board-voice" onClick={startVoiceInput} aria-label={isListening ? 'Stop microphone input' : 'Speak a question'}>
+              <Button type="button" variant={handsFree ? 'default' : 'outline'} className="board-voice" onClick={toggleHandsFree} aria-pressed={handsFree} aria-label={handsFree ? 'Turn off hands-free mode' : 'Turn on hands-free mode'}>
+                <Mic size={16} /> {handsFree ? 'Hands-free On' : 'Hands-free'}
+              </Button>
+              <Button type="button" variant="outline" className="board-voice" disabled={handsFree || busy} onClick={startVoiceInput} aria-label={isListening ? 'Stop microphone input' : 'Speak a question'}>
                 {isListening ? <MicOff size={16} /> : <Mic size={16} />} {isListening ? 'Listening…' : 'Mic'}
               </Button>
               <Button className="board-send" disabled={!prompt.trim()} onClick={() => void ask()}>
