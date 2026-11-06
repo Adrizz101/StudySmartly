@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useServerFn } from '@tanstack/react-start';
 import { BookOpen, Brain, Check, ChevronLeft, ChevronRight, RotateCcw, Sparkles, UploadCloud, Layers3, PencilRuler } from 'lucide-react';
+import { createEmptyCard, fsrs, Rating, generatorParameters } from 'ts-fsrs';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { generateFlashcards } from '@/lib/flashcards-ai.functions';
@@ -13,28 +14,41 @@ import type { Attempt } from '@/lib/learning-models';
 import { load } from '@/lib/storage';
 
 type Deck = { id:string; title:string; subject:string; source:string; created_at:string };
-type Card = { id:string; deck_id:string; question:string; answer:string; explanation:string; subject:string; topic:string; type:'basic'|'mcq'; options:string[]; correct_option_index:number|null; difficulty:'easy'|'normal'|'hard'; due_at:string; interval_days:number; ease_factor:number; repetitions:number; lapses:number };
-type Rating = 'again'|'hard'|'good'|'easy';
+type Card = { id:string; deck_id:string; question:string; answer:string; explanation:string; subject:string; topic:string; type:'basic'|'mcq'; options:string[]; correct_option_index:number|null; difficulty:'easy'|'normal'|'hard'; due_at:string; interval_days:number; ease_factor:number; repetitions:number; lapses:number; last_reviewed_at?:string|null; fsrs_card?:Record<string,unknown>|null };
+type ReviewRating = 'again'|'hard'|'good'|'easy';
+type FSRSCard = ReturnType<typeof createEmptyCard>;
 const nowIso = () => new Date().toISOString();
+const f = fsrs(generatorParameters({ enable_fuzz: true }));
+const fsrsRatings: Record<ReviewRating, Rating> = {
+  again: Rating.Again,
+  hard: Rating.Hard,
+  good: Rating.Good,
+  easy: Rating.Easy,
+};
 
-function schedule(card:Card, rating:Rating) {
-  const quality = rating === 'again' ? 0 : rating === 'hard' ? 3 : rating === 'good' ? 4 : 5;
-  const ease = Math.max(1.3, Math.min(3.5, card.ease_factor + (0.1 - (5-quality) * (0.08 + (5-quality) * 0.02))));
-  const failed = rating === 'again';
-  const repetitions = failed ? 0 : card.repetitions + 1;
-  const interval = failed ? 0
-    : rating === 'hard' ? 1
-    : rating === 'good' ? (repetitions === 1 ? 1 : repetitions === 2 ? 6 : Math.max(1, Math.round(Math.max(1, card.interval_days) * ease)))
-    : (repetitions === 1 ? 4 : repetitions === 2 ? 8 : Math.max(1, Math.round(Math.max(1, card.interval_days) * ease * 1.3)));
-  const now = Date.now();
+function getFSRSCard(card: Card, now: Date): FSRSCard {
+  const saved = card.fsrs_card;
+  if (saved && typeof saved === 'object' && typeof saved.due === 'string') {
+    const due = new Date(saved.due);
+    const lastReview = typeof saved.last_review === 'string' ? new Date(saved.last_review) : undefined;
+    if (!Number.isNaN(due.getTime()) && (!lastReview || !Number.isNaN(lastReview.getTime()))) {
+      return {
+        ...saved,
+        due,
+        last_review: lastReview,
+      } as FSRSCard;
+    }
+  }
+
+  // Cards created before FSRS adoption start with a clean scheduler state.
+  return createEmptyCard(now);
+}
+
+function serializeFSRSCard(card: FSRSCard) {
   return {
-    repetitions,
-    lapses: card.lapses + (failed ? 1 : 0),
-    ease_factor: Number(ease.toFixed(2)),
-    interval_days: interval,
-    due_at: new Date(now + interval * 86400000).toISOString(),
-    last_reviewed_at: nowIso(),
-    updated_at: nowIso(),
+    ...card,
+    due: card.due.toISOString(),
+    last_review: card.last_review?.toISOString() ?? null,
   };
 }
 
@@ -128,12 +142,24 @@ export default function FlashcardStudio(){
    finally{setBusy(false);}
  }
 
- async function review(rating:Rating){
+ async function review(rating:ReviewRating){
    if(!current)return;setBusy(true);setError('');
-   const next=schedule(current,rating);
+   const now = new Date();
+   const fsrsRating = fsrsRatings[rating];
+   const previousFSRSCard = getFSRSCard(current, now);
+   const nextFSRSCard = f.repeat(previousFSRSCard, now)[fsrsRating].card;
+   const next = {
+     due_at: nextFSRSCard.due.toISOString(),
+     interval_days: nextFSRSCard.scheduled_days,
+     repetitions: nextFSRSCard.reps,
+     lapses: nextFSRSCard.lapses,
+     fsrs_card: serializeFSRSCard(nextFSRSCard),
+     last_reviewed_at: now.toISOString(),
+     updated_at: now.toISOString(),
+   };
    try{
      const {data:auth}=await supabase.auth.getUser();if(!auth.user)throw new Error('Sign in again to save this review.');
-     const {data:reviewRow,error:reviewError}=await supabase.from('flashcard_reviews').insert({card_id:current.id,user_id:auth.user.id,rating:rating==='easy'?3:rating==='good'?2:rating==='hard'?1:0,previous_interval_days:current.interval_days,next_interval_days:next.interval_days}).select('id').single();
+     const {data:reviewRow,error:reviewError}=await supabase.from('flashcard_reviews').insert({card_id:current.id,user_id:auth.user.id,rating:fsrsRating - 1,previous_interval_days:current.interval_days,next_interval_days:next.interval_days}).select('id').single();
      if(reviewError)throw reviewError;
      const {error:updateError}=await supabase.from('flashcards').update(next).eq('id',current.id).eq('user_id',auth.user.id);
      if(updateError){if(reviewRow?.id)await supabase.from('flashcard_reviews').delete().eq('id',reviewRow.id).eq('user_id',auth.user.id);throw updateError;}
