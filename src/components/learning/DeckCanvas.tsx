@@ -4,8 +4,9 @@ export function DeckCanvas({ slide, document, index, onEdit }: { slide: Slide; d
   const editable = (field: 'heading' | 'body') => ({ contentEditable: Boolean(onEdit), suppressContentEditableWarning: true, onBlur: (e: React.FocusEvent<HTMLElement>) => onEdit?.({ [field]: e.currentTarget.textContent ?? '' }) });
   const cards = slide.cards?.length ? slide.cards : slide.bullets.map((text,i) => ({ title: '', text, value: String(i+1).padStart(2,'0') }));
   const hasImage = Boolean(slide.image);
-  const isTitleSlide = slide.layout === 'title';
-  return <article className={`deck-canvas aspect-video overflow-hidden min-w-0 deck-theme-${document.theme ?? 'editorial'} deck-layout-${slide.layout}${hasImage ? ' deck-has-image' : ''}`}>
+  const layoutType = slide.layoutType ?? slide.layout;
+  const isTitleSlide = layoutType === 'title';
+  return <article className={`deck-canvas aspect-video overflow-hidden min-w-0 deck-theme-${document.theme ?? 'editorial'} deck-layout-${layoutType}${hasImage ? ' deck-has-image' : ''}`}>
     {slide.image && <div className={`deck-image-frame overflow-hidden min-w-0 min-h-0 ${isTitleSlide ? 'deck-image-frame-title absolute inset-0 h-full w-full' : 'deck-image-frame-split h-full max-h-[400px] w-[40%] flex-[0_1_40%]'}`}>
       <img className="w-full h-full object-cover rounded-lg" src={slide.image} alt={slide.imageAlt || slide.heading} />
       {isTitleSlide && <div className="absolute inset-0 bg-black/50" aria-hidden="true" />}
