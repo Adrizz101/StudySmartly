@@ -17,7 +17,19 @@ export default defineConfig({
     dedupe: ["react", "react-dom", "@tanstack/react-router", "@tanstack/react-start"],
   },
   plugins: [
-    // OpenMAIC uses Node built-ins in browser bundles (including node:crypto).
+    // Keep this Node-only subpath native for Nitro. The polyfill package maps
+    // the "stream" module to stream-browserify, which has no /promises entry.
+    {
+      name: "externalize-native-stream-promises",
+      enforce: "pre",
+      resolveId(source) {
+        if (source === "node:stream/promises") {
+          return { id: source, external: true };
+        }
+        return null;
+      },
+    },
+    // OpenMAIC needs Node built-ins in the browser bundle.
     nodePolyfills({
       include: ['crypto', 'stream', 'vm', 'path', 'buffer', 'process'],
       globals: { Buffer: true, global: true, process: true },
