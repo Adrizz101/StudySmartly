@@ -18,13 +18,15 @@ export default defineConfig({
   },
   plugins: [
     // OpenMAIC uses Node built-ins in browser bundles (including node:crypto).
-    nodePolyfills({
-      // Preserve Node's native stream/promises module in the Nitro server build.
-      // All other Node built-ins (including crypto and its browser dependencies)
-      // remain available to OpenMAIC's browser bundle.
-      exclude: ['stream/promises'],
+    ...nodePolyfills({
+      // OpenMAIC needs crypto and its browser-side stream/vm dependencies.
+      include: ['crypto', 'stream', 'vm'],
       globals: { Buffer: true, global: true, process: true },
-    }),
+    }).map((plugin) => ({
+      ...plugin,
+      // Do not rewrite native Node imports in the Nitro server environment.
+      applyToEnvironment: (environment) => environment.name === 'client',
+    })),
     tsConfigPaths(),
     // Prerender the public app shell so the PWA has a safe offline entry point.
     nitro({
