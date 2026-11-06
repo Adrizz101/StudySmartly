@@ -14,7 +14,7 @@ import {
   Sun, Moon, Palette, Clock, Key, Shield, User, Check,
   Bell, Volume2, Brain, Coffee, RotateCcw, Eye, EyeOff,
   AlertCircle, Scale, FileText, Image as ImageIcon, Plug,
-  Wifi, WifiOff, Github, Cpu, PenTool, Server, CalendarClock, AudioLines, Gauge, Layers, Sparkles,
+  Wifi, WifiOff, Github, Cpu, PenTool, Server, CalendarClock, AudioLines, Gauge, Layers, Sparkles, GraduationCap,
 } from 'lucide-react';
 
 export default function Settings() {
@@ -535,6 +535,12 @@ export default function Settings() {
                   tag: 'Provider failover · Structured output',
                 },
                 {
+                  icon: GraduationCap,
+                  title: 'Immersive AI Classrooms',
+                  body: 'Integrated the MIT-licensed OpenMAIC engine to render multi-agent, interactive classrooms directly within the app, bridging the gap between static study notes and live, guided lectures.',
+                  tag: 'OpenMAIC · Interactive courseware',
+                },
+                {
                   icon: PenTool,
                   title: 'Imperative Canvas Rendering',
                   body: 'Integrates Excalidraw through its imperative API. AI-generated element data is converted, sanitized, and applied with updateScene(), while canvas persistence is kept separate from React state updates to avoid render feedback loops during scene changes.',
@@ -597,7 +603,7 @@ export default function Settings() {
               <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-white">Core Technology Stack</h3>
             </div>
             <div className="flex flex-wrap gap-2">
-              {['React 19', 'TanStack Start', 'TypeScript', 'Tailwind CSS', 'Framer Motion', 'Supabase', 'Vercel', 'Vercel AI SDK', 'Excalidraw', 'Zod', 'Node.js'].map((tech) => (
+              {['React 19', 'TanStack Start', 'TypeScript', 'Tailwind CSS', 'Framer Motion', 'Supabase', 'Vercel', 'Vercel AI SDK', 'Excalidraw', 'OpenMAIC', 'Zod', 'Node.js'].map((tech) => (
                 <span key={tech} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-300 shadow-sm shadow-black/10">
                   {tech}
                 </span>
