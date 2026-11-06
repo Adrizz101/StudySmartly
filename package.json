@@ -79,7 +79,8 @@
     "vite-tsconfig-paths": "^6.0.2",
     "zod": "^3.25.76",
     "motion": "^12.23.24",
-    "pocket-tts-js": "^0.1.0"
+    "pocket-tts-js": "^0.1.0",
+    "ts-fsrs": "^6.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
