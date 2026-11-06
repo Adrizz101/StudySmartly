@@ -32,6 +32,10 @@ function savePreference(mode: LoaderMode) {
 
 export default function InteractiveLoader() {
   const [mode, setMode] = useState<LoaderMode>('standard');
+
+  useEffect(() => {
+    setMode(readPreference());
+  }, []);
   const [messageIndex, setMessageIndex] = useState(0);
   const [typedMessage, setTypedMessage] = useState(STATUS_MESSAGES[0]);
   const [brainPower, setBrainPower] = useState(0);
