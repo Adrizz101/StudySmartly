@@ -46,7 +46,7 @@ export const saveUserAIKeys = createServerFn({ method: 'POST' })
     return { updated: true };
   }));
 
-export const getUserAIKeyStatus = createServerFn({ method: 'GET' })
+export const getUserAIKeyStatus = createServerFn({ method: 'POST' })
   .middleware([safeServerBoundary, requireSupabaseAuth])
   .handler(async ({ context }) => safeResult('getUserAIKeyStatus', 'Could not load saved AI key status. Please refresh and try again.', async () => {
     const supabase = context.supabase as any;
