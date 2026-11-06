@@ -21,7 +21,7 @@ export default function BYOKSettings() {
 
   useEffect(() => {
     let active = true;
-    loadStatus().then((result) => {
+    loadStatus({ data: {} }).then((result) => {
       if (!active) return;
       if (result.success === false) setNotice({ type: 'error', text: result.error });
       else setStatus(result.data);
@@ -42,7 +42,7 @@ export default function BYOKSettings() {
         removeOpenRouter,
       } });
       if (saved.success === false) { setNotice({ type: 'error', text: saved.error }); return; }
-      const next = await loadStatus();
+      const next = await loadStatus({ data: {} });
       if (next.success === false) { setNotice({ type: 'error', text: next.error }); return; }
       setStatus(next.data);
       setGeminiKey('');
