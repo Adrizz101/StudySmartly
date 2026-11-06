@@ -1,42 +1,70 @@
-import { useState, type ComponentProps } from 'react';
+import { useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { AlertCircle, BookOpen, Braces, CheckCircle2, GraduationCap, Play } from 'lucide-react';
 import { OpenMAICCourseware } from '@yanzongzhen/openmaic-courseware-react';
+import type { OpenMAICClassroomData } from '@yanzongzhen/openmaic-courseware-react';
 import '@yanzongzhen/openmaic-courseware-react/styles.css';
 
-type ClassroomData = NonNullable<ComponentProps<typeof OpenMAICCourseware>['classroom']>;
+type ClassroomData = OpenMAICClassroomData;
 
-const SAMPLE_CLASSROOM = {
-  "stage": {
-    "id": "studysmartly-demo",
-    "title": "Introduction to the Solar System",
-    "description": "A short sample lesson for testing the native OpenMAIC renderer."
+const SAMPLE_CLASSROOM: ClassroomData = {
+  id: 'studysmartly-demo',
+  stage: {
+    id: 'studysmartly-demo',
+    name: 'Introduction to the Solar System',
+    description: 'A short sample lesson for testing the native OpenMAIC renderer.',
   },
-  "scenes": [
+  scenes: [
     {
-      "id": "scene-1",
-      "title": "Our Solar System",
-      "order": 0,
-      "type": "slide",
-      "content": {
-        "type": "slide",
-        "canvas": {
-          "elements": [
+      id: 'scene-1',
+      stageId: 'studysmartly-demo',
+      title: 'Our Solar System',
+      order: 0,
+      type: 'slide',
+      content: {
+        type: 'slide',
+        canvas: {
+          id: 'canvas-1',
+          viewportSize: 1280,
+          viewportRatio: 16 / 9,
+          theme: {
+            backgroundColor: '#0f172a',
+            fontColor: '#f8fafc',
+            fontName: 'Arial',
+            themeColors: ['#818cf8', '#34d399', '#fbbf24'],
+          },
+          background: { type: 'solid', color: '#0f172a' },
+          elements: [
             {
-              "id": "title-1",
-              "type": "text",
-              "left": 80,
-              "top": 90,
-              "width": 840,
-              "height": 100,
-              "rotate": 0,
-              "content": "<p>Our Solar System</p>"
-            }
-          ]
-        }
-      }
-    }
-  ]
+              id: 'title-1',
+              type: 'text',
+              left: 100,
+              top: 140,
+              width: 1080,
+              height: 120,
+              rotate: 0,
+              content: '<p>Our Solar System</p>',
+              defaultFontName: 'Arial',
+              defaultColor: '#f8fafc',
+            },
+            {
+              id: 'subtitle-1',
+              type: 'text',
+              left: 100,
+              top: 290,
+              width: 1080,
+              height: 90,
+              rotate: 0,
+              content: '<p>Eight planets orbit our Sun.</p>',
+              defaultFontName: 'Arial',
+              defaultColor: '#cbd5e1',
+            },
+          ],
+        },
+      },
+    },
+  ],
+  createdAt: '2026-11-06T00:00:00.000Z',
 };
 
 export const Route = createFileRoute('/classroom')({
@@ -61,9 +89,19 @@ function ClassroomPage() {
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
         throw new Error('The root JSON value must be an object.');
       }
-      const candidate = parsed as { stage?: unknown; scenes?: unknown };
-      if (!candidate.stage || !Array.isArray(candidate.scenes)) {
-        throw new Error('The classroom JSON must contain a stage object and a scenes array.');
+      const candidate = parsed as Partial<ClassroomData>;
+      if (
+        typeof candidate.id !== 'string' ||
+        !candidate.id.trim() ||
+        typeof candidate.createdAt !== 'string' ||
+        !candidate.createdAt.trim() ||
+        !candidate.stage ||
+        typeof candidate.stage !== 'object' ||
+        typeof candidate.stage.id !== 'string' ||
+        !Array.isArray(candidate.scenes) ||
+        candidate.scenes.some((scene) => !scene || typeof scene.id !== 'string')
+      ) {
+        throw new Error('The classroom JSON must include id, createdAt, a stage with its own id, and scenes with ids.');
       }
       setClassroom(parsed as ClassroomData);
       setError('');
