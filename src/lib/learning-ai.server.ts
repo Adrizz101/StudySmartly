@@ -292,9 +292,15 @@ export async function parseScheduleWithAI(text: string) {
       undefined,
       { logRawResponse: true },
     );
-    const validEvents = result.output.events.filter((event) =>
-      event.title.trim().length >= 2 && event.date.trim() && event.startTime.trim() && event.endTime.trim(),
-    );
+    const validEvents = result.output.events.filter((event) => {
+      const date = event.date.trim();
+      const validDate = /^\d{4}-\d{1,2}-\d{1,2}$/.test(date)
+        ? Number.isFinite(Date.parse(date + 'T00:00:00Z'))
+        : Number.isFinite(Date.parse(date));
+      const start = normalizeFallbackTime(event.startTime);
+      const end = normalizeFallbackTime(event.endTime);
+      return event.title.trim().length >= 2 && validDate && Boolean(start && end && end > start);
+    });
     if (validEvents.length) return { events: validEvents };
     const fallback = fallbackScheduleEvents(text, today);
     if (fallback.length) {
