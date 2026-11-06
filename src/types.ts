@@ -67,7 +67,7 @@ export interface Slide {
   layout: SlideLayout;
   accent?: string | undefined;
   image?: string | undefined;
-  imageSource?: 'pexels' | 'pollinations' | undefined;
+  imageSource?: 'openverse-or-wikimedia' | 'pollinations' | undefined;
   category?: string | undefined;
   stats?: SlideStat[] | undefined;
   palette?: SlidePalette | undefined;
