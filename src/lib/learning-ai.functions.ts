@@ -56,6 +56,7 @@ export const generateDeck = createServerFn({ method: 'POST' }).middleware([safeS
         return {
           ...slide,
           image: webImage ?? fallbackImage,
+          imageSource: webImage ? 'pexels' as const : 'pollinations' as const,
         };
       }));
 
