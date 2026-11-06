@@ -3,7 +3,9 @@ import { z } from 'zod';
 export const layouts = ['title', 'bento', 'timeline', 'comparison', 'process', 'spotlight', 'dossier', 'stats', 'content', 'split', 'summary'] as const;
 export const deckSlideSchema = z.object({
   heading: z.string(), body: z.string(), category: z.string(),
-  layout: z.enum(layouts), bullets: z.array(z.string()),
+  layout: z.enum(layouts),
+  layoutType: z.enum(['title', 'split', 'bento', 'timeline']),
+  bullets: z.array(z.string()),
   cards: z.array(z.object({ title: z.string(), text: z.string(), value: z.string() })),
   citations: z.array(z.string()), imagePrompt: z.string(),
 });
