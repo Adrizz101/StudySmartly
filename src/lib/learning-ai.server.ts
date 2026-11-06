@@ -8,12 +8,26 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+function rawAIResponse(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null;
+  const value = error as Record<string, unknown>;
+  const response = typeof value.response === 'object' && value.response
+    ? (value.response as Record<string, unknown>).body : undefined;
+  for (const candidate of [value.text, value.responseBody, value.body, response]) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.slice(0, 12000);
+  }
+  return null;
+}
+
+type StructuredAIOptions = { logRawResponse?: boolean };
+
 export async function structuredAI<T>(
   schema: z.ZodType<T>,
   instruction: string,
   prompt: string,
   sources: SourceInput[],
   runId?: string,
+  options: StructuredAIOptions = {},
 ) {
   const images = sources.flatMap((source) => source.images);
   if (images.length > 50) {
@@ -137,8 +151,22 @@ export async function structuredAI<T>(
           return { output: parsed.data, runId: runId || provider.name + '-run' };
         }
         providerError = new Error(parsed.error.issues.map((issue) => (issue.path.join('.') || 'response') + ': ' + issue.message).join('; '));
+        if (options.logRawResponse) {
+          console.error('[AI Schedule] Structured response failed validation:', {
+            provider: provider.name,
+            rawAIResponse: JSON.stringify(object).slice(0, 12000),
+            validationError: errorMessage(providerError),
+          });
+        }
       } catch (error) {
         providerError = error;
+        if (options.logRawResponse) {
+          console.error('[AI Schedule] Provider response could not be parsed:', {
+            provider: provider.name,
+            error: errorMessage(error),
+            rawAIResponse: rawAIResponse(error) ?? '[The provider SDK did not expose raw response text]',
+          });
+        }
       }
       if (attempt === 0) console.warn('[AI Validation] ' + provider.name + ' response was invalid; retrying once.');
     }
@@ -166,19 +194,124 @@ export async function extractTopicsFromText(text: string, images: string[] = [])
   return result.output;
 }
 
+function scheduleDateString(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(date);
+}
+
+function normalizeFallbackTime(value: string): string | null {
+  const match = value.trim().toUpperCase().replace(/\./g, '').match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/);
+  if (!match) return null;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2] ?? '0');
+  if (minutes > 59) return null;
+  if (match[3]) {
+    if (hours < 1 || hours > 12) return null;
+    hours = (hours % 12) + (match[3] === 'PM' ? 12 : 0);
+  } else if (hours > 23) return null;
+  return String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
+}
+
+function fallbackScheduleEvents(text: string, today: string) {
+  const weekdays: Record<string, number> = {
+    sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
+  };
+  const timeToken = '(?:1[0-2]|0?[1-9])(?::[0-5]\\d)?\\s*(?:a\\.?m\\.?|p\\.?m\\.?)|(?:[01]?\\d|2[0-3]):[0-5]\\d';
+  const timeRange = new RegExp('(' + timeToken + ')\\s*(?:-|–|—|to)\\s*(' + timeToken + ')', 'i');
+  const todayUtc = new Date(today + 'T00:00:00Z');
+  const todayDay = todayUtc.getUTCDay();
+  const baseMs = todayUtc.getTime();
+  const output: Array<{
+    title: string; date: string; startTime: string; endTime: string;
+    type: 'Lecture' | 'Exam' | 'Assignment' | 'Study' | 'Other';
+  }> = [];
+
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const range = timeRange.exec(line);
+    if (!range || range.index === undefined) continue;
+    const startTime = normalizeFallbackTime(range[1]);
+    const endTime = normalizeFallbackTime(range[2]);
+    if (!startTime || !endTime || endTime <= startTime) continue;
+
+    const before = line.slice(0, range.index).trim();
+    const after = line.slice(range.index + range[0].length).replace(/^\s*[-–—,:]\s*/, '').trim();
+    const weekdayMatches = [...before.matchAll(/\b(sun(?:day)?|mon(?:day)?|tues?(?:day)?|wed(?:nesday)?|thur?s?(?:day)?|fri(?:day)?|sat(?:urday)?)\b/gi)];
+    const weekdayNumbers = [...new Set(weekdayMatches.map((match) => {
+      const token = match[1].toLowerCase().slice(0, 3);
+      return weekdays[token];
+    }).filter((day): day is number => day !== undefined))];
+    let titlePrefix = before.replace(/\b(sun(?:day)?|mon(?:day)?|tues?(?:day)?|wed(?:nesday)?|thur?s?(?:day)?|fri(?:day)?|sat(?:urday)?)\b/gi, ' ');
+    titlePrefix = titlePrefix.replace(/\b(today|tomorrow)\b/gi, ' ').replace(/[|,;]+/g, ' ').trim();
+    const title = (after || titlePrefix).replace(/^[-–—,:\s]+|[-–—,:\s]+$/g, '').trim();
+    if (title.length < 2) continue;
+
+    const lowerTitle = title.toLowerCase();
+    const type: 'Lecture' | 'Exam' | 'Assignment' | 'Study' | 'Other' =
+      /exam|test|quiz|midterm|final/.test(lowerTitle) ? 'Exam'
+      : /assignment|homework|due|submission/.test(lowerTitle) ? 'Assignment'
+      : /lecture|class|lab|tutorial/.test(lowerTitle) ? 'Lecture'
+      : /study|revision|review|practice/.test(lowerTitle) ? 'Study' : 'Other';
+
+    let dates: string[] = [];
+    if (weekdayNumbers.length) {
+      dates = weekdayNumbers.map((weekday) => {
+        const offset = (weekday - todayDay + 7) % 7 || 7;
+        return new Date(baseMs + offset * 86400000).toISOString().slice(0, 10);
+      });
+    } else {
+      const explicitDate = before.match(/\b(\d{4}-\d{1,2}-\d{1,2}|(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:,?\s+\d{4})?|\d{1,2}\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)(?:\s+\d{4})?)\b/i);
+      if (explicitDate) {
+        const parsed = new Date(explicitDate[1]);
+        if (Number.isFinite(parsed.getTime())) {
+          if (!/\d{4}/.test(explicitDate[1])) parsed.setFullYear(Number(today.slice(0, 4)));
+          if (scheduleDateString(parsed) < today && !/\d{4}/.test(explicitDate[1])) parsed.setFullYear(parsed.getFullYear() + 1);
+          dates = [scheduleDateString(parsed)];
+        }
+      } else if (/\btoday\b/i.test(before)) dates = [today];
+      else if (/\btomorrow\b/i.test(before)) dates = [new Date(baseMs + 86400000).toISOString().slice(0, 10)];
+    }
+    for (const date of dates) output.push({ title, date, startTime, endTime, type });
+  }
+  return output.slice(0, 250);
+}
+
 export async function parseScheduleWithAI(text: string) {
   const today = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Kolkata',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(new Date());
   const { scheduleExtractionSchema } = await import('./learning-models');
-  const result = await structuredAI(
-    scheduleExtractionSchema,
-    "You are an expert timetable parser. Extract the event title, date, start time, and end time from the raw text. Ensure the title is short (e.g., 'Calculus II Lecture'). Calculate the exact dates based on the current date.",
-    `Current date: ${today} (Asia/Kolkata). Interpret relative dates and weekday names using this date. For a recurring weekday list such as Mon Wed Fri, create one event for each listed weekday occurrence in the next upcoming week, using the next future date for each weekday. Preserve explicit calendar dates when supplied. Convert all times to 24-hour HH:MM. Use a concise event title that excludes weekday and time information. Classify each event as Lecture, Exam, Assignment, Study, or Other. Ignore lines that do not describe a schedulable event. Do not invent missing dates or times; if a required field cannot be determined confidently, omit that event.\n\nRaw timetable text:\n${text}`,
-    [],
-  );
-  return result.output;
+  try {
+    const result = await structuredAI(
+      scheduleExtractionSchema,
+      'You are an expert timetable parser. Return events with title, date, startTime, endTime and type. Keep date/time values as plain strings; do not use timestamps or objects. Extract all recurring weekdays separately.',
+      'Current date: ' + today + ' (Asia/Kolkata). Interpret weekday names using this date. For "Mon Wed Fri", create one event for each next future occurrence. Preserve explicit calendar dates. Return dates as YYYY-MM-DD and times as HH:MM 24-hour strings. Use concise event titles without weekday/time text. Classify as Lecture, Exam, Assignment, Study, or Other. Ignore non-events.\n\nRaw timetable text:\n' + text,
+      [],
+      undefined,
+      { logRawResponse: true },
+    );
+    const validEvents = result.output.events.filter((event) =>
+      event.title.trim().length >= 2 && event.date.trim() && event.startTime.trim() && event.endTime.trim(),
+    );
+    if (validEvents.length) return { events: validEvents };
+    const fallback = fallbackScheduleEvents(text, today);
+    if (fallback.length) {
+      console.warn('[Schedule Parser] AI returned no complete events; regex fallback extracted events.', { count: fallback.length });
+      return { events: fallback };
+    }
+    return result.output;
+  } catch (error) {
+    console.error('[Schedule Parser] AI parsing failed; attempting regex fallback.', {
+      error: errorMessage(error),
+      rawAIResponse: rawAIResponse(error) ?? '[Raw response was logged by structuredAI when exposed by the provider SDK]',
+    });
+    const fallback = fallbackScheduleEvents(text, today);
+    if (fallback.length) {
+      console.warn('[Schedule Parser] Regex fallback recovered schedule events.', { count: fallback.length });
+      return { events: fallback };
+    }
+    throw error;
+  }
 }

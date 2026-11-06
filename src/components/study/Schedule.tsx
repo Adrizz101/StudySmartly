@@ -23,12 +23,12 @@ const COURSE_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#f43f5e', '#8b5cf6', '#
 
 function normalizeScheduleDate(value: string): string | null {
   const raw = value.trim();
-  const iso = raw.match(/^(\\d{4})-(\\d{1,2})-(\\d{1,2})/);
+  const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
   if (iso) {
     const year = Number(iso[1]), month = Number(iso[2]), day = Number(iso[3]);
     const date = new Date(Date.UTC(year, month - 1, day));
     if (date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day) {
-      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      return String(year) + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
     }
     return null;
   }
@@ -40,8 +40,8 @@ function normalizeScheduleDate(value: string): string | null {
 }
 
 function normalizeScheduleTime(value: string): string | null {
-  const raw = value.trim().toUpperCase().replace(/\\./g, '');
-  const match = raw.match(/^(\\d{1,2})(?::(\\d{2}))?(?::\\d{2})?\\s*(AM|PM)?$/);
+  const raw = value.trim().toUpperCase().replace(/\./g, '');
+  const match = raw.match(/^(\d{1,2})(?::(\d{2}))?(?::\d{2})?\s*(AM|PM)?$/);
   if (!match) return null;
   let hours = Number(match[1]);
   const minutes = Number(match[2] ?? '0');
@@ -51,7 +51,7 @@ function normalizeScheduleTime(value: string): string | null {
     if (hours < 1 || hours > 12) return null;
     hours = (hours % 12) + (meridiem === 'PM' ? 12 : 0);
   } else if (hours > 23) return null;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  return String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
 }
 
 export default function Schedule() {

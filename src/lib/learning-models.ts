@@ -44,11 +44,12 @@ export type SyllabusExtraction = z.infer<typeof syllabusExtractionSchema>;
 
 export const scheduleEventSchema = z.object({
   title: z.string().trim().min(2).max(100),
-  // Keep model output permissive; normalize and validate calendar values at the UI boundary.
-  date: z.string().trim().min(1).max(80),
-  startTime: z.string().trim().min(1).max(40),
-  endTime: z.string().trim().min(1).max(40),
-  type: z.enum(['Lecture', 'Exam', 'Assignment', 'Study', 'Other']),
+  // Accept plain strings and defer date/time interpretation to the calendar UI.
+  // Empty defaults let partially structured model output reach client validation.
+  date: z.coerce.string().trim().max(80).catch(''),
+  startTime: z.coerce.string().trim().max(40).catch(''),
+  endTime: z.coerce.string().trim().max(40).catch(''),
+  type: z.enum(['Lecture', 'Exam', 'Assignment', 'Study', 'Other']).catch('Other'),
 });
 export const scheduleExtractionSchema = z.object({ events: z.array(scheduleEventSchema).max(250) });
 export type ScheduleExtraction = z.infer<typeof scheduleExtractionSchema>;
