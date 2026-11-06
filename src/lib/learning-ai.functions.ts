@@ -46,7 +46,20 @@ export const generateDeck = createServerFn({ method: 'POST' }).middleware([safeS
         'You are an editorial presentation designer at Gamma quality and a source-grounded researcher at NotebookLM quality. These are polished presentations, NOT study guides. Return only content conforming to the supplied structured-output schema; do not add prose or markdown. Build varied bento, timeline, comparison, process, dossier, spotlight and metric layouts. Include substantive specific detail, not filler. Titles <=65 characters; body <=400 characters; at most 4 bullets and 4 cards per slide; each card text <=200 characters. Do not invent numeric metrics. Include visual image prompts where useful. Return precisely the requested batch length.',
         `${data.prompt}\nStudent cover: ${data.metadata}\nApproved outline: ${data.outline}\nTotal slides ${count}. Generate slides ${start+1}-${start+length}. Previous headings: ${slides.map(s => s.heading).join('; ')}. First overall slide is a title cover; last is a meaningful conclusion.`, data.sources, runId);
       if (result.output.slides.length !== length) throw new Error('The generated slide count did not match. No partial deck has been saved.');
-      slides.push(...result.output.slides); title ||= result.output.title; subject ||= result.output.subject; runId = result.runId;
+
+      // Resolve stock imagery on the server so the Pexels API key is never exposed to the browser.
+      const { fetchWebImage } = await import('./web-images.server');
+      const slidesWithImages = await Promise.all(result.output.slides.map(async (slide) => {
+        const searchQuery = slide.imagePrompt.trim() || slide.heading;
+        const webImage = await fetchWebImage(searchQuery);
+        const fallbackImage = `https://image.pollinations.ai/prompt/${encodeURIComponent(searchQuery)}?width=1200&height=675&nologo=true`;
+        return {
+          ...slide,
+          image: webImage ?? fallbackImage,
+        };
+      }));
+
+      slides.push(...slidesWithImages); title ||= result.output.title; subject ||= result.output.subject; runId = result.runId;
     }
     return { title, subject, slides };
   }));
