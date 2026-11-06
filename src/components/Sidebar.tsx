@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { InstallAppButton } from '@/components/InstallAppButton';
 import { ViewKey } from '@/types';
-import { LayoutDashboard, Calendar, Bot, FileText, Mic, Settings, Menu, X, PenTool, ClipboardCheck, LogOut, BrainCircuit, Layers3 } from 'lucide-react';
+import { LayoutDashboard, Calendar, Bot, FileText, Mic, Settings, Menu, X, PenTool, ClipboardCheck, LogOut, BrainCircuit, Layers3, GraduationCap } from 'lucide-react';
 import { useApp } from '@/store';
 import { supabase } from '@/integrations/supabase/client';
 import { PomodoroTimer } from '@/components/PomodoroTimer';
@@ -16,6 +16,7 @@ const NAV_ITEMS: { key: ViewKey; label: string; icon: typeof LayoutDashboard }[]
   { key: 'studio', label: 'Presentation Studio', icon: FileText },
   { key: 'exams', label: 'PYQ Exam Arena', icon: ClipboardCheck },
   { key: 'transcriber', label: 'Lecture Transcriber', icon: Mic },
+  { key: 'classroom', label: 'AI Classroom', icon: GraduationCap },
   { key: 'settings', label: 'Settings', icon: Settings },
 ];
 
@@ -60,6 +61,7 @@ export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile, collap
                   studio: 'Presentation_Studio',
                   exams: 'PYQ_Exam_Arena',
                   transcriber: 'Lecture_Transcriber',
+                  classroom: 'AI_Classroom',
                   settings: 'Settings',
                 };
                 void supabase.auth.getSession()
