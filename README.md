@@ -23,6 +23,7 @@ StudySmartly started as an experiment to escape proprietary no-code platforms. I
 
 ## ✨ Core Features
 
+*   **🎓 AI Classroom:** Render interactive, multi-agent OpenMAIC lessons for learning new topics from scratch.
 *   **🎨 AI Whiteboard:** A visual, speaking AI tutor. Generates spatial JSON schemas rendered stroke-by-stroke on an Excalidraw canvas, synchronized with browser-native text-to-speech. Includes an interactive "Atom Popper" mini-game during AI generation.
 *   **📅 Adaptive Study Planner:** A deterministic scheduling engine. Parses unstructured syllabus data (PDF/Text), extracts topics, and generates conflict-free revision time-blocks with spaced repetition.
 *   **📝 PYQ Exam Arena:** Generates verified MCQs from past papers. Includes a **Mistake Analyzer** that diagnoses weak concepts and links directly to the Whiteboard for targeted explanations.
@@ -39,6 +40,7 @@ StudySmartly is engineered for high availability and zero-cost scalability:
 *   **Dynamic AI Key Routing:** Uses the Vercel AI SDK to select a user-provided Gemini or OpenRouter key when one is saved, otherwise falling back to server-level provider keys. User keys are AES-256-GCM encrypted before storage in Supabase and decrypted only in server-side code. Structured outputs are validated with Zod and provider failover is handled server-side.
 *   **Daily Usage Enforcement:** A Supabase RPC atomically tracks shared-key usage and enforces 15 AI actions per account per UTC day. User-key requests bypass the shared counter.
 *   **Privacy-Conscious Analytics:** Signed-in event metadata is written to `analytics_events` with owner-bound insert policies; free-text prompts, feedback, credentials, and direct identifiers are excluded.
+*   **Immersive Courseware Rendering:** Integrates the OpenMAIC React rendering package (`@yanzongzhen/openmaic-courseware-react`) to display imported multi-agent classrooms, slides, quizzes, and interactive scenes directly in the app.
 *   **Imperative Canvas Rendering:** Bypasses React’s virtual DOM for high-performance drawing. Utilizes Excalidraw’s imperative API to execute batched, 30ms state-update loops.
 *   **Serverless Edge Architecture:** Deployed on Vercel's edge network with TanStack Start for type-safe, SSR-optimized routing.
 *   **Security & Data:** Powered by Supabase PostgreSQL, using Row-Level Security (RLS), authenticated server functions, PKCE authentication, and OTP sign-in. Encrypted BYOK records are user-scoped; daily usage counters are not directly accessible to clients.
