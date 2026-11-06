@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { Settings, AccentKey, Mode, Course, ScheduleEvent, TutorSession, SlideDocument, Transcription } from '@/types';
+import { Settings, AccentKey, Mode, Course, ScheduleEvent, TutorSession, SlideDocument, Transcription, DEFAULT_SETTINGS } from '@/types';
 import { loadSettings, saveSettings, load, save } from '@/lib/storage';
 import { applyTheme } from '@/lib/theme';
 
@@ -38,20 +38,34 @@ export function useApp(): AppState {
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettingsState] = useState<Settings>(() => loadSettings());
-  const [courses, setCoursesState] = useState<Course[]>(() => load<Course[]>('courses', []));
-  const [events, setEventsState] = useState<ScheduleEvent[]>(() => load<ScheduleEvent[]>('events', []));
-  const [tutorSessions, setTutorSessionsState] = useState<TutorSession[]>(() => load<TutorSession[]>('tutorSessions', []));
-  const [documents, setDocumentsState] = useState<SlideDocument[]>(() => load<SlideDocument[]>('documents', []));
-  const [transcriptions, setTranscriptionsState] = useState<Transcription[]>(() => load<Transcription[]>('transcriptions', []));
+  // Keep the first server and browser render identical. Browser persistence is
+  // restored after hydration so SSR can render the route shell safely.
+  const [settings, setSettingsState] = useState<Settings>(DEFAULT_SETTINGS);
+  const [courses, setCoursesState] = useState<Course[]>([]);
+  const [events, setEventsState] = useState<ScheduleEvent[]>([]);
+  const [tutorSessions, setTutorSessionsState] = useState<TutorSession[]>([]);
+  const [documents, setDocumentsState] = useState<SlideDocument[]>([]);
+  const [transcriptions, setTranscriptionsState] = useState<Transcription[]>([]);
+  const [storageLoaded, setStorageLoaded] = useState(false);
+
+  useEffect(() => {
+    setSettingsState(loadSettings());
+    setCoursesState(load<Course[]>('courses', []));
+    setEventsState(load<ScheduleEvent[]>('events', []));
+    setTutorSessionsState(load<TutorSession[]>('tutorSessions', []));
+    setDocumentsState(load<SlideDocument[]>('documents', []));
+    setTranscriptionsState(load<Transcription[]>('transcriptions', []));
+    setStorageLoaded(true);
+  }, []);
 
   useEffect(() => { applyTheme(settings.mode, settings.accent); }, [settings.mode, settings.accent]);
-  useEffect(() => { saveSettings(settings); }, [settings]);
-  useEffect(() => { save('courses', courses); }, [courses]);
-  useEffect(() => { save('events', events); }, [events]);
-  useEffect(() => { save('tutorSessions', tutorSessions); }, [tutorSessions]);
-  useEffect(() => { save('documents', documents); }, [documents]);
-  useEffect(() => { save('transcriptions', transcriptions); }, [transcriptions]);
+  // Do not persist the SSR defaults before the saved browser state has loaded.
+  useEffect(() => { if (storageLoaded) saveSettings(settings); }, [settings, storageLoaded]);
+  useEffect(() => { if (storageLoaded) save('courses', courses); }, [courses, storageLoaded]);
+  useEffect(() => { if (storageLoaded) save('events', events); }, [events, storageLoaded]);
+  useEffect(() => { if (storageLoaded) save('tutorSessions', tutorSessions); }, [tutorSessions, storageLoaded]);
+  useEffect(() => { if (storageLoaded) save('documents', documents); }, [documents, storageLoaded]);
+  useEffect(() => { if (storageLoaded) save('transcriptions', transcriptions); }, [transcriptions, storageLoaded]);
 
   const setSettings = useCallback<Updater<Settings>>((s) => setSettingsState(s as any), []);
   const updateSettings = useCallback((partial: Partial<Settings>) =>
