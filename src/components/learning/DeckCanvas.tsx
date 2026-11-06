@@ -16,6 +16,6 @@ export function DeckCanvas({ slide, document, index, onEdit }: { slide: Slide; d
       </section>)}</div>}
       {slide.layout === 'title' && document.student && <div className="deck-attribution">{document.student}</div>}
     </div>
-    <footer className="deck-footer"><span>{slide.citations?.join(' · ') || 'General knowledge · verify important claims'}</span><span>{String(index+1).padStart(2,'0')}</span></footer>
+    <footer className="deck-footer"><span>{slide.citations?.join(' · ') || 'General knowledge · verify important claims'}{slide.imageSource === 'pexels' && <> · <a href="https://www.pexels.com/" target="_blank" rel="noreferrer">Photo provided by Pexels</a></>}</span><span>{String(index+1).padStart(2,'0')}</span></footer>
   </article>;
 }
