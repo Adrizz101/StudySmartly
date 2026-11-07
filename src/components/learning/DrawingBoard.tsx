@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Excalidraw, convertToExcalidrawElements, exportToBlob } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import '@excalidraw/excalidraw/index.css';
 import { useServerFn } from '@tanstack/react-start';
-import { Sparkles, Download, Moon, Sun, Square, Pause, Play, History, MessageCircle, Plus, Mic, MicOff } from 'lucide-react';
+import { Sparkles, Download, Moon, Sun, Square, Pause, Play, History, MessageCircle, Plus, Mic, MicOff, Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { explainBoard } from '@/lib/learning-ai.functions';
 import { load, save } from '@/lib/storage';
 import { dataURL } from '@/lib/source-files';
 import type { SourceInput } from '@/lib/learning-models';
 import { AIConsent, requireAISession } from './AIConsent';
+import { useFocusMode } from '@/components/focus-mode-context';
 import { SourcePicker } from './SourcePicker';
 import InteractiveLoader from '@/components/ui/InteractiveLoader';
+import { stopNeuralVoice } from '@/lib/neural-voice';
 
 type BoardMessage = { question: string; answer: string; citations: string[] };
 type BoardSession = {
@@ -139,6 +142,10 @@ function createSessionId() {
 }
 
 export default function DrawingBoard() {
+  const { focusMode, setFocusMode } = useFocusMode();
+  const enterButtonRef = useRef<HTMLButtonElement | null>(null);
+  const exitButtonRef = useRef<HTMLButtonElement | null>(null);
+  const focusDidMountRef = useRef(false);
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [prompt, setPrompt] = useState('');
   const [sources, setSources] = useState<SourceInput[]>([]);
@@ -187,6 +194,7 @@ export default function DrawingBoard() {
   }, []);
 
   useEffect(() => () => {
+    setFocusMode(false);
     try { recognitionRef.current?.stop(); } catch { /* Speech recognition may already be stopped. */ }
     if (transcriptTimerRef.current) clearTimeout(transcriptTimerRef.current);
     if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
@@ -201,6 +209,50 @@ export default function DrawingBoard() {
       /* Speech APIs may be unavailable in embedded browsers. */
     }
   }, []);
+
+  useEffect(() => {
+    if (!focusDidMountRef.current) {
+      focusDidMountRef.current = true;
+      if (!focusMode) return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('resize'));
+      if (focusMode) exitButtonRef.current?.focus();
+      else enterButtonRef.current?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusMode]);
+
+  useEffect(() => {
+    if (!focusMode) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.key !== 'Escape') return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (
+        target.isContentEditable
+        || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+      )) return;
+      const appState = api?.getAppState();
+      if (appState && (
+        appState.editingTextElement
+        || Object.keys(appState.selectedElementIds).length > 0
+        || appState.openMenu
+        || appState.openDialog
+      )) return;
+      exitFocusMode();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [focusMode, api]);
+
+  function enterFocusMode() {
+    if (handsFreeRef.current) toggleHandsFree();
+    setFocusMode(true);
+  }
+
+  function exitFocusMode() {
+    setFocusMode(false);
+  }
 
   function commitSessions(next: BoardSession[]) {
     sessionsRef.current = next;
@@ -724,10 +776,12 @@ export default function DrawingBoard() {
   }
 
   return (
-    <div className="learning-workspace">
+    <>
+    <div className={focusMode ? 'learning-workspace learning-workspace--focus' : 'learning-workspace'}>
       <header className="learning-heading">
         <div><span className="workspace-eyebrow">EXPLORE / WHITEBOARD</span><h1>Visual Whiteboard</h1></div>
         <div className="flex gap-2">
+          <Button ref={enterButtonRef} variant="outline" size="icon" aria-label="Enter Zen Focus Mode" title="Zen Focus Mode: full-screen canvas" onClick={enterFocusMode}><Maximize2 /></Button>
           <Button variant="outline" size="icon" aria-label="Toggle board theme" onClick={() => setDark(!dark)}>{dark ? <Sun /> : <Moon />}</Button>
           <Button variant="outline" size="icon" aria-label="Download board" onClick={async () => {
             if (!api) { setError('Whiteboard is still loading. Please try again in a moment.'); return; }
@@ -755,7 +809,7 @@ export default function DrawingBoard() {
           }}><Plus /></Button>
         </div>
       </header>
-      <div className="whiteboard-workspace">
+      <div className={focusMode ? 'whiteboard-workspace whiteboard-workspace--focus' : 'whiteboard-workspace'}>
         <section className="drawing-surface" aria-label="Interactive whiteboard">
           <Excalidraw excalidrawAPI={setApi} initialData={initial.current} theme={dark ? 'dark' : 'light'}
             onChange={(elements, _state, files) => {
@@ -771,7 +825,7 @@ export default function DrawingBoard() {
               }
             }} />
         </section>
-        <aside className="board-copilot">
+        <aside className="board-copilot" aria-hidden={focusMode}>
           <div className="board-copilot-heading"><Sparkles size={17} /><span>Visual tutor</span>
             {busy && <span className="board-speaking">{isPaused ? 'Voice paused' : isSpeaking ? 'Speaking' : 'Drawing lesson'}</span>}
           </div>
@@ -847,7 +901,21 @@ export default function DrawingBoard() {
             {error && <p role="alert" className="learning-error">{error}</p>}
           </div>
         </aside>
-      </div>
-    </div>
+      {focusMode && typeof document !== 'undefined' && createPortal(
+        <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-[60] flex -translate-x-1/2 flex-col items-center gap-2 animate-fadeIn max-sm:bottom-[max(5rem,env(safe-area-inset-bottom))]" role="group" aria-label="Focus mode controls">
+          {error && <p role="alert" className="max-w-[min(90vw,28rem)] rounded-xl border border-red-300/30 bg-red-950/85 px-3 py-2 text-center text-xs text-red-100 shadow-lg backdrop-blur-md">{error}</p>}
+          <div className="flex items-center gap-2">
+            <button ref={exitButtonRef} type="button" onClick={exitFocusMode} aria-label="Exit Focus Mode" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/15 bg-zinc-900/80 px-4 text-sm font-semibold text-white shadow-lg shadow-black/30 backdrop-blur-md transition-colors hover:bg-zinc-800/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300">
+              <Minimize2 size={16} aria-hidden="true" /> Exit Focus Mode
+            </button>
+            {(busy || isSpeaking) && <button type="button" onClick={stopPlayback} aria-label="Stop the tutor" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-red-300/30 bg-red-950/80 px-4 text-sm font-semibold text-red-100 shadow-lg shadow-black/30 backdrop-blur-md transition-colors hover:bg-red-900/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300">
+              <Square size={14} aria-hidden="true" /> Stop
+            </button>}
+          </div>
+          <p role="status" className="sr-only">Zen Focus Mode on. Press Escape or use Exit Focus Mode to return.</p>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
