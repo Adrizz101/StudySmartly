@@ -725,3 +725,38 @@ button, a { overflow-wrap: anywhere; }
     min-width: 0;
   }
 }
+
+/* Zen Focus Mode */
+.study-content.study-content--focus {
+  padding: 0 !important;
+  max-width: none !important;
+}
+
+.learning-workspace--focus {
+  gap: 0;
+}
+
+.learning-workspace--focus > .learning-heading {
+  display: none !important;
+}
+
+.whiteboard-workspace.whiteboard-workspace--focus {
+  display: block;
+  height: 100dvh;
+  min-height: 0;
+  width: 100%;
+  gap: 0;
+}
+
+.whiteboard-workspace--focus .drawing-surface {
+  height: 100dvh;
+  min-height: 0;
+  width: 100%;
+  flex: none;
+  border: 0;
+  border-radius: 0;
+}
+
+.whiteboard-workspace--focus .board-copilot {
+  display: none !important;
+}
