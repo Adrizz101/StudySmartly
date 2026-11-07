@@ -4,7 +4,7 @@ import { useApp } from '@/store';
 import { useNavigate } from '@tanstack/react-router';
 import { useServerFn } from '@tanstack/react-start';
 import { generateRevisionPackage } from '@/lib/learning-ai.functions';
-import type { RevisionPackage } from '@/lib/learning-models';
+import type { MindMap, RevisionPackage } from '@/lib/learning-models';
 import { speakWithNeuralVoice } from '@/lib/neural-voice';
 import { AIConsent } from '@/components/learning/AIConsent';
 import { Transcription } from '@/types';
@@ -393,13 +393,11 @@ export default function Transcriber() {
                   {revisionPackage.mindMap.map((item, index) => (
                     <li key={index}>
                       <span className="font-semibold text-text">{item.topic}</span>
-                      {item.subtopics.length > 0 && (
-                        <ul className="mt-1.5 space-y-1 list-[circle] pl-5">
-                          {item.subtopics.map((subtopic, subtopicIndex) => (
-                            <li key={subtopicIndex}>{subtopic}</li>
-                          ))}
+                      {item.subtopics.map((sub, subIndex) => (
+                        <ul key={subIndex} className="mt-1.5 space-y-1 list-[circle] pl-5" style={{ paddingLeft: `${sub.depth * 18 + 14}px` }}>
+                          <li className="text-sm text-text-muted">{sub.topic}</li>
                         </ul>
-                      )}
+                      ))}
                     </li>
                   ))}
                 </ul>

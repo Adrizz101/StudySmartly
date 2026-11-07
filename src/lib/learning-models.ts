@@ -54,15 +54,20 @@ export const scheduleEventSchema = z.object({
   type: z.enum(['Lecture', 'Exam', 'Assignment', 'Study', 'Other']).catch('Other'),
 });
 export const scheduleExtractionSchema = z.object({ events: z.array(scheduleEventSchema).max(250) });
-export type ScheduleExtraction = z.infer<typeof scheduleExtractionSchema>;
-
-export const revisionPackageSchema = z.object({
+export type ScheduleExtraction = z.infer<typeof scheduleExtractionSchema>;export const revisionPackageSchema = z.object({
   summary: z.string().min(1),
   podcastScript: z.string().min(1),
-  mindMap: z.array(z.object({
-    topic: z.string().min(1),
-    subtopics: z.array(z.string().min(1)).max(12),
-  })).min(1).max(20),
+  mindMap: z.array(
+    z.object({
+      topic: z.string().min(1),
+      subtopics: z.array(
+        z.object({
+          topic: z.string().min(1),
+          depth: z.number().int().min(0).max(4),
+        })
+      ).max(12),
+    })
+  ).min(1).max(20),
   definitions: z.array(z.object({
     term: z.string().min(1),
     definition: z.string().min(1),
@@ -74,6 +79,13 @@ export const revisionPackageSchema = z.object({
     explanation: z.string().min(1),
   })).length(3),
 });
+
+export type MindMapTopic = z.infer<
+  typeof revisionPackageSchema.shape.mindMap.elementSchema
+>;
+
+export type MindMap = z.infer<typeof revisionPackageSchema>['mindMap'];
+
 export type RevisionPackage = z.infer<typeof revisionPackageSchema>;
 
 export const mistakeAnalysisSchema = z.object({
