@@ -383,6 +383,28 @@ export default function Transcriber() {
                 <p className="text-sm text-text-muted leading-relaxed whitespace-pre-wrap mt-2">{revisionPackage.summary}</p>
               </section>
               <section>
+                <h4 className="font-semibold text-text">Lecture podcast</h4>
+                <p className="text-xs text-text-dim mt-1">A two-host conversation explaining the key ideas from this lecture.</p>
+                <pre aria-label="Read-only lecture podcast script" className="mt-2 rounded-xl border border-border bg-surface-hover/50 p-4 text-sm text-text-muted leading-relaxed whitespace-pre-wrap font-sans overflow-x-auto">{revisionPackage.podcastScript}</pre>
+              </section>
+              <section>
+                <h4 className="font-semibold text-text">Mind map</h4>
+                <ul className="mt-2 space-y-3 text-sm text-text-muted list-disc pl-5">
+                  {revisionPackage.mindMap.map((item, index) => (
+                    <li key={index}>
+                      <span className="font-semibold text-text">{item.topic}</span>
+                      {item.subtopics.length > 0 && (
+                        <ul className="mt-1.5 space-y-1 list-[circle] pl-5">
+                          {item.subtopics.map((subtopic, subtopicIndex) => (
+                            <li key={subtopicIndex}>{subtopic}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+              <section>
                 <h4 className="font-semibold text-text">Important definitions</h4>
                 <dl className="space-y-3 mt-2">
                   {revisionPackage.definitions.map((item, index) => (
