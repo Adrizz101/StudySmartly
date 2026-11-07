@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { BookOpen, CalendarDays, CheckCircle2, Clock3, FileText, Plus, RefreshCw, Settings2, Target, Trash2, Upload } from 'lucide-react';
+import { AlertCircle, BookOpen, CalendarDays, CheckCircle2, Clock3, FileText, Plus, RefreshCw, Settings2, Target, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useApp } from '@/store';
@@ -198,7 +198,7 @@ export default function AdaptivePlanner() {
             user_id: userId, topic_id: topic.id, title: topic.concept, subject: topic.subject,
             chapter: topic.chapter, concept: topic.concept, scheduled_start: start.toISOString(),
             scheduled_end: end.toISOString(), duration_minutes: duration, status: 'planned',
-            priority: topic.priority, estimated_hours: Number(topic.estimated_hours ?? 1), source: 'adaptive_planner',
+            priority: topic.priority, source: 'adaptive_planner',
             rationale: topic.mastery_score < 50 ? 'Prioritised because this topic has a low mastery score.' : topic.priority === 'high' ? 'Prioritised based on your selected importance.' : 'Scheduled to maintain consistent revision.',
           });
           placed++; cursor++;
