@@ -9,13 +9,14 @@ import { readSource } from '@/lib/source-files';
 import { extractSyllabusTopics } from '@/lib/learning-ai.functions';
 
 type Priority = 'low' | 'normal' | 'high';
-type Topic = { id: string; user_id: string; course_id: string | null; subject: string; chapter: string; concept: string; mastery_score: number; priority: Priority; last_practiced_at: string | null };
+type Topic = { id: string; user_id: string; course_id: string | null; subject: string; chapter: string; concept: string; mastery_score: number; estimated_hours: number; priority: Priority; last_practiced_at: string | null };
 type StudySession = { id: string; topic_id: string | null; title: string; subject: string; chapter: string | null; concept: string | null; scheduled_start: string; scheduled_end: string; duration_minutes: number; status: 'planned' | 'completed' | 'missed' | 'skipped'; priority: Priority; rationale: string | null };
 type Preferences = { weekday_available_minutes: number; weekend_available_minutes: number; preferred_start_time: string; preferred_end_time: string; session_duration_minutes: number; break_duration_minutes: number; study_days: number[]; timezone: string };
 
 const DEFAULTS: Preferences = { weekday_available_minutes: 120, weekend_available_minutes: 180, preferred_start_time: '16:00', preferred_end_time: '21:00', session_duration_minutes: 40, break_duration_minutes: 10, study_days: [1,2,3,4,5,6,0], timezone: 'Asia/Kolkata' };
 const priorityWeight: Record<Priority, number> = { high: 3, normal: 2, low: 1 };
 const dayLabel = (date: Date) => date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+const startOfWeek = (date: Date) => { const monday = new Date(date); monday.setHours(0, 0, 0, 0); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7)); return monday.getTime(); };
 
 export default function AdaptivePlanner() {
   const { courses, events } = useApp();
@@ -28,6 +29,7 @@ export default function AdaptivePlanner() {
   const [concept, setConcept] = useState('');
   const [priority, setPriority] = useState<Priority>('normal');
   const [mastery, setMastery] = useState(0);
+  const [estimatedHours, setEstimatedHours] = useState(1);
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -74,10 +76,10 @@ export default function AdaptivePlanner() {
       if (!subject.trim() || !chapter.trim() || !concept.trim()) throw new Error('Fill in subject, chapter and topic.');
       const { data, error: insertError } = await supabase.from('learning_topics').insert({
         user_id: userId, subject: subject.trim(), chapter: chapter.trim(), concept: concept.trim(),
-        priority, mastery_score: mastery, course_id: courses.find(c => c.name.toLowerCase() === subject.trim().toLowerCase())?.id ?? null,
+        priority, mastery_score: mastery, estimated_hours: estimatedHours, course_id: courses.find(c => c.name.toLowerCase() === subject.trim().toLowerCase())?.id ?? null,
       }).select('*').single();
       if (insertError) throw insertError;
-      setTopics(prev => [data as Topic, ...prev]); setSubject(''); setChapter(''); setConcept(''); setMastery(0); setPriority('normal');
+      setTopics(prev => [data as Topic, ...prev]); setSubject(''); setChapter(''); setConcept(''); setMastery(0); setEstimatedHours(1); setPriority('normal');
       setNotice('Topic added to your learning list.');
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not add topic.'); }
     finally { setSaving(false); }
@@ -138,6 +140,19 @@ export default function AdaptivePlanner() {
 
   const upcoming = useMemo(() => sessions.filter(s => s.status === 'planned').sort((a,b) => a.scheduled_start.localeCompare(b.scheduled_start)), [sessions]);
   const completedCount = sessions.filter(s => s.status === 'completed').length;
+  const weeklyWorkload = useMemo(() => {
+    const totals = new Map<number, number>();
+    const currentWeekStart = startOfWeek(new Date());
+    upcoming.forEach(session => {
+      const sessionDate = new Date(session.scheduled_start);
+      if (!Number.isFinite(sessionDate.getTime()) || sessionDate.getTime() < Date.now()) return;
+      const weekNumber = Math.floor((startOfWeek(sessionDate) - currentWeekStart) / 604800000) + 1;
+      const topic = topics.find(item => item.id === session.topic_id);
+      totals.set(weekNumber, (totals.get(weekNumber) ?? 0) + Number(topic?.estimated_hours ?? 1));
+    });
+    return [...totals.entries()].map(([weekNumber, hours]) => ({ weekNumber, hours, highRisk: hours > 15 })).sort((a, b) => a.weekNumber - b.weekNumber);
+  }, [upcoming, topics]);
+  const highRiskWeeks = weeklyWorkload.filter(week => week.highRisk);
   const weakTopics = [...topics].sort((a,b) => a.mastery_score - b.mastery_score).slice(0,4);
 
   async function generatePlan() {
@@ -183,7 +198,7 @@ export default function AdaptivePlanner() {
             user_id: userId, topic_id: topic.id, title: topic.concept, subject: topic.subject,
             chapter: topic.chapter, concept: topic.concept, scheduled_start: start.toISOString(),
             scheduled_end: end.toISOString(), duration_minutes: duration, status: 'planned',
-            priority: topic.priority, source: 'adaptive_planner',
+            priority: topic.priority, estimated_hours: Number(topic.estimated_hours ?? 1), source: 'adaptive_planner',
             rationale: topic.mastery_score < 50 ? 'Prioritised because this topic has a low mastery score.' : topic.priority === 'high' ? 'Prioritised based on your selected importance.' : 'Scheduled to maintain consistent revision.',
           });
           placed++; cursor++;
@@ -370,6 +385,7 @@ export default function AdaptivePlanner() {
     </header>
     {error && <p role="alert" className="learning-error">{error}</p>}
     {notice && <p role="status" className="text-sm text-study-emerald-500">{notice}</p>}
+    {highRiskWeeks.length > 0 && <div role="alert" className="rounded-xl border-2 border-red-500 bg-red-500/10 p-4 text-red-700 dark:text-red-300"><div className="flex items-start gap-3"><AlertCircle size={20} className="mt-0.5 shrink-0"/><div><p className="font-bold">High workload detected</p>{highRiskWeeks.map(week => <p key={week.weekNumber} className="mt-1 text-sm">Warning: You have a heavy workload in Week {week.weekNumber}. Consider reallocating time. <span className="font-semibold">({week.hours.toFixed(1)} estimated hours · High Risk)</span></p>)}</div></div></div>}
     {showSettings && <section className="glass rounded-xl p-5 space-y-4 motion-card"><h2 className="font-semibold text-text">Your study availability</h2>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <label className="text-sm text-text-muted">Weekday minutes/day<input className="learning-input mt-1" type="number" min="0" max="720" value={preferences.weekday_available_minutes} onChange={e=>setPreferences(p=>({...p,weekday_available_minutes:Number(e.target.value)}))}/></label>
@@ -399,6 +415,7 @@ export default function AdaptivePlanner() {
           <label className="block text-sm text-text-muted">Subject<input className="learning-input mt-1" value={subject} onChange={e=>setSubject(e.target.value)} placeholder="e.g. Mathematics" required/></label>
           <label className="block text-sm text-text-muted">Chapter<input className="learning-input mt-1" value={chapter} onChange={e=>setChapter(e.target.value)} placeholder="e.g. Polynomials" required/></label>
           <label className="block text-sm text-text-muted">Concept / topic<input className="learning-input mt-1" value={concept} onChange={e=>setConcept(e.target.value)} placeholder="e.g. Zeroes of a polynomial" required/></label>
+          <label className="block text-sm text-text-muted">Estimated hours<input className="learning-input mt-1" type="number" min="0.25" max="40" step="0.25" value={estimatedHours} onChange={e=>setEstimatedHours(Math.max(0.25, Number(e.target.value)))} required/></label>
           <div className="grid grid-cols-2 gap-3"><label className="text-sm text-text-muted">Priority<select className="learning-input mt-1" value={priority} onChange={e=>setPriority(e.target.value as Priority)}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option></select></label><label className="text-sm text-text-muted">Current mastery: {mastery}%<input className="learning-input mt-1" type="range" min="0" max="100" step="5" value={mastery} onChange={e=>setMastery(Number(e.target.value))}/></label></div>
           <div className="flex flex-wrap items-center gap-2">
             <Button type="submit" disabled={saving || busy}><Plus size={16}/> Add topic</Button>
@@ -413,6 +430,7 @@ export default function AdaptivePlanner() {
       </section>
     </div>
     <section className="glass rounded-xl p-5 motion-card"><div className="flex items-center justify-between mb-4"><div><h2 className="font-semibold text-text">Upcoming study sessions</h2><p className="text-xs text-text-muted mt-1">Scheduled around your availability and existing calendar events.</p></div><Clock3 size={18} className="text-accent-500"/></div>
+      {weeklyWorkload.length > 0 && <div className="mb-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-2">{weeklyWorkload.map(week => <div key={week.weekNumber} className={`rounded-lg border p-3 ${week.highRisk ? 'border-red-500 bg-red-500/10' : 'border-border bg-surface-hover/40'}`}><div className="flex items-center justify-between gap-2"><span className="text-sm font-semibold text-text">Week {week.weekNumber}</span>{week.highRisk ? <span className="text-xs font-bold text-red-600 dark:text-red-300">High Risk</span> : <span className="text-xs text-text-muted">Within limit</span>}</div><p className="mt-1 text-lg font-bold tabular-nums text-text">{week.hours.toFixed(1)} <span className="text-xs font-normal text-text-muted">estimated hours</span></p></div>)}</div>}
       {busy ? <div className="space-y-2" aria-busy="true" aria-label="Loading sessions"><div className="skeleton-glass h-16"/><div className="skeleton-glass h-16"/><div className="skeleton-glass h-16"/></div> : upcoming.length ? <div className="space-y-2">{upcoming.map((s,index)=><motion.article key={s.id} initial={reduceMotion?false:{opacity:0,y:16}} animate={{opacity:1,y:0}} transition={{duration:reduceMotion?0:0.3,delay:reduceMotion?0:index*0.07}} whileHover={reduceMotion?undefined:{scale:1.01}} whileTap={reduceMotion?undefined:{scale:0.99}} className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3"><div className="min-w-0 flex-1"><div className="text-sm font-medium text-text">{s.title}</div><div className="text-xs text-text-muted">{s.subject}{s.chapter? ` · ${s.chapter}`:''} · {dayLabel(new Date(s.scheduled_start))} · {new Date(s.scheduled_start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}–{new Date(s.scheduled_end).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div><div className="text-xs text-text-muted mt-1">{s.rationale}</div></div><span className="text-xs text-text-muted">{s.duration_minutes} min</span><Button variant="outline" size="sm" onClick={()=>void completeStudySession(s)} disabled={completingSessionIds.includes(s.id)}><CheckCircle2 size={14}/>{completingSessionIds.includes(s.id) ? 'Saving…' : 'Done'}</Button><Button variant="ghost" size="icon" aria-label="Mark session missed" onClick={()=>void updateSessionStatus(s,'missed')}><Clock3 size={14}/></Button><Button variant="ghost" size="icon" aria-label={`Delete session: ${s.title}`} title="Delete session" onClick={()=>void deleteStudySession(s)} disabled={deletingSessionIds.includes(s.id) || clearingSchedule || completingSessionIds.includes(s.id)} className="text-text-muted hover:text-destructive">{deletingSessionIds.includes(s.id) ? <RefreshCw size={14} className="animate-spin"/> : <Trash2 size={14}/>}</Button></motion.article>)}</div> : <div className="text-center py-8"><CalendarDays className="mx-auto text-text-dim mb-2" size={30}/><p className="text-sm text-text-muted">No sessions planned yet.</p><p className="text-xs text-text-dim mt-1">Add topics, then generate your first revision plan.</p></div>}
     </section>
   </div>;
