@@ -9,8 +9,8 @@ import { readSource } from '@/lib/source-files';
 import { extractSyllabusTopics } from '@/lib/learning-ai.functions';
 
 type Priority = 'low' | 'normal' | 'high';
-type Topic = { id: string; user_id: string; course_id: string | null; subject: string; chapter: string; concept: string; mastery_score: number; estimated_hours: number; priority: Priority; last_practiced_at: string | null };
-type StudySession = { id: string; topic_id: string | null; title: string; subject: string; chapter: string | null; concept: string | null; scheduled_start: string; scheduled_end: string; duration_minutes: number; status: 'planned' | 'completed' | 'missed' | 'skipped'; priority: Priority; rationale: string | null };
+type Topic = { id: string; user_id: string; course_id: string | null; subject: string; chapter: string; concept: string; mastery_score: number; estimated_hours?: number | null; estimatedHours?: number | null; priority: Priority; last_practiced_at: string | null };
+type StudySession = { id: string; topic_id: string | null; title: string; subject: string; chapter: string | null; concept: string | null; scheduled_start: string; scheduled_end: string; duration_minutes: number; estimated_hours?: number | null; estimatedHours?: number | null; status: 'planned' | 'completed' | 'missed' | 'skipped'; priority: Priority; rationale: string | null };
 type Preferences = { weekday_available_minutes: number; weekend_available_minutes: number; preferred_start_time: string; preferred_end_time: string; session_duration_minutes: number; break_duration_minutes: number; study_days: number[]; timezone: string };
 
 const DEFAULTS: Preferences = { weekday_available_minutes: 120, weekend_available_minutes: 180, preferred_start_time: '16:00', preferred_end_time: '21:00', session_duration_minutes: 40, break_duration_minutes: 10, study_days: [1,2,3,4,5,6,0], timezone: 'Asia/Kolkata' };
@@ -146,9 +146,13 @@ export default function AdaptivePlanner() {
     upcoming.forEach(session => {
       const sessionDate = new Date(session.scheduled_start);
       if (!Number.isFinite(sessionDate.getTime()) || sessionDate.getTime() < Date.now()) return;
+      // Week 1 is the current Monday-Sunday week; later weeks are numbered forward.
       const weekNumber = Math.floor((startOfWeek(sessionDate) - currentWeekStart) / 604800000) + 1;
       const topic = topics.find(item => item.id === session.topic_id);
-      totals.set(weekNumber, (totals.get(weekNumber) ?? 0) + Number(topic?.estimated_hours ?? 1));
+      const rawHours = session.estimated_hours ?? session.estimatedHours ?? topic?.estimated_hours ?? topic?.estimatedHours ?? 1;
+      const parsedHours = Number(rawHours);
+      const sessionHours = Number.isFinite(parsedHours) && parsedHours > 0 ? parsedHours : 1;
+      totals.set(weekNumber, (totals.get(weekNumber) ?? 0) + sessionHours);
     });
     return [...totals.entries()].map(([weekNumber, hours]) => ({ weekNumber, hours, highRisk: hours > 15 })).sort((a, b) => a.weekNumber - b.weekNumber);
   }, [upcoming, topics]);
@@ -383,9 +387,10 @@ export default function AdaptivePlanner() {
     <header className="learning-heading"><div><span className="workspace-eyebrow">PLAN / ADAPTIVE STUDY PLANNER</span><h1>Adaptive Study Planner</h1><p className="text-sm text-text-muted mt-1">A realistic revision plan built around your weak topics, available time and existing commitments.</p></div>
       <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setShowSettings(v => !v)}><Settings2 size={16}/> Preferences</Button><Button onClick={() => void generatePlan()} disabled={saving || busy || !topics.length}><RefreshCw size={16}/>{saving ? 'Working…' : 'Generate plan'}</Button><Button type="button" variant="ghost" onClick={() => void clearSchedule()} disabled={busy || clearingSchedule || upcoming.length === 0 || deletingSessionIds.length > 0} className="text-text-muted hover:text-destructive">{clearingSchedule ? <RefreshCw size={15} className="animate-spin"/> : <Trash2 size={15}/>} {clearingSchedule ? 'Clearing…' : 'Clear schedule'}</Button></div>
     </header>
+    {highRiskWeeks.length > 0 && <div role="alert" className="rounded-xl border-2 border-red-500 bg-red-500/10 p-4 text-red-700 dark:text-red-300"><div className="flex items-start gap-3"><AlertCircle size={20} className="mt-0.5 shrink-0"/><div><p className="font-bold">High workload detected</p>{highRiskWeeks.map(week => <p key={week.weekNumber} className="mt-1 text-sm">Warning: You have a heavy workload in Week {week.weekNumber}. Consider reallocating time. <span className="font-semibold">({week.hours.toFixed(1)} estimated hours · High Risk)</span></p>)}</div></div></div>}
     {error && <p role="alert" className="learning-error">{error}</p>}
     {notice && <p role="status" className="text-sm text-study-emerald-500">{notice}</p>}
-    {highRiskWeeks.length > 0 && <div role="alert" className="rounded-xl border-2 border-red-500 bg-red-500/10 p-4 text-red-700 dark:text-red-300"><div className="flex items-start gap-3"><AlertCircle size={20} className="mt-0.5 shrink-0"/><div><p className="font-bold">High workload detected</p>{highRiskWeeks.map(week => <p key={week.weekNumber} className="mt-1 text-sm">Warning: You have a heavy workload in Week {week.weekNumber}. Consider reallocating time. <span className="font-semibold">({week.hours.toFixed(1)} estimated hours · High Risk)</span></p>)}</div></div></div>}
+
     {showSettings && <section className="glass rounded-xl p-5 space-y-4 motion-card"><h2 className="font-semibold text-text">Your study availability</h2>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <label className="text-sm text-text-muted">Weekday minutes/day<input className="learning-input mt-1" type="number" min="0" max="720" value={preferences.weekday_available_minutes} onChange={e=>setPreferences(p=>({...p,weekday_available_minutes:Number(e.target.value)}))}/></label>
