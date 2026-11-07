@@ -58,6 +58,11 @@ export type ScheduleExtraction = z.infer<typeof scheduleExtractionSchema>;
 
 export const revisionPackageSchema = z.object({
   summary: z.string().min(1),
+  podcastScript: z.string().min(1),
+  mindMap: z.array(z.object({
+    topic: z.string().min(1),
+    subtopics: z.array(z.string().min(1)).max(12),
+  })).min(1).max(20),
   definitions: z.array(z.object({
     term: z.string().min(1),
     definition: z.string().min(1),
