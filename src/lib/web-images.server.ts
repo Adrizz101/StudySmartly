@@ -26,8 +26,7 @@ const USER_AGENT = 'StudySmartly/1.0 (educational presentation image search)';
 
 /**
  * Fetches one openly licensed image without API credentials.
- * Provider order: Openverse -> Wikimedia Commons. The caller uses
- * Pollinations as the final fallback when this function returns null.
+ * Provider order: Openverse -> Wikimedia Commons -> null.
  */
 export async function fetchWebImage(query: string): Promise<string | null> {
   const searchQuery = query.trim().slice(0, 200);
@@ -84,10 +83,10 @@ export async function fetchWebImage(query: string): Promise<string | null> {
       const imageUrl = firstPage?.imageinfo?.[0]?.thumburl ?? firstPage?.imageinfo?.[0]?.url;
       if (imageUrl && /^https:\/\//i.test(imageUrl)) return imageUrl;
     } else {
-      console.warn(`[Wikimedia] Image search returned HTTP ${response.status}; using Pollinations fallback.`);
+      console.warn(`[Wikimedia] Image search returned HTTP ${response.status}; returning null.`);
     }
   } catch (error) {
-    console.warn('[Wikimedia] Image search unavailable; using Pollinations fallback.', error);
+    console.warn('[Wikimedia] Image search unavailable; returning null.', error);
   }
 
   return null;

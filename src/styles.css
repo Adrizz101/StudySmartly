@@ -606,7 +606,7 @@ button, input, textarea, select { max-width: 100%; }
 .exam-setup, .exam-body, .studio-start, .studio-editor { min-width: 0; }
 .exam-body > *, .studio-editor > *, .studio-start > * { min-width: 0; }
 .studio-title { width: 100%; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
-.deck-canvas { max-width: 100%; }
+.deck-canvas { max-width: 100%; overflow: hidden; aspect-ratio: 16 / 9; }
 @media (max-width: 1024px) {
   .whiteboard-workspace { height: auto; min-height: 0; grid-template-columns: minmax(0,1fr); }
   .drawing-surface { height: clamp(320px, 58dvh, 620px); min-height: 320px; }

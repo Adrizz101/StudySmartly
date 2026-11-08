@@ -43,20 +43,19 @@ export const generateDeck = createServerFn({ method: 'POST' }).middleware([safeS
     for (let start = 0; start < count; start += 6) {
       const length = Math.min(6, count - start);
       const result = await structuredAI(deckSchema,
-        'You are an editorial presentation designer at Gamma quality and a source-grounded researcher at NotebookLM quality. These are polished presentations, NOT study guides. Return only content conforming to the supplied structured-output schema; do not add prose or markdown. For every slide, set layoutType to exactly one of title, split, bento, or timeline. Use title for the opening cover, split for a clear two-column explanation, bento for an uneven editorial grid with one dominant idea and supporting cards, and timeline for chronological or sequential content. Keep the legacy layout field consistent with layoutType. Build varied, purposeful compositions; do not force a timeline onto non-sequential content. Include substantive specific detail, not filler. Titles <=65 characters; body <=400 characters; at most 4 bullets and 4 cards per slide; each card text <=200 characters. Do not invent numeric metrics. Include visual image prompts where useful. Return precisely the requested batch length.',
+        'You are an editorial presentation designer at Gamma quality and a source-grounded researcher at NotebookLM quality. These are polished presentations, NOT study guides. Return only content conforming to the supplied structured-output schema; do not add prose or markdown. For every slide, set layoutType to exactly one of title, split, bento, or timeline. Use title for the opening cover, split for a clear two-column explanation, bento for an uneven editorial grid with one dominant idea and supporting cards, and timeline for chronological or sequential content. Keep the legacy layout field consistent with layoutType. Build varied, purposeful compositions; do not force a timeline onto non-sequential content. Include substantive specific detail, not filler. Titles <=65 characters; body <=400 characters; at most 4 bullets and 4 cards per slide; each card text <=200 characters. Do not invent numeric metrics. Do not generate an imagePrompt for every slide. Only generate an imagePrompt if the text explicitly requires a visual diagram. Return precisely the requested batch length.',
         `${data.prompt}\nStudent cover: ${data.metadata}\nApproved outline: ${data.outline}\nTotal slides ${count}. Generate slides ${start+1}-${start+length}. Previous headings: ${slides.map(s => s.heading).join('; ')}. First overall slide is a title cover; last is a meaningful conclusion.`, data.sources, runId);
       if (result.output.slides.length !== length) throw new Error('The generated slide count did not match. No partial deck has been saved.');
 
-      // Resolve keyless stock imagery server-side: Openverse -> Wikimedia Commons -> Pollinations.
+      // Resolve keyless stock imagery server-side: Openverse -> Wikimedia Commons -> null.
       const { fetchWebImage } = await import('./web-images.server');
       const slidesWithImages = await Promise.all(result.output.slides.map(async (slide) => {
         const searchQuery = slide.imagePrompt.trim() || slide.heading;
         const webImage = await fetchWebImage(searchQuery);
-        const fallbackImage = `https://image.pollinations.ai/prompt/${encodeURIComponent(searchQuery)}?width=1200&height=675&nologo=true`;
         return {
           ...slide,
-          image: webImage ?? fallbackImage,
-          imageSource: webImage ? 'openverse-or-wikimedia' as const : 'pollinations' as const,
+          image: webImage ?? undefined,
+          imageSource: webImage ? 'openverse-or-wikimedia' as const : undefined,
         };
       }));
 

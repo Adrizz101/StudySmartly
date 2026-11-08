@@ -8,10 +8,12 @@ export function DeckCanvas({ slide, document, index, onEdit }: { slide: Slide; d
   const isTitleSlide = layoutType === 'title';
   return <article className={`deck-canvas aspect-video overflow-hidden min-w-0 deck-theme-${document.theme ?? 'editorial'} deck-layout-${layoutType}${hasImage ? ' deck-has-image' : ''}`}>
     {slide.image && <div className={`deck-image-frame overflow-hidden min-w-0 min-h-0 ${isTitleSlide ? 'deck-image-frame-title absolute inset-0 h-full w-full' : 'deck-image-frame-split h-full max-h-[400px] w-[40%] flex-[0_1_40%]'}`}>
-      <img className="w-full h-full object-cover rounded-lg" src={slide.image} alt={slide.imageAlt || slide.heading} />
-      {isTitleSlide && <div className="absolute inset-0 bg-black/50" aria-hidden="true" />}
+      <div className="relative h-full w-full">
+        <img className="w-full h-full object-cover rounded-lg" src={slide.image} alt={slide.imageAlt || slide.heading} />
+        {isTitleSlide && <div className="absolute inset-0 bg-black/60 z-0" aria-hidden="true" />}
+      </div>
     </div>}
-    <div className="deck-content">
+    <div className={`deck-content${isTitleSlide && hasImage ? ' relative z-10' : ''}`}>
       <div className="deck-eyebrow">{slide.category || document.subject}</div>
       <h2 {...editable('heading')}>{slide.heading}</h2>
       <p className="deck-body" {...editable('body')}>{slide.body}</p>
