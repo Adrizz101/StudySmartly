@@ -901,6 +901,7 @@ export default function DrawingBoard() {
             {error && <p role="alert" className="learning-error">{error}</p>}
           </div>
         </aside>
+      </div>
       {focusMode && typeof document !== 'undefined' && createPortal(
         <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-[60] flex -translate-x-1/2 flex-col items-center gap-2 animate-fadeIn max-sm:bottom-[max(5rem,env(safe-area-inset-bottom))]" role="group" aria-label="Focus mode controls">
           {error && <p role="alert" className="max-w-[min(90vw,28rem)] rounded-xl border border-red-300/30 bg-red-950/85 px-3 py-2 text-center text-xs text-red-100 shadow-lg backdrop-blur-md">{error}</p>}
@@ -916,6 +917,7 @@ export default function DrawingBoard() {
         </div>,
         document.body
       )}
+    </div>
     </>
   );
 }
