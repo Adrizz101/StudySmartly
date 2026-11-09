@@ -570,25 +570,21 @@ export default function DrawingBoard() {
 
       const ink = getComputedStyle(document.documentElement).getPropertyValue('--board-tutor').trim() || '#0f9f6e';
       const currentBottom = elements.reduce((bottom, element) => Math.max(bottom, element.y + element.height), 0);
-      const hasDiagramImage = typeof boardResult.diagram_image_prompt === 'string' && boardResult.diagram_image_prompt.trim().length > 0;
       const firstY = elements.length === 0 ? 100 : currentBottom + 180;
       let normalized: Record<string, unknown>[];
       try {
         normalized = sanitizeBoardElements(boardResult.board_elements).map((element, index) => {
           const text = (typeof element.text === 'string' ? element.text : '').replace(/[$\\]/g, '').trim();
           const lineCount = Math.max(1, text.split(/\r?\n/).length);
-          // Diagram labels stay compact and retain their AI-planned positions around
-          // the illustration. Non-image lessons keep the established vertical layout.
-          const width = hasDiagramImage
-            ? Math.min(360, Math.max(180, text.length * 11, Math.abs(element.width)))
-            : Math.max(450, text.length * 14, Math.abs(element.width));
+          // Keep generated labels in a readable vertical layout on the Excalidraw canvas.
+          const width = Math.max(450, text.length * 14, Math.abs(element.width));
           const height = Math.min(160, Math.max(72, lineCount * 28 + 28, Math.min(160, Math.abs(element.height))));
           return {
             ...element,
             id: typeof element.id === 'string' && element.id.trim() ? element.id : createBoardElementId(),
             type: element.type,
-            x: hasDiagramImage ? Math.max(20, Math.min(1450, element.x)) : Math.max(100, element.x),
-            y: hasDiagramImage ? Math.max(40, Math.min(1650, element.y)) : firstY + index * 180,
+            x: Math.max(100, element.x),
+            y: firstY + index * 180,
             width,
             height,
             strokeColor: ink,
@@ -605,60 +601,6 @@ export default function DrawingBoard() {
         });
       } catch (mappingError) {
         throw new Error(mappingError instanceof Error ? 'Could not prepare the tutor diagram: ' + mappingError.message : 'Could not prepare the tutor diagram.');
-      }
-      // Fetch a textbook-style illustration when the model requests one. If the
-      // image service is unavailable, continue with the AI-generated board labels.
-      let generatedImageElement: Record<string, any> | null = null;
-      if (hasDiagramImage) {
-        try {
-          const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(boardResult.diagram_image_prompt.trim())}?width=800&height=600&nologo=true`;
-          const response = await fetch(imageUrl);
-          if (!response.ok) throw new Error(`Image service returned HTTP ${response.status}`);
-          const blob = await response.blob();
-          if (!blob.type.startsWith('image/')) throw new Error('Image service did not return an image.');
-          const imageData = await dataURL(new File([blob], 'tutor-diagram.png', { type: blob.type }));
-          const fileId = createBoardElementId();
-          api.addFiles([{
-            id: fileId,
-            dataURL: imageData,
-            mimeType: blob.type,
-            created: Date.now(),
-            lastRetrieved: Date.now(),
-          }] as any);
-          generatedImageElement = {
-            id: createBoardElementId(),
-            type: 'image',
-            // Centered in the 1600 × 1800 tutor coordinate space.
-            x: 550,
-            y: 700,
-            width: 500,
-            height: 400,
-            angle: 0,
-            strokeColor: DEFAULT_STROKE,
-            backgroundColor: DEFAULT_BACKGROUND,
-            fillStyle: 'solid',
-            strokeWidth: 1,
-            strokeStyle: 'solid',
-            roughness: 0,
-            opacity: 100,
-            groupIds: [],
-            frameId: null,
-            roundness: null,
-            seed: Math.floor(Math.random() * 2147483647),
-            version: 1,
-            versionNonce: Math.floor(Math.random() * 2147483647),
-            isDeleted: false,
-            boundElements: null,
-            updated: Date.now(),
-            link: null,
-            locked: false,
-            fileId,
-            status: 'saved',
-            scale: [1, 1],
-          };
-        } catch (imageError) {
-          console.error('Unable to generate textbook illustration; continuing with board labels:', imageError);
-        }
       }
       // Speak the explanation while the board is being drawn.
       let drawingFinished = false;
@@ -704,11 +646,6 @@ export default function DrawingBoard() {
         const safeInput = sanitizeBoardElements(normalized);
         added = sanitizeBoardElements(convertToExcalidrawElements(safeInput as any[])) as any;
         const all = [...elements];
-        if (generatedImageElement) {
-          all.push(generatedImageElement);
-          api.updateScene({ elements: sanitizeBoardElements(all) as any });
-          await wait(35, run);
-        }
         if (!api) throw new Error('Whiteboard is not ready yet. Please wait a moment and try again.');
         for (const element of added) {
           if (run !== runRef.current) return;
