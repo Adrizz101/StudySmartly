@@ -568,39 +568,63 @@ export default function DrawingBoard() {
       const boardResult = result.data;
       if (run !== runRef.current) return;
 
-      const ink = getComputedStyle(document.documentElement).getPropertyValue('--board-tutor').trim() || '#0f9f6e';
       const currentBottom = elements.reduce((bottom, element) => Math.max(bottom, element.y + element.height), 0);
       const firstY = elements.length === 0 ? 100 : currentBottom + 180;
-      let normalized: Record<string, unknown>[];
+      let added: ReturnType<typeof convertToExcalidrawElements>;
+      animatingRef.current = true;
       try {
-        normalized = sanitizeBoardElements(boardResult.board_elements).map((element, index) => {
-          const text = (typeof element.text === 'string' ? element.text : '').replace(/[$\\]/g, '').trim();
-          const lineCount = Math.max(1, text.split(/\r?\n/).length);
-          // Keep generated labels in a readable vertical layout on the Excalidraw canvas.
-          const width = Math.max(450, text.length * 14, Math.abs(element.width));
-          const height = Math.min(160, Math.max(72, lineCount * 28 + 28, Math.min(160, Math.abs(element.height))));
-          return {
-            ...element,
-            id: typeof element.id === 'string' && element.id.trim() ? element.id : createBoardElementId(),
-            type: element.type,
-            x: Math.max(100, element.x),
-            y: firstY + index * 180,
-            width,
-            height,
-            strokeColor: ink,
-            backgroundColor: typeof element.backgroundColor === 'string' ? element.backgroundColor : DEFAULT_BACKGROUND,
-            ...(element.type === 'text'
-              ? { text, fontSize: 20, autoResize: true, width }
-              : element.type === 'rectangle' || element.type === 'ellipse'
-                ? { label: { text, fontSize: 20, autoResize: true } }
-                : {}),
-            ...(element.type === 'arrow' || element.type === 'line'
-              ? { points: [[0, 0], [Math.max(1, Math.abs(element.width)), Math.max(1, Math.abs(element.height))]] as [number, number][] }
-              : {}),
-          };
-        });
-      } catch (mappingError) {
-        throw new Error(mappingError instanceof Error ? 'Could not prepare the tutor diagram: ' + mappingError.message : 'Could not prepare the tutor diagram.');
+        const mermaid = (await import('mermaid')).default;
+        mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'strict' });
+        const { svg } = await mermaid.render(`mermaid-${createBoardElementId()}`, boardResult.mermaid_diagram);
+        const viewBox = svg.match(/viewBox=["']\\s*[\\d.-]+\\s+[\\d.-]+\\s+([\\d.]+)\\s+([\\d.]+)["']/i);
+        const widthAttribute = svg.match(/\\bwidth=["']([\\d.]+)/i);
+        const heightAttribute = svg.match(/\\bheight=["']([\\d.]+)/i);
+        const sourceWidth = Math.max(1, Number(viewBox?.[1] ?? widthAttribute?.[1] ?? 900));
+        const sourceHeight = Math.max(1, Number(viewBox?.[2] ?? heightAttribute?.[1] ?? 600));
+        const imageWidth = Math.min(1400, Math.max(600, sourceWidth));
+        const imageHeight = imageWidth * sourceHeight / sourceWidth;
+        const fileId = createBoardElementId();
+        const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+        if (!api) throw new Error('Whiteboard is not ready yet.');
+        api.addFiles([{
+          id: fileId,
+          mimeType: 'image/svg+xml',
+          dataURL: svgDataUrl,
+          created: Date.now(),
+        }] as any);
+        added = convertToExcalidrawElements([{
+          type: 'image',
+          fileId,
+          x: 100,
+          y: firstY,
+          width: imageWidth,
+          height: imageHeight,
+        }] as any[]);
+        const safeAdded = sanitizeBoardElements(added);
+        if (!safeAdded.length) throw new Error('Mermaid SVG could not be added to the canvas.');
+        added = safeAdded as any;
+        api.updateScene({ elements: [...elements, ...added] as any });
+        await wait(35, run);
+        if (run !== runRef.current) return;
+        api.scrollToContent(added, { fitToContent: true });
+      } catch (renderError) {
+        console.error('Mermaid diagram rendering failed:', renderError);
+        animatingRef.current = false;
+        const fallbackMessages = [...messagesRef.current, {
+          question,
+          answer: "The AI couldn't format this diagram. Please try rephrasing your question.",
+          citations: [],
+        }];
+        messagesRef.current = fallbackMessages;
+        setMessages(fallbackMessages);
+        save('board-discussion', fallbackMessages);
+        setPrompt('');
+        busyRef.current = false;
+        setBusy(false);
+        if (handsFreeRef.current) scheduleHandsFreeRestart();
+        setIsSpeaking(false);
+        setIsPaused(false);
+        return;
       }
       // Speak the explanation while the board is being drawn.
       let drawingFinished = false;
@@ -640,27 +664,8 @@ export default function DrawingBoard() {
         }
       }
 
-      animatingRef.current = true;
-      let added: ReturnType<typeof convertToExcalidrawElements>;
-      try {
-        const safeInput = sanitizeBoardElements(normalized);
-        added = sanitizeBoardElements(convertToExcalidrawElements(safeInput as any[])) as any;
-        const all = [...elements];
-        if (!api) throw new Error('Whiteboard is not ready yet. Please wait a moment and try again.');
-        for (const element of added) {
-          if (run !== runRef.current) return;
-          all.push(element);
-          const safeScene = sanitizeBoardElements(all);
-          api.updateScene({ elements: safeScene as any });
-          await wait(35, run);
-        }
-        } catch (renderError) {
-        console.error('Excalidraw rejected sanitized tutor board elements:', renderError);
-        throw new Error(renderError instanceof Error ? 'The tutor diagram could not be drawn: ' + renderError.message : 'The tutor diagram could not be drawn.');
-      }
       if (run !== runRef.current) return;
       if (!api) throw new Error('Whiteboard is no longer available. Please reopen the tutor.');
-      api.scrollToContent(added, { fitToContent: true });
       drawingFinished = true;
       animatingRef.current = false;
 
