@@ -82,7 +82,7 @@
     "pocket-tts-js": "^0.1.0",
     "ts-fsrs": "^6.0.0",
     "mermaid": "^11.4.1",
-    "@probelabs/maid": "^1.0.0"
+    "@probelabs/maid": "^0.0.29"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
