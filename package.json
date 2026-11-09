@@ -81,6 +81,8 @@
     "motion": "^12.23.24",
     "pocket-tts-js": "^0.1.0",
     "ts-fsrs": "^6.0.0"
+    "mermaid": "^11.4.1",
+    "@probelabs/maid": "^1.0.0",
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
