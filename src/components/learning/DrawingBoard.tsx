@@ -609,7 +609,7 @@ export default function DrawingBoard() {
         if (run !== runRef.current) return;
         api.scrollToContent(added, { fitToContent: true });
       } catch (error) {
-        console.error("Mermaid Render Error:", error, "AI Output:", aiText);
+        console.error("Mermaid Render Error:", error, "AI Output:", boardResult.mermaid_diagram);
         animatingRef.current = false;
         const fallbackMessages = [...messagesRef.current, {
           question,
