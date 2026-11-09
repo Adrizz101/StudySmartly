@@ -613,7 +613,7 @@ export default function DrawingBoard() {
         animatingRef.current = false;
         const fallbackMessages = [...messagesRef.current, {
           question,
-          answer: `The AI couldn't format this diagram. Please try rephrasing your question.\\n\\n${boardResult.chat_response}`,
+          answer: `The AI couldn't format this diagram. Please try rephrasing your question.\n\n${boardResult.chat_response}`,
           citations: boardResult.citations,
         }];
         messagesRef.current = fallbackMessages;
