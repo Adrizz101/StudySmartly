@@ -575,7 +575,8 @@ export default function DrawingBoard() {
       try {
         const mermaid = (await import('mermaid')).default;
         mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'strict' });
-        const { svg } = await mermaid.render(`mermaid-${createBoardElementId()}`, boardResult.mermaid_diagram);
+        const aiText = boardResult.mermaid_diagram;
+        const { svg } = await mermaid.render(`mermaid-${createBoardElementId()}`, aiText);
         const viewBox = svg.match(/viewBox=["']\\s*[\\d.-]+\\s+[\\d.-]+\\s+([\\d.]+)\\s+([\\d.]+)["']/i);
         const widthAttribute = svg.match(/\\bwidth=["']([\\d.]+)/i);
         const heightAttribute = svg.match(/\\bheight=["']([\\d.]+)/i);
@@ -607,13 +608,13 @@ export default function DrawingBoard() {
         await wait(35, run);
         if (run !== runRef.current) return;
         api.scrollToContent(added, { fitToContent: true });
-      } catch (renderError) {
-        console.error('Mermaid diagram rendering failed:', renderError);
+      } catch (error) {
+        console.error("Mermaid Render Error:", error, "AI Output:", aiText);
         animatingRef.current = false;
         const fallbackMessages = [...messagesRef.current, {
           question,
-          answer: "The AI couldn't format this diagram. Please try rephrasing your question.",
-          citations: [],
+          answer: `The AI couldn't format this diagram. Please try rephrasing your question.\\n\\n${boardResult.chat_response}`,
+          citations: boardResult.citations,
         }];
         messagesRef.current = fallbackMessages;
         setMessages(fallbackMessages);
