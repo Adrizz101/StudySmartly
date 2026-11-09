@@ -10,6 +10,6 @@
       ]
     }
   ],
-  "installCommand": "pnpm install --no-frozen-lockfile",
+  "installCommand": "npx --yes pnpm@10.15.0 install --no-frozen-lockfile",
   "buildCommand": "pnpm run build"
 }
