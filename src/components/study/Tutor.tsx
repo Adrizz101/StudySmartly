@@ -26,7 +26,7 @@ const TOOL_LINKS = [
 ];
 
 export default function Tutor() {
-  const { settings, tutorSessions, setTutorSessions } = useApp();
+  const { tutorSessions, setTutorSessions } = useApp();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
