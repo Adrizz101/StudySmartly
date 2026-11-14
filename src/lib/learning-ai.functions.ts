@@ -191,6 +191,11 @@ const tutorChatInput = z.object({
     role: z.enum(['user', 'assistant']),
     content: z.string().trim().min(1).max(6000),
   })).min(1).max(12),
+}).superRefine((value, context) => {
+  const totalCharacters = value.messages.reduce((total, message) => total + message.content.length, 0);
+  if (totalCharacters > 18000) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Please shorten this conversation before sending another message.' });
+  }
 });
 
 const tutorChatSchema = z.object({
