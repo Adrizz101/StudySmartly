@@ -3,10 +3,9 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useApp } from '@/store';
 import { ChatMessage, TutorSession } from '@/types';
-import { generateSocraticResponse, isApiKeyConfigured, callOpenAI } from '@/lib/socratic';
-import { ImageUpload } from '@/components/ImageUpload';
+import { sendTutorMessage } from '@/lib/learning-ai.functions';
 import {
-  Send, Bot, User, Plus, Trash2, Sparkles, Image as ImageIcon,
+  Send, Bot, User, Plus, Trash2, Sparkles,
   GraduationCap, BookOpen, Brain, Clock, AlertCircle, FileText,
   Layers, CalendarDays, Presentation, PanelLeft, Library,
 } from 'lucide-react';
@@ -17,8 +16,6 @@ const QUICK_PROMPTS = [
   { icon: GraduationCap, text: 'Explain a question from my textbook', subject: 'General' },
   { icon: Clock, text: 'Help me prepare for an upcoming exam', subject: 'General' },
 ];
-
-const SOCRATIC_SYSTEM = `You are StudySmartly's AI Tutor. Give clear, accurate explanations at the student's level. Break difficult ideas into manageable steps, use examples, and ask a short check-for-understanding question when useful. Do not force Socratic questioning when the student asks for a direct explanation. If uncertain, say so.`;
 
 const TOOL_LINKS = [
   { to: '/flashcards' as const, label: 'Flashcards', detail: 'Revise with spaced repetition', icon: Layers },
@@ -32,7 +29,6 @@ export default function Tutor() {
   const { settings, tutorSessions, setTutorSessions } = useApp();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [input, setInput] = useState('');
-  const [pendingImage, setPendingImage] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [subject, setSubject] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -60,19 +56,25 @@ export default function Tutor() {
   }, [subject, setTutorSessions]);
 
   const sendMessage = useCallback(async () => {
-    if ((!input.trim() && !pendingImage) || isThinking) return;
+    const messageText = input.trim();
+    if (!messageText || isThinking) return;
+
     const isNewSession = !activeSessionId;
     const sessionId = activeSessionId || createSession();
     setActiveSessionId(sessionId);
+
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
-      content: input.trim(),
+      content: messageText,
       timestamp: Date.now(),
-      image: pendingImage || undefined,
     };
-
     const currentMessages = activeSession?.messages || [];
+    const conversationForAI = [...currentMessages, userMsg]
+      .filter((message) => message.role === 'user' || message.role === 'assistant')
+      .slice(-12)
+      .map(({ role, content }) => ({ role, content }));
+
     if (isNewSession) {
       setTutorSessions((prev) => prev.map((s) => s.id === sessionId
         ? { ...s, subject: subject || s.subject, messages: [userMsg] }
@@ -81,22 +83,16 @@ export default function Tutor() {
       updateSession(sessionId, (s) => ({ ...s, messages: [...s.messages, userMsg] }));
     }
     setInput('');
-    setPendingImage('');
     setIsThinking(true);
 
-    const ctxSubject = subject || activeSession?.subject || 'this topic';
     try {
-      let response: string;
-      if (isApiKeyConfigured(settings.aiApiKey)) {
-        const apiMessages = [
-          { role: 'system', content: SOCRATIC_SYSTEM },
-          ...currentMessages.map((m) => ({ role: m.role, content: m.content })),
-          { role: 'user', content: userMsg.content + (userMsg.image ? ' [Image attached]' : '') },
-        ];
-        response = await callOpenAI(settings.aiBaseUrl, settings.aiApiKey, settings.aiModel, apiMessages);
-      } else {
-        response = generateSocraticResponse({ subject: ctxSubject, question: userMsg.content }, currentMessages.filter((m) => m.role === 'user').length);
-      }
+      const result = await sendTutorMessage({
+        subject: subject || activeSession?.subject || 'General',
+        messages: conversationForAI,
+      });
+      const response = result.success
+        ? result.data.response
+        : result.error;
       const aiMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -108,15 +104,15 @@ export default function Tutor() {
       const errMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: 'The AI service is temporarily unavailable. Please try again shortly.',
+        content: 'The AI Tutor could not complete this request. Please check your connection and sign-in, then try again.',
         timestamp: Date.now(),
       };
       updateSession(sessionId, (s) => ({ ...s, messages: [...s.messages, errMsg] }));
     } finally {
       setIsThinking(false);
     }
-  }, [input, pendingImage, isThinking, activeSessionId, activeSession, subject, settings, createSession, updateSession, setTutorSessions]);
-
+  }, [input, isThinking, activeSessionId, activeSession, subject, createSession, updateSession, setTutorSessions]);
+ 
   const handleQuickPrompt = useCallback((prompt: string, subj: string) => {
     setSubject(subj);
     setInput(prompt);
@@ -131,7 +127,6 @@ export default function Tutor() {
     setActiveSessionId(null);
     setSubject('');
     setInput('');
-    setPendingImage('');
   };
 
   return (
@@ -195,13 +190,11 @@ export default function Tutor() {
         </div>
 
         <div className="border-t border-border p-3">
-          {pendingImage && <div className="mb-2 flex items-center gap-2 text-xs text-text-muted"><ImageIcon size={14} /> Image selected (AI image analysis is not connected yet)</div>}
           <div className="flex items-end gap-2">
-            <ImageUpload compact onImageSelected={setPendingImage} label="Choose image" />
             <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
             }} rows={1} placeholder="Ask your tutor anything…" className="max-h-32 min-h-11 flex-1 resize-none rounded-xl border border-border bg-surface-hover px-3.5 py-2.5 text-sm text-text outline-none focus:border-accent-500" />
-            <Button variant="source" aria-label="Send message" onClick={sendMessage} disabled={(!input.trim() && !pendingImage) || isThinking} className="shrink-0 rounded-xl bg-accent-600 p-3 text-white transition-colors hover:bg-accent-700 disabled:opacity-50"><Send size={18} /></Button>
+            <Button variant="source" aria-label="Send message" onClick={sendMessage} disabled={!input.trim() || isThinking} className="shrink-0 rounded-xl bg-accent-600 p-3 text-white transition-colors hover:bg-accent-700 disabled:opacity-50"><Send size={18} /></Button>
           </div>
           <div className="mt-2 flex items-center gap-1.5 text-[11px] text-text-dim"><AlertCircle size={11} /> AI answers can make mistakes. Check important information against your textbook or teacher.</div>
         </div>
