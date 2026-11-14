@@ -10,6 +10,14 @@ import {
   Layers, CalendarDays, Presentation, PanelLeft, Library,
 } from 'lucide-react';
 
+type TutorMode = 'socratic' | 'explain' | 'exam';
+
+const TUTOR_MODES: { id: TutorMode; label: string; description: string }[] = [
+  { id: 'socratic', label: 'Socratic', description: 'Learn through guided questions and hints' },
+  { id: 'explain', label: 'Explain', description: 'Get clear, step-by-step explanations' },
+  { id: 'exam', label: 'Exam Prep', description: 'Practise exam-ready answers and key points' },
+];
+
 const QUICK_PROMPTS = [
   { icon: BookOpen, text: 'Explain a difficult concept step by step', subject: 'General' },
   { icon: Brain, text: 'Help me understand this biology topic', subject: 'Biology' },
@@ -31,6 +39,7 @@ export default function Tutor() {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [subject, setSubject] = useState('');
+  const [mode, setMode] = useState<TutorMode>('socratic');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const activeSession = tutorSessions.find((s) => s.id === activeSessionId) || null;
@@ -88,6 +97,7 @@ export default function Tutor() {
     try {
       const result = await sendTutorMessage({
         subject: subject || activeSession?.subject || 'General',
+        mode,
         messages: conversationForAI,
       });
       const response = result.success
@@ -111,7 +121,7 @@ export default function Tutor() {
     } finally {
       setIsThinking(false);
     }
-  }, [input, isThinking, activeSessionId, activeSession, subject, createSession, updateSession, setTutorSessions]);
+  }, [input, isThinking, activeSessionId, activeSession, subject, mode, createSession, updateSession, setTutorSessions]);
  
   const handleQuickPrompt = useCallback((prompt: string, subj: string) => {
     setSubject(subj);
@@ -190,6 +200,21 @@ export default function Tutor() {
         </div>
 
         <div className="border-t border-border p-3">
+          <div className="mb-2 flex flex-wrap items-center gap-1.5" role="group" aria-label="AI Tutor mode">
+            <span className="mr-1 text-[11px] font-medium text-text-dim">Mode</span>
+            {TUTOR_MODES.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                aria-pressed={mode === item.id}
+                title={item.description}
+                onClick={() => setMode(item.id)}
+                className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${mode === item.id ? 'border-accent-500 bg-accent-600/15 text-accent-500' : 'border-border text-text-muted hover:bg-surface-hover'}`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
           <div className="flex items-end gap-2">
             <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
