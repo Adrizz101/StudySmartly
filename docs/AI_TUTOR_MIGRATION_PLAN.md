@@ -92,10 +92,20 @@ Replace the current Whiteboard-first learning experience with a reliable, topic-
 ## Status
 
 - [x] Phase 0: branch created and initial audit recorded.
-- [~] Phase 1: dashboard shell implemented; build and responsive QA still pending.
-- [ ] Phase 2: shared authenticated AI chat.
+- [x] Phase 1: dashboard shell implemented; production deployment confirmed working by the user.
+- [x] Phase 2: shared authenticated AI chat implementation committed on the feature branch; build and runtime QA pending.
 - [ ] Phase 3: image/PDF/text attachments.
 - [ ] Phase 4: video lecture context.
 - [ ] Phase 5: cross-device saved conversations.
 - [ ] Phase 6: study-tool integration.
 - [ ] Phase 7: verification and transition.
+
+
+## Phase 2 implementation notes
+
+- Added an authenticated `sendTutorMessage` server function behind the existing Supabase auth middleware and serializable result boundary.
+- Reused `structuredAI`, so Tutor requests use the existing Gemini/OpenRouter provider waterfall, encrypted personal-key lookup, and shared 15-request daily usage accounting.
+- Validates subject, role, message count and per-message length on the server; sends at most the latest 12 user/assistant turns.
+- Removed the legacy browser-side API-key call and fallback canned Socratic responses from the active Tutor flow.
+- New image uploads are temporarily absent from the Tutor composer; real image understanding belongs to Phase 3. Existing saved message image previews remain renderable.
+- Tutor chat history remains browser-local until Phase 5; no database schema was changed in this phase.
