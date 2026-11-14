@@ -37,7 +37,7 @@ Replace the current Whiteboard-first learning experience with a reliable, topic-
 - Replace the legacy direct-client Socratic API path with a server-side Tutor function.
 - Reuse the existing AI provider waterfall, authentication middleware, schema validation and usage accounting.
 - Validate conversation history and prompt sizes; return serializable success/error results.
-- Support direct explanations as well as guided, step-by-step teaching.
+- Support three selectable teaching styles: Socratic (default), Explain, and Exam Prep. Students can switch styles during a conversation.
 
 **Exit:** authenticated text chat works through the existing quota/provider infrastructure.
 
@@ -93,7 +93,7 @@ Replace the current Whiteboard-first learning experience with a reliable, topic-
 
 - [x] Phase 0: branch created and initial audit recorded.
 - [x] Phase 1: dashboard shell implemented; production deployment confirmed working by the user.
-- [x] Phase 2: shared authenticated AI chat implementation committed on the feature branch; build and runtime QA pending.
+- [x] Phase 2: shared authenticated AI chat and three selectable teaching modes implemented on the feature branch; build and runtime QA pending.
 - [ ] Phase 3: image/PDF/text attachments.
 - [ ] Phase 4: video lecture context.
 - [ ] Phase 5: cross-device saved conversations.
@@ -105,7 +105,8 @@ Replace the current Whiteboard-first learning experience with a reliable, topic-
 
 - Added an authenticated `sendTutorMessage` server function behind the existing Supabase auth middleware and serializable result boundary.
 - Reused `structuredAI`, so Tutor requests use the existing Gemini/OpenRouter provider waterfall, encrypted personal-key lookup, and shared 15-request daily usage accounting.
-- Validates subject, role, message count and per-message length on the server; sends at most the latest 12 user/assistant turns.
+- Validates subject, mode, role, message count and per-message length on the server; sends at most the latest 12 user/assistant turns.
+- Added Socratic (default), Explain and Exam Prep modes; the selected mode is enforced by server-side instructions and can be changed between messages.
 - Removed the legacy browser-side API-key call and fallback canned Socratic responses from the active Tutor flow.
 - New image uploads are temporarily absent from the Tutor composer; real image understanding belongs to Phase 3. Existing saved message image previews remain renderable.
 - Tutor chat history remains browser-local until Phase 5; no database schema was changed in this phase.
