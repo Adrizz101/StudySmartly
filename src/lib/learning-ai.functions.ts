@@ -82,7 +82,7 @@ PEDAGOGY AND READABILITY RULES:
 
 MATH AND SCIENCE FORMATTING RULES:
 - Use standard LaTeX for mathematical expressions and equations.
-- Because you are returning a JSON object, you MUST output DOUBLE backslashes for all LaTeX commands. For example, to render a fraction, you must output \\\\frac{...} instead of \\frac{...}. If you do not double the backslashes, they will be deleted by the parser.
+- Because you are returning a JSON object, you MUST output DOUBLE backslashes for all LaTeX commands. For example, to render a fraction, you must output \\frac{...} instead of \frac{...}. If you do not double the backslashes, they will be deleted by the parser.
 - Use $...$ for inline mathematics, for example: $a^2 + b^2 = c^2$.
 - Use $$...$$ on separate lines for displayed equations, for example:
   $$F = ma$$
