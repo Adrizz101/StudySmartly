@@ -1,5 +1,9 @@
 import { Button } from '@/components/ui/button';
-import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useApp } from '@/store';
 import { respondToTutor } from '@/lib/learning-ai.functions';
@@ -233,67 +237,31 @@ export default function Tutor() {
 }
 
 
-/** Lightweight, safe Markdown renderer for tutor messages (no HTML injection or extra dependency). */
-function renderInlineMarkdown(text: string): ReactNode[] {
-  return text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|\x60[^\x60]+\x60)/g).map((part, index) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={index} className="font-semibold">{part.slice(2, -2)}</strong>;
-    }
-    if (part.startsWith('*') && part.endsWith('*')) {
-      return <em key={index}>{part.slice(1, -1)}</em>;
-    }
-    if (part.startsWith('\x60') && part.endsWith('\x60')) {
-      return <code key={index} className="rounded bg-black/10 px-1 py-0.5 text-[0.9em]">{part.slice(1, -1)}</code>;
-    }
-    return part;
-  });
-}
-
 function MarkdownMessage({ content }: { content: string }) {
-  const lines = content.replace(/\r\n/g, '\n').split('\n');
-  const blocks: ReactNode[] = [];
-  let index = 0;
-
-  while (index < lines.length) {
-    const line = lines[index].trim();
-    if (!line) { index += 1; continue; }
-
-    if (line.startsWith('### ')) {
-      blocks.push(<h3 key={index} className="pt-1 text-sm font-semibold text-text">{renderInlineMarkdown(line.slice(4))}</h3>);
-      index += 1;
-      continue;
-    }
-
-    if (/^[-*]\s+/.test(line)) {
-      const items: string[] = [];
-      while (index < lines.length && /^\s*[-*]\s+/.test(lines[index])) {
-        items.push(lines[index].replace(/^\s*[-*]\s+/, '').trim());
-        index += 1;
-      }
-      blocks.push(<ul key={index} className="list-disc space-y-1 pl-5">{items.map((item, itemIndex) => <li key={itemIndex}>{renderInlineMarkdown(item)}</li>)}</ul>);
-      continue;
-    }
-
-    if (/^\d+[.)]\s+/.test(line)) {
-      const items: string[] = [];
-      while (index < lines.length && /^\s*\d+[.)]\s+/.test(lines[index])) {
-        items.push(lines[index].replace(/^\s*\d+[.)]\s+/, '').trim());
-        index += 1;
-      }
-      blocks.push(<ol key={index} className="list-decimal space-y-1 pl-5">{items.map((item, itemIndex) => <li key={itemIndex}>{renderInlineMarkdown(item)}</li>)}</ol>);
-      continue;
-    }
-
-    const paragraph = [line];
-    index += 1;
-    while (index < lines.length && lines[index].trim() && !lines[index].trim().startsWith('### ') && !/^\s*[-*]\s+/.test(lines[index]) && !/^\s*\d+[.)]\s+/.test(lines[index])) {
-      paragraph.push(lines[index].trim());
-      index += 1;
-    }
-    blocks.push(<p key={index}>{renderInlineMarkdown(paragraph.join(' '))}</p>);
-  }
-
-  return <div className="prose-chat space-y-3">{blocks}</div>;
+  return (
+    <div className="prose-chat space-y-3 break-words">
+      <ReactMarkdown
+        skipHtml
+        remarkPlugins={[remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={{
+          h1: ({ children }) => <h1 className="text-base font-semibold">{children}</h1>,
+          h2: ({ children }) => <h2 className="text-sm font-semibold">{children}</h2>,
+          h3: ({ children }) => <h3 className="pt-1 text-sm font-semibold">{children}</h3>,
+          p: ({ children }) => <p>{children}</p>,
+          ul: ({ children }) => <ul className="list-disc space-y-1 pl-5">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal space-y-1 pl-5">{children}</ol>,
+          li: ({ children }) => <li className="pl-1">{children}</li>,
+          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+          blockquote: ({ children }) => <blockquote className="border-l-2 border-accent-500/50 pl-3 text-text-muted">{children}</blockquote>,
+          code: ({ children }) => <code className="rounded bg-black/10 px-1 py-0.5 text-[0.9em]">{children}</code>,
+          pre: ({ children }) => <pre className="overflow-x-auto rounded-lg bg-black/10 p-3 text-xs">{children}</pre>,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
 }
 
 function MessageBubble({ message }: { message: ChatMessage }) {

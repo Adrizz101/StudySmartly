@@ -82,7 +82,11 @@
     "pocket-tts-js": "^0.1.0",
     "ts-fsrs": "^6.0.0",
     "mermaid": "^11.4.1",
-    "@probelabs/maid": "^0.0.29"
+    "@probelabs/maid": "^0.0.29",
+    "react-markdown": "^10.1.0",
+    "remark-math": "^6.0.0",
+    "rehype-katex": "^7.0.1",
+    "katex": "^0.16.22"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
