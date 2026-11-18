@@ -2,8 +2,8 @@ import { Button } from '@/components/ui/button';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useApp } from '@/store';
+import { respondToTutor } from '@/lib/learning-ai.functions';
 import { ChatMessage, TutorSession } from '@/types';
-import { generateSocraticResponse, isApiKeyConfigured, callOpenAI } from '@/lib/socratic';
 import { ImageUpload } from '@/components/ImageUpload';
 import {
   Send, Bot, User, Plus, Trash2, Sparkles, Image as ImageIcon,
@@ -29,7 +29,7 @@ const TOOL_LINKS = [
 ];
 
 export default function Tutor() {
-  const { settings, tutorSessions, setTutorSessions } = useApp();
+  const { tutorSessions, setTutorSessions } = useApp();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [pendingImage, setPendingImage] = useState('');
@@ -86,17 +86,24 @@ export default function Tutor() {
 
     const ctxSubject = subject || activeSession?.subject || 'this topic';
     try {
-      let response: string;
-      if (isApiKeyConfigured(settings.aiApiKey)) {
-        const apiMessages = [
-          { role: 'system', content: SOCRATIC_SYSTEM },
-          ...currentMessages.map((m) => ({ role: m.role, content: m.content })),
-          { role: 'user', content: userMsg.content + (userMsg.image ? ' [Image attached]' : '') },
-        ];
-        response = await callOpenAI(settings.aiBaseUrl, settings.aiApiKey, settings.aiModel, apiMessages);
-      } else {
-        response = generateSocraticResponse({ subject: ctxSubject, question: userMsg.content }, currentMessages.filter((m) => m.role === 'user').length);
-      }
+      const history = [
+        ...currentMessages
+          .filter((message) => message.role === 'user' || message.role === 'assistant')
+          .slice(-15)
+          .map((message) => ({ role: message.role as 'user' | 'assistant', content: message.content })),
+      ];
+      const question = userMsg.content + (userMsg.image
+        ? '\\n\\n[The student attached an image, but image analysis is not available in this phase. Ask them to describe the relevant content in text.]'
+        : '');
+      const result = await respondToTutor({
+        data: {
+          subject: ctxSubject,
+          question,
+          history,
+        },
+      });
+      if (!result.success) throw new Error(result.error);
+      const response = result.data.response;
       const aiMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -195,7 +202,7 @@ export default function Tutor() {
         </div>
 
         <div className="border-t border-border p-3">
-          {pendingImage && <div className="mb-2 flex items-center gap-2 text-xs text-text-muted"><ImageIcon size={14} /> Image selected (AI image analysis is not connected yet)</div>}
+          {pendingImage && <div className="mb-2 flex items-center gap-2 text-xs text-text-muted"><ImageIcon size={14} /> Image preview only for now. Describe it in your message; image analysis is coming in Phase 3.</div>}
           <div className="flex items-end gap-2">
             <ImageUpload compact onImageSelected={setPendingImage} label="Choose image" />
             <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => {
