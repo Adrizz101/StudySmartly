@@ -83,7 +83,7 @@ PEDAGOGY AND READABILITY RULES:
 MATH AND SCIENCE FORMATTING RULES:
 - Use standard LaTeX for mathematical expressions and equations.
 - ALWAYS use double line breaks (two Enter keys) between paragraphs, before and after lists, and before and after headings.
-- When outputting LaTeX, you MUST escape backslashes correctly for JSON. If outputting `\\frac`, ensure the raw output contains `\\\\frac` so it renders properly.
+- When outputting LaTeX, you MUST escape backslashes correctly for JSON. If outputting `\frac`, ensure the raw output contains `\\frac` so it renders properly.
 - Use display math blocks (`$ ... $`) for standalone equations so they get their own line.
 - Use $...$ for inline mathematics, for example: $a^2 + b^2 = c^2$.
 - Use $$...$$ on separate lines for displayed equations, for example:
