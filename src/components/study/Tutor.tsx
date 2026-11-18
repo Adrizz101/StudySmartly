@@ -18,8 +18,6 @@ const QUICK_PROMPTS = [
   { icon: Clock, text: 'Help me prepare for an upcoming exam', subject: 'General' },
 ];
 
-const SOCRATIC_SYSTEM = `You are StudySmartly's AI Tutor. Give clear, accurate explanations at the student's level. Break difficult ideas into manageable steps, use examples, and ask a short check-for-understanding question when useful. Do not force Socratic questioning when the student asks for a direct explanation. If uncertain, say so.`;
-
 const TOOL_LINKS = [
   { to: '/flashcards' as const, label: 'Flashcards', detail: 'Revise with spaced repetition', icon: Layers },
   { to: '/exams' as const, label: 'Exam Arena', detail: 'Practise exam questions', icon: GraduationCap },
@@ -122,7 +120,7 @@ export default function Tutor() {
     } finally {
       setIsThinking(false);
     }
-  }, [input, pendingImage, isThinking, activeSessionId, activeSession, subject, settings, createSession, updateSession, setTutorSessions]);
+  }, [input, pendingImage, isThinking, activeSessionId, activeSession, subject, createSession, updateSession, setTutorSessions]);
 
   const handleQuickPrompt = useCallback((prompt: string, subj: string) => {
     setSubject(subj);
