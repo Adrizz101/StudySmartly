@@ -93,7 +93,7 @@ Replace the current Whiteboard-first learning experience with a reliable, topic-
 
 - [x] Phase 0: branch created and initial audit recorded.
 - [~] Phase 1: dashboard shell implemented; build and responsive QA still pending.
-- [ ] Phase 2: shared authenticated AI chat.
+- [x] Phase 2: shared authenticated AI chat implemented; automated build and runtime verification still pending.
 - [ ] Phase 3: image/PDF/text attachments.
 - [ ] Phase 4: video lecture context.
 - [ ] Phase 5: cross-device saved conversations.

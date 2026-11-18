@@ -1,9 +1,13 @@
 import { Button } from '@/components/ui/button';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useApp } from '@/store';
+import { respondToTutor } from '@/lib/learning-ai.functions';
 import { ChatMessage, TutorSession } from '@/types';
-import { generateSocraticResponse, isApiKeyConfigured, callOpenAI } from '@/lib/socratic';
 import { ImageUpload } from '@/components/ImageUpload';
 import {
   Send, Bot, User, Plus, Trash2, Sparkles, Image as ImageIcon,
@@ -18,8 +22,6 @@ const QUICK_PROMPTS = [
   { icon: Clock, text: 'Help me prepare for an upcoming exam', subject: 'General' },
 ];
 
-const SOCRATIC_SYSTEM = `You are StudySmartly's AI Tutor. Give clear, accurate explanations at the student's level. Break difficult ideas into manageable steps, use examples, and ask a short check-for-understanding question when useful. Do not force Socratic questioning when the student asks for a direct explanation. If uncertain, say so.`;
-
 const TOOL_LINKS = [
   { to: '/flashcards' as const, label: 'Flashcards', detail: 'Revise with spaced repetition', icon: Layers },
   { to: '/exams' as const, label: 'Exam Arena', detail: 'Practise exam questions', icon: GraduationCap },
@@ -29,7 +31,7 @@ const TOOL_LINKS = [
 ];
 
 export default function Tutor() {
-  const { settings, tutorSessions, setTutorSessions } = useApp();
+  const { tutorSessions, setTutorSessions } = useApp();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [pendingImage, setPendingImage] = useState('');
@@ -86,17 +88,24 @@ export default function Tutor() {
 
     const ctxSubject = subject || activeSession?.subject || 'this topic';
     try {
-      let response: string;
-      if (isApiKeyConfigured(settings.aiApiKey)) {
-        const apiMessages = [
-          { role: 'system', content: SOCRATIC_SYSTEM },
-          ...currentMessages.map((m) => ({ role: m.role, content: m.content })),
-          { role: 'user', content: userMsg.content + (userMsg.image ? ' [Image attached]' : '') },
-        ];
-        response = await callOpenAI(settings.aiBaseUrl, settings.aiApiKey, settings.aiModel, apiMessages);
-      } else {
-        response = generateSocraticResponse({ subject: ctxSubject, question: userMsg.content }, currentMessages.filter((m) => m.role === 'user').length);
-      }
+      const history = [
+        ...currentMessages
+          .filter((message) => message.role === 'user' || message.role === 'assistant')
+          .slice(-15)
+          .map((message) => ({ role: message.role as 'user' | 'assistant', content: message.content })),
+      ];
+      const question = userMsg.content + (userMsg.image
+        ? '\n\n[The student attached an image, but image analysis is not available in this phase. Ask them to describe the relevant content in text.]'
+        : '');
+      const result = await respondToTutor({
+        data: {
+          subject: ctxSubject,
+          question,
+          history,
+        },
+      });
+      if (!result.success) throw new Error(result.error);
+      const response = result.data.response;
       const aiMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -115,7 +124,7 @@ export default function Tutor() {
     } finally {
       setIsThinking(false);
     }
-  }, [input, pendingImage, isThinking, activeSessionId, activeSession, subject, settings, createSession, updateSession, setTutorSessions]);
+  }, [input, pendingImage, isThinking, activeSessionId, activeSession, subject, createSession, updateSession, setTutorSessions]);
 
   const handleQuickPrompt = useCallback((prompt: string, subj: string) => {
     setSubject(subj);
@@ -195,7 +204,7 @@ export default function Tutor() {
         </div>
 
         <div className="border-t border-border p-3">
-          {pendingImage && <div className="mb-2 flex items-center gap-2 text-xs text-text-muted"><ImageIcon size={14} /> Image selected (AI image analysis is not connected yet)</div>}
+          {pendingImage && <div className="mb-2 flex items-center gap-2 text-xs text-text-muted"><ImageIcon size={14} /> Image preview only for now. Describe it in your message; image analysis is coming in Phase 3.</div>}
           <div className="flex items-end gap-2">
             <ImageUpload compact onImageSelected={setPendingImage} label="Choose image" />
             <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => {
@@ -227,6 +236,34 @@ export default function Tutor() {
   );
 }
 
+
+function MarkdownMessage({ content }: { content: string }) {
+  return (
+    <div className="prose-chat space-y-3 break-words">
+      <ReactMarkdown
+        skipHtml
+        remarkPlugins={[remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={{
+          h1: ({ children }) => <h1 className="text-base font-semibold">{children}</h1>,
+          h2: ({ children }) => <h2 className="text-sm font-semibold">{children}</h2>,
+          h3: ({ children }) => <h3 className="pt-1 text-sm font-semibold">{children}</h3>,
+          p: ({ children }) => <p>{children}</p>,
+          ul: ({ children }) => <ul className="list-disc space-y-1 pl-5">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal space-y-1 pl-5">{children}</ol>,
+          li: ({ children }) => <li className="pl-1">{children}</li>,
+          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+          blockquote: ({ children }) => <blockquote className="border-l-2 border-accent-500/50 pl-3 text-text-muted">{children}</blockquote>,
+          code: ({ children }) => <code className="rounded bg-black/10 px-1 py-0.5 text-[0.9em]">{children}</code>,
+          pre: ({ children }) => <pre className="overflow-x-auto rounded-lg bg-black/10 p-3 text-xs">{children}</pre>,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user';
   return (
@@ -237,7 +274,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       <div className={`max-w-[85%] ${isUser ? 'items-end' : ''}`}>
         {message.image && <img src={message.image} alt="Selected attachment preview" className="mb-2 max-h-48 rounded-xl border border-border object-cover" />}
         <div className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${isUser ? 'rounded-tr-sm bg-study-blue-600 text-white' : 'rounded-tl-sm bg-surface-hover text-text'}`}>
-          <div className="prose-chat whitespace-pre-wrap">{message.content}</div>
+          <MarkdownMessage content={message.content} />
         </div>
       </div>
     </div>

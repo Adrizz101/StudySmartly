@@ -12,7 +12,7 @@ const NAV_ITEMS: { key: ViewKey; label: string; icon: typeof LayoutDashboard }[]
   { key: 'schedule', label: 'Smart Schedule', icon: Calendar },
   { key: 'planner', label: 'Adaptive Planner', icon: BrainCircuit },
   { key: 'flashcards', label: 'Spaced Repetition', icon: Layers3 },
-  { key: 'tutor', label: 'AI Whiteboard', icon: PenTool },
+  { key: 'tutor', label: 'AI Tutor', icon: PenTool },
   { key: 'studio', label: 'Presentation Studio', icon: FileText },
   { key: 'exams', label: 'PYQ Exam Arena', icon: ClipboardCheck },
   { key: 'transcriber', label: 'Lecture Transcriber', icon: Mic },
@@ -56,7 +56,7 @@ export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile, collap
                   schedule: 'Smart_Schedule',
                   planner: 'Adaptive_Planner',
                   flashcards: 'Spaced_Repetition',
-                  tutor: 'AI_Whiteboard',
+                  tutor: 'AI_Tutor',
                   studio: 'Presentation_Studio',
                   exams: 'PYQ_Exam_Arena',
                   transcriber: 'Lecture_Transcriber',
@@ -163,17 +163,22 @@ interface TopBarProps {
 export function TopBar({ view, onMenuClick }: TopBarProps) {
   const label = NAV_ITEMS.find((n) => n.key === view)?.label ?? '';
   return (
-    <header className="sticky top-0 z-20 glass border-b border-border px-3 sm:px-4 lg:px-6 py-3 flex flex-wrap items-center justify-between gap-2">
-      <div className="flex items-center gap-3">
-        <Button variant="source"
-          aria-label="Open menu" onClick={onMenuClick}
-          className="p-2 rounded-lg hover:bg-surface-hover text-text-muted"
+    <header className="sticky top-0 z-20 glass border-b border-border px-4 sm:px-5 lg:px-6 py-3 flex items-center justify-between gap-4 min-h-[64px]">
+      <div className="flex min-w-0 items-center gap-3">
+        {/* On desktop, the sidebar has its own collapse control. Keep this menu for the mobile drawer only. */}
+        <Button
+          variant="source"
+          aria-label="Open navigation menu"
+          onClick={onMenuClick}
+          className="lg:hidden shrink-0 p-2 rounded-lg hover:bg-surface-hover text-text-muted"
         >
-          <Menu size={22} />
+          <Menu size={21} />
         </Button>
-        <h2 className="text-base lg:text-lg font-semibold text-text">{label}</h2>
+        <h2 className="truncate text-base lg:text-lg font-semibold leading-none text-text">{label}</h2>
       </div>
-      <PomodoroTimer />
+      <div className="flex shrink-0 items-center justify-end">
+        <PomodoroTimer />
+      </div>
     </header>
   );
 }
