@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useApp } from '@/store';
 import { respondToTutor } from '@/lib/learning-ai.functions';
@@ -232,6 +232,70 @@ export default function Tutor() {
   );
 }
 
+
+/** Lightweight, safe Markdown renderer for tutor messages (no HTML injection or extra dependency). */
+function renderInlineMarkdown(text: string): ReactNode[] {
+  return text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|\x60[^\x60]+\x60)/g).map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={index} className="font-semibold">{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={index}>{part.slice(1, -1)}</em>;
+    }
+    if (part.startsWith('\x60') && part.endsWith('\x60')) {
+      return <code key={index} className="rounded bg-black/10 px-1 py-0.5 text-[0.9em]">{part.slice(1, -1)}</code>;
+    }
+    return part;
+  });
+}
+
+function MarkdownMessage({ content }: { content: string }) {
+  const lines = content.replace(/\r\n/g, '\n').split('\n');
+  const blocks: ReactNode[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index].trim();
+    if (!line) { index += 1; continue; }
+
+    if (line.startsWith('### ')) {
+      blocks.push(<h3 key={index} className="pt-1 text-sm font-semibold text-text">{renderInlineMarkdown(line.slice(4))}</h3>);
+      index += 1;
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      const items: string[] = [];
+      while (index < lines.length && /^\s*[-*]\s+/.test(lines[index])) {
+        items.push(lines[index].replace(/^\s*[-*]\s+/, '').trim());
+        index += 1;
+      }
+      blocks.push(<ul key={index} className="list-disc space-y-1 pl-5">{items.map((item, itemIndex) => <li key={itemIndex}>{renderInlineMarkdown(item)}</li>)}</ul>);
+      continue;
+    }
+
+    if (/^\d+[.)]\s+/.test(line)) {
+      const items: string[] = [];
+      while (index < lines.length && /^\s*\d+[.)]\s+/.test(lines[index])) {
+        items.push(lines[index].replace(/^\s*\d+[.)]\s+/, '').trim());
+        index += 1;
+      }
+      blocks.push(<ol key={index} className="list-decimal space-y-1 pl-5">{items.map((item, itemIndex) => <li key={itemIndex}>{renderInlineMarkdown(item)}</li>)}</ol>);
+      continue;
+    }
+
+    const paragraph = [line];
+    index += 1;
+    while (index < lines.length && lines[index].trim() && !lines[index].trim().startsWith('### ') && !/^\s*[-*]\s+/.test(lines[index]) && !/^\s*\d+[.)]\s+/.test(lines[index])) {
+      paragraph.push(lines[index].trim());
+      index += 1;
+    }
+    blocks.push(<p key={index}>{renderInlineMarkdown(paragraph.join(' '))}</p>);
+  }
+
+  return <div className="prose-chat space-y-3">{blocks}</div>;
+}
+
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user';
   return (
@@ -242,7 +306,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       <div className={`max-w-[85%] ${isUser ? 'items-end' : ''}`}>
         {message.image && <img src={message.image} alt="Selected attachment preview" className="mb-2 max-h-48 rounded-xl border border-border object-cover" />}
         <div className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${isUser ? 'rounded-tr-sm bg-study-blue-600 text-white' : 'rounded-tl-sm bg-surface-hover text-text'}`}>
-          <div className="prose-chat whitespace-pre-wrap">{message.content}</div>
+          <MarkdownMessage content={message.content} />
         </div>
       </div>
     </div>
