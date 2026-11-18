@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
+import remarkBreaks from 'remark-breaks';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -242,12 +243,17 @@ function MarkdownMessage({ content }: { content: string }) {
     <div className="prose-chat space-y-3 break-words">
       <ReactMarkdown
         skipHtml
-        remarkPlugins={[remarkMath]}
+        remarkPlugins={[remarkMath, remarkBreaks]}
         rehypePlugins={[rehypeKatex]}
         components={{
           h1: ({ children }) => <h1 className="text-base font-semibold">{children}</h1>,
           h2: ({ children }) => <h2 className="text-sm font-semibold">{children}</h2>,
+          h1: ({ children }) => <h1 className="text-base font-semibold">{children}</h1>,
+          h2: ({ children }) => <h2 className="text-sm font-semibold">{children}</h2>,
           h3: ({ children }) => <h3 className="pt-1 text-sm font-semibold">{children}</h3>,
+          h4: ({ children }) => <h4 className="pt-1 text-sm font-semibold">{children}</h4>,
+          h5: ({ children }) => <h5 className="pt-1 text-sm font-semibold">{children}</h5>,
+          h6: ({ children }) => <h6 className="pt-1 text-sm font-semibold">{children}</h6>,
           p: ({ children }) => <p>{children}</p>,
           ul: ({ children }) => <ul className="list-disc space-y-1 pl-5">{children}</ul>,
           ol: ({ children }) => <ol className="list-decimal space-y-1 pl-5">{children}</ol>,
