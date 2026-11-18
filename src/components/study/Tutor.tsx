@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
+import remarkBreaks from 'remark-breaks';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -242,7 +243,7 @@ function MarkdownMessage({ content }: { content: string }) {
     <div className="prose-chat space-y-3 break-words">
       <ReactMarkdown
         skipHtml
-        remarkPlugins={[remarkMath]}
+        remarkPlugins={[remarkMath, remarkBreaks]}
         rehypePlugins={[rehypeKatex]}
         components={{
           h1: ({ children }) => <h1 className="text-base font-semibold">{children}</h1>,
