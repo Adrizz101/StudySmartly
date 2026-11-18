@@ -1,16 +1,26 @@
 import { createFileRoute } from '@tanstack/react-router';
-import Whiteboard from '@/components/learning/Whiteboard';
+import Tutor from '@/components/study/Tutor';
+
 export const Route = createFileRoute('/tutor')({
-  head: () => ({ meta: [
-    { title: 'StudySmart — AI Visual Whiteboard' },
-    { name: 'description', content: 'Draw, upload reports and get live visual AI explanations.' },
-    { property: 'og:title', content: 'StudySmart — AI Visual Whiteboard' },
-    { property: 'og:description', content: 'Draw, upload reports and get live visual AI explanations.' },
-    { property: 'og:type', content: 'website' },
-    { name: 'twitter:card', content: 'summary_large_image' },
-  ] }),
+  head: () => ({
+    meta: [
+      { title: 'StudySmartly — AI Tutor' },
+      {
+        name: 'description',
+        content: 'Learn with StudySmartly AI Tutor: ask questions, explore subjects, and get step-by-step explanations.',
+      },
+      { property: 'og:title', content: 'StudySmartly — AI Tutor' },
+      {
+        property: 'og:description',
+        content: 'Ask questions and get clear, step-by-step explanations with StudySmartly AI Tutor.',
+      },
+      { property: 'og:type', content: 'website' },
+      { name: 'twitter:card', content: 'summary_large_image' },
+    ],
+  }),
   component: Page,
 });
+
 function Page() {
-  return <Whiteboard />;
+  return <Tutor />;
 }
