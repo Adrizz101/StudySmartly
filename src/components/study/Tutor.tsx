@@ -91,7 +91,7 @@ export default function Tutor() {
           .map((message) => ({ role: message.role as 'user' | 'assistant', content: message.content })),
       ];
       const question = userMsg.content + (userMsg.image
-        ? '\\n\\n[The student attached an image, but image analysis is not available in this phase. Ask them to describe the relevant content in text.]'
+        ? '\n\n[The student attached an image, but image analysis is not available in this phase. Ask them to describe the relevant content in text.]'
         : '');
       const result = await respondToTutor({
         data: {
