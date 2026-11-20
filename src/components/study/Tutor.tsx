@@ -145,7 +145,7 @@ export default function Tutor() {
   };
 
   return (
-    <div className="grid h-[calc(100dvh-120px)] min-h-[560px] grid-cols-1 gap-3 overflow-hidden lg:grid-cols-[220px_minmax(0,1fr)_210px]">
+    <div className="grid h-[calc(100dvh-120px)] min-h-[560px] min-h-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden lg:grid-cols-[220px_minmax(0,1fr)_210px] lg:grid-rows-1">
       <aside className="glass surface-elevated flex max-h-36 flex-col overflow-hidden rounded-xl p-3 lg:max-h-none">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm font-semibold text-text"><PanelLeft size={16} /> Your learning</div>
@@ -183,7 +183,7 @@ export default function Tutor() {
           <input value={subject} onChange={(e) => setSubject(e.target.value)} aria-label="Subject" placeholder="Subject" className="w-28 rounded-lg border border-border bg-surface-hover px-2 py-2 text-xs text-text outline-none focus:border-accent-500 sm:w-36" />
         </header>
 
-        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4">
           {!activeSession || activeSession.messages.length === 0 ? (
             <div className="flex min-h-full flex-col items-center justify-center py-8 text-center">
               <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-600/15"><Bot size={28} className="text-accent-500" /></div>
@@ -204,7 +204,7 @@ export default function Tutor() {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="border-t border-border p-3">
+        <div className="mt-auto shrink-0 border-t border-border p-3">
           {pendingImage && <div className="mb-2 flex items-center gap-2 text-xs text-text-muted"><ImageIcon size={14} /> Image preview only for now. Describe it in your message; image analysis is coming in Phase 3.</div>}
           <div className="flex items-end gap-2">
             <ImageUpload compact onImageSelected={setPendingImage} label="Choose image" />
@@ -246,8 +246,6 @@ function MarkdownMessage({ content }: { content: string }) {
         remarkPlugins={[remarkMath, remarkBreaks]}
         rehypePlugins={[rehypeKatex]}
         components={{
-          h1: ({ children }) => <h1 className="text-base font-semibold">{children}</h1>,
-          h2: ({ children }) => <h2 className="text-sm font-semibold">{children}</h2>,
           h1: ({ children }) => <h1 className="text-base font-semibold">{children}</h1>,
           h2: ({ children }) => <h2 className="text-sm font-semibold">{children}</h2>,
           h3: ({ children }) => <h3 className="pt-1 text-sm font-semibold">{children}</h3>,
