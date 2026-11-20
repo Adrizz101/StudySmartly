@@ -463,7 +463,7 @@ export default function Settings() {
             <Select value={feedbackFeature} onValueChange={setFeedbackFeature}>
               <SelectTrigger aria-label="Feedback feature"><SelectValue placeholder="Choose a feature" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="AI Whiteboard">AI Whiteboard</SelectItem>
+                <SelectItem value="AI Tutor">AI Tutor</SelectItem>
                 <SelectItem value="Presentation Studio">Presentation Studio</SelectItem>
                 <SelectItem value="PYQ Exam Arena">PYQ Exam Arena</SelectItem>
                 <SelectItem value="Smart Schedule">Smart Schedule</SelectItem>
@@ -631,6 +631,12 @@ export default function Settings() {
               }}
             >
               {[
+                {
+                  icon: Brain,
+                  title: 'AI Tutor & Mobile Chat',
+                  body: 'Provides a persistent, session-based study conversation powered by the authenticated server-side AI pipeline. Tutor replies render Markdown, lists, and mathematical notation; on mobile, Chat, Your learning, and Study tools are separated into tabs so the conversation can use the available screen space. Image attachments currently provide a preview only; image understanding is not enabled.',
+                  tag: 'Session history · Markdown · KaTeX · Responsive layout',
+                },
                 {
                   icon: Cpu,
                   title: 'Fault-Tolerant AI Routing',
