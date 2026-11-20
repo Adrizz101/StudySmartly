@@ -38,6 +38,7 @@ export default function Tutor() {
   const [pendingImage, setPendingImage] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [subject, setSubject] = useState('');
+  const [mobilePanel, setMobilePanel] = useState<'chat' | 'history' | 'tools'>('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const activeSession = tutorSessions.find((s) => s.id === activeSessionId) || null;
@@ -145,8 +146,13 @@ export default function Tutor() {
   };
 
   return (
-    <div className="grid h-[calc(100dvh-120px)] min-h-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden lg:grid-cols-[220px_minmax(0,1fr)_210px] lg:grid-rows-1">
-      <aside className="glass surface-elevated flex max-h-36 flex-col overflow-hidden rounded-xl p-3 lg:max-h-none">
+    <div className="flex h-[calc(100dvh-120px)] min-h-0 flex-col gap-3 overflow-hidden lg:grid lg:grid-cols-[220px_minmax(0,1fr)_210px] lg:grid-rows-1">
+      <nav aria-label="Tutor sections" className="grid shrink-0 grid-cols-3 gap-1 rounded-xl border border-border bg-surface-hover p-1 lg:hidden">
+        <button type="button" aria-pressed={mobilePanel === "chat"} onClick={() => setMobilePanel("chat")} className={mobilePanel === "chat" ? "rounded-lg bg-accent-600 px-2 py-2 text-xs font-medium text-white" : "rounded-lg px-2 py-2 text-xs font-medium text-text-muted hover:bg-surface-active"}>Chat</button>
+        <button type="button" aria-pressed={mobilePanel === "history"} onClick={() => setMobilePanel("history")} className={mobilePanel === "history" ? "rounded-lg bg-accent-600 px-2 py-2 text-xs font-medium text-white" : "rounded-lg px-2 py-2 text-xs font-medium text-text-muted hover:bg-surface-active"}>Your learning</button>
+        <button type="button" aria-pressed={mobilePanel === "tools"} onClick={() => setMobilePanel("tools")} className={mobilePanel === "tools" ? "rounded-lg bg-accent-600 px-2 py-2 text-xs font-medium text-white" : "rounded-lg px-2 py-2 text-xs font-medium text-text-muted hover:bg-surface-active"}>Study tools</button>
+      </nav>
+      <aside className={"glass surface-elevated min-h-0 flex-col overflow-hidden rounded-xl p-3 " + (mobilePanel === "history" ? "flex flex-1" : "hidden") + " lg:flex"}>
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm font-semibold text-text"><PanelLeft size={16} /> Your learning</div>
           <Button variant="ghost" size="icon" aria-label="New chat" onClick={startNewSession}><Plus size={17} /></Button>
@@ -173,7 +179,7 @@ export default function Tutor() {
         </div>
       </aside>
 
-      <section className="glass surface-elevated flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl">
+      <section className={"glass surface-elevated min-h-0 min-w-0 flex-col overflow-hidden rounded-xl " + (mobilePanel === "chat" ? "flex flex-1" : "hidden") + " lg:flex"}>
         <header className="flex items-center gap-2 border-b border-border px-4 py-3">
           <Sparkles size={17} className="text-accent-500" />
           <div className="min-w-0 flex-1">
@@ -217,7 +223,7 @@ export default function Tutor() {
         </div>
       </section>
 
-      <aside className="glass surface-elevated rounded-xl p-3">
+      <aside className={"glass surface-elevated min-h-0 overflow-y-auto rounded-xl p-3 " + (mobilePanel === "tools" ? "block flex-1" : "hidden") + " lg:block"}>
         <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-text"><BookOpen size={16} /> Study tools</div>
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
           {TOOL_LINKS.map((tool) => {
