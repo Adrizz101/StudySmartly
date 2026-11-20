@@ -145,7 +145,7 @@ export default function Tutor() {
   };
 
   return (
-    <div className="grid h-[calc(100dvh-120px)] min-h-[560px] min-h-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden lg:grid-cols-[220px_minmax(0,1fr)_210px] lg:grid-rows-1">
+    <div className="grid h-[calc(100dvh-120px)] min-h-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden lg:grid-cols-[220px_minmax(0,1fr)_210px] lg:grid-rows-1">
       <aside className="glass surface-elevated flex max-h-36 flex-col overflow-hidden rounded-xl p-3 lg:max-h-none">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm font-semibold text-text"><PanelLeft size={16} /> Your learning</div>
