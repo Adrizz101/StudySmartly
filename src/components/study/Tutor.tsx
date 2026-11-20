@@ -180,27 +180,27 @@ export default function Tutor() {
       </aside>
 
       <section className={"glass surface-elevated min-h-0 min-w-0 flex-col overflow-hidden rounded-xl " + (mobilePanel === "chat" ? "flex flex-1" : "hidden") + " lg:flex"}>
-        <header className="flex items-center gap-2 border-b border-border px-4 py-3">
+        <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2.5 lg:px-4 lg:py-3">
           <Sparkles size={17} className="text-accent-500" />
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-text">StudySmartly AI Tutor</div>
-            <div className="text-xs text-text-dim">Your study conversation</div>
+            <div className="truncate whitespace-nowrap text-xs font-semibold text-text sm:text-sm">StudySmartly AI Tutor</div>
+            <div className="hidden text-xs text-text-dim lg:block">Your study conversation</div>
           </div>
-          <input value={subject} onChange={(e) => setSubject(e.target.value)} aria-label="Subject" placeholder="Subject" className="w-28 rounded-lg border border-border bg-surface-hover px-2 py-2 text-xs text-text outline-none focus:border-accent-500 sm:w-36" />
+          <input value={subject} onChange={(e) => setSubject(e.target.value)} aria-label="Subject" placeholder="Subject" className="w-20 shrink-0 rounded-lg border border-border bg-surface-hover px-2 py-2 text-xs text-text outline-none focus:border-accent-500 sm:w-28 lg:w-36" />
         </header>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3 lg:space-y-4 lg:px-4 lg:py-4">
           {!activeSession || activeSession.messages.length === 0 ? (
-            <div className="flex min-h-full flex-col items-center justify-center py-8 text-center">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-600/15"><Bot size={28} className="text-accent-500" /></div>
-              <h2 className="mb-2 text-xl font-semibold text-text">What are we learning today?</h2>
-              <p className="mb-6 max-w-md text-sm text-text-muted">Ask a question or choose a starting point. You can request a direct explanation or learn step by step.</p>
-              <div className="grid w-full max-w-xl grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="flex min-h-full flex-col items-center justify-center py-4 text-center lg:py-8">
+              <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-accent-600/15 lg:mb-4 lg:h-14 lg:w-14 lg:rounded-2xl"><Bot size={23} className="text-accent-500 lg:h-7 lg:w-7" /></div>
+              <h2 className="mb-2 text-lg font-semibold text-text sm:text-xl">What are we learning today?</h2>
+              <p className="mb-4 hidden max-w-md text-sm text-text-muted lg:mb-6 lg:block">Ask a question or choose a starting point. You can request a direct explanation or learn step by step.</p>
+              <div className="mt-2 grid w-full max-w-xl grid-cols-2 gap-2 lg:mt-0 lg:grid-cols-2">
                 {QUICK_PROMPTS.map((qp) => {
                   const Icon = qp.icon;
-                  return <Button variant="source" key={qp.text} onClick={() => handleQuickPrompt(qp.text, qp.subject)} className="flex min-h-16 items-start gap-3 rounded-xl border border-border p-3 text-left transition-colors hover:border-accent-500 hover:bg-surface-hover">
+                  return <Button variant="source" key={qp.text} onClick={() => handleQuickPrompt(qp.text, qp.subject)} className="flex min-h-12 items-center gap-2 rounded-lg border border-border p-2 text-left transition-colors hover:border-accent-500 hover:bg-surface-hover lg:min-h-16 lg:items-start lg:gap-3 lg:rounded-xl lg:p-3">
                     <Icon size={18} className="mt-0.5 shrink-0 text-accent-500" />
-                    <span className="text-sm text-text">{qp.text}</span>
+                    <span className="text-xs leading-snug text-text sm:text-sm">{qp.text}</span>
                   </Button>;
                 })}
               </div>
@@ -210,16 +210,16 @@ export default function Tutor() {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="mt-auto shrink-0 border-t border-border p-3">
+        <div className="mt-auto shrink-0 border-t border-border p-2.5 lg:p-3">
           {pendingImage && <div className="mb-2 flex items-center gap-2 text-xs text-text-muted"><ImageIcon size={14} /> Image preview only for now. Describe it in your message; image analysis is coming in Phase 3.</div>}
           <div className="flex items-end gap-2">
             <ImageUpload compact onImageSelected={setPendingImage} label="Choose image" />
             <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-            }} rows={1} placeholder="Ask your tutor anything…" className="max-h-32 min-h-11 flex-1 resize-none rounded-xl border border-border bg-surface-hover px-3.5 py-2.5 text-sm text-text outline-none focus:border-accent-500" />
-            <Button variant="source" aria-label="Send message" onClick={sendMessage} disabled={(!input.trim() && !pendingImage) || isThinking} className="shrink-0 rounded-xl bg-accent-600 p-3 text-white transition-colors hover:bg-accent-700 disabled:opacity-50"><Send size={18} /></Button>
+            }} rows={1} placeholder="Ask your tutor anything…" className="max-h-32 min-h-10 flex-1 resize-none rounded-xl border border-border bg-surface-hover px-3 py-2 text-sm text-text outline-none focus:border-accent-500 lg:min-h-11 lg:px-3.5 lg:py-2.5" />
+            <Button variant="source" aria-label="Send message" onClick={sendMessage} disabled={(!input.trim() && !pendingImage) || isThinking} className="shrink-0 rounded-xl bg-accent-600 p-2.5 text-white transition-colors hover:bg-accent-700 disabled:opacity-50 lg:p-3"><Send size={18} /></Button>
           </div>
-          <div className="mt-2 flex items-center gap-1.5 text-[11px] text-text-dim"><AlertCircle size={11} /> AI answers can make mistakes. Check important information against your textbook or teacher.</div>
+          <div className="mt-1.5 flex items-start gap-1.5 text-[10px] leading-snug text-text-dim lg:mt-2 lg:items-center lg:text-[11px]"><AlertCircle size={11} /> AI answers can make mistakes. Check important information against your textbook or teacher.</div>
         </div>
       </section>
 
