@@ -23,7 +23,7 @@ StudySmartly started as an experiment to escape proprietary no-code platforms. I
 
 ## ✨ Core Features
 
-*   **🎨 AI Whiteboard:** A visual AI tutor that generates spatial JSON schemas rendered stroke-by-stroke on an Excalidraw canvas, with spoken explanations powered by the local neural voice engine and a browser speech fallback. Includes an interactive "Atom Popper" mini-game during AI generation.
+*   **💬 AI Tutor:** A session-based study chat powered by the authenticated server-side AI pipeline. Tutor responses support Markdown formatting, lists, and mathematical notation (KaTeX), with recent conversation history and subject context. On mobile, Chat, Your learning, and Study tools use separate tabs so the chat receives the available screen space. Image attachments currently show a preview only; image understanding is not enabled.
 *   **📅 Adaptive Study Planner:** A deterministic scheduling engine. Parses unstructured syllabus data (PDF/Text), extracts topics, and generates conflict-free revision time-blocks with spaced repetition.
 *   **📝 PYQ Exam Arena:** Generates verified MCQs from past papers. Includes a **Mistake Analyzer** that diagnoses weak concepts and links directly to the Whiteboard for targeted explanations.
 *   **🎴 Smart Flashcards:** AI-generated basic and multiple-choice flashcards with answer feedback and SuperMemo-2 (SM-2) spaced repetition.
