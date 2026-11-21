@@ -27,9 +27,10 @@ async function prepareTutorAttachment(file: File): Promise<TutorAttachment> {
     if (file.size > 8 * 1024 * 1024) throw new Error('Please choose a PDF smaller than 8 MB for mobile-friendly upload.');
     const pdfjs = await import('pdfjs-dist');
     pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
-    const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+    const loadingTask = pdfjs.getDocument({ data: await file.arrayBuffer() });
+    const pdf = await loadingTask.promise;
     if (pdf.numPages > 20) {
-      await pdf.destroy();
+      await loadingTask.destroy();
       throw new Error('Please split PDFs longer than 20 pages into smaller files.');
     }
     const pages: string[] = [];
@@ -42,7 +43,7 @@ async function prepareTutorAttachment(file: File): Promise<TutorAttachment> {
         if (pages.join('\\n').length > 60_000) throw new Error('This PDF contains too much text. Please upload a shorter section.');
       }
     } finally {
-      await pdf.destroy();
+      await loadingTask.destroy();
     }
     const text = pages.join('\\n\\n').trim();
     if (!text) throw new Error('No selectable text was found in this PDF. Scanned PDFs need OCR; try uploading a page as an image instead.');
