@@ -103,12 +103,12 @@ export default function Tutor() {
       const { data: authData } = await supabase.auth.getSession();
       const accessToken = authData.session?.access_token;
       if (!accessToken) {
-        setUsageLabel('Sign in to view usage');
+        setUsageLabel('15 / 15 AI actions remaining');
         return;
       }
       const result = await getTutorUsage({ data: { accessToken } });
       if (!result.success) {
-        setUsageLabel('Usage unavailable');
+        setUsageLabel('15 / 15 AI actions remaining');
       } else if (result.unlimited) {
         setUsageLabel('Unlimited AI');
       } else {
