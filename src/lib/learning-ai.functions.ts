@@ -82,24 +82,17 @@ export const getTutorUsage = createServerFn({ method: 'POST' })
   .inputValidator(z.object({ accessToken: z.string().min(1) }))
   .handler(async ({ data }) => {
     try {
-      const [{ getAuthenticatedAIContext, getUserAIKeys }] = await Promise.all([
-        import('@/lib/user-ai-keys.server'),
-      ]);
-      const { userId, supabase } = await getAuthenticatedAIContext(data.accessToken);
-      const personalKeys = await getUserAIKeys(userId, supabase);
-      if (personalKeys.gemini || personalKeys.openrouter) {
-        return { success: true as const, unlimited: true, remaining: null, limit: 15 };
-      }
+      const { getAuthenticatedAIContext } = await import('@/lib/user-ai-keys.server');
+      const { supabase } = await getAuthenticatedAIContext(data.accessToken);
       const { data: count, error } = await supabase.rpc('get_ai_usage');
-      if (error || typeof count !== 'number') {
-        throw new Error('Could not load your daily AI usage.');
+      if (error || typeof count !== 'number' || !Number.isFinite(count)) {
+        console.warn('[AI Tutor] Daily usage RPC unavailable; showing the default allowance.', error);
+        return { success: true as const, unlimited: false, remaining: 15, limit: 15, fallback: true };
       }
-      return { success: true as const, unlimited: false, remaining: Math.max(0, 15 - count), limit: 15 };
+      return { success: true as const, unlimited: false, remaining: Math.max(0, 15 - count), limit: 15, fallback: false };
     } catch (error) {
-      return {
-        success: false as const,
-        error: error instanceof Error ? error.message : 'Could not load your daily AI usage.',
-      };
+      console.warn('[AI Tutor] Could not retrieve daily usage; showing the default allowance.', error);
+      return { success: true as const, unlimited: false, remaining: 15, limit: 15, fallback: true };
     }
   });
 
