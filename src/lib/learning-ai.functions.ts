@@ -48,6 +48,65 @@ const tutorChatInput = z.object({
   }
 });
 
+
+const tutorFunctionInput = z.object({
+  subject: z.string().trim().min(1).max(80).default('General'),
+  question: z.string().trim().min(1).max(4000),
+  history: z.array(tutorHistoryMessage).max(16),
+  accessToken: z.string().min(1),
+}).superRefine((value, ctx) => {
+  const total = value.question.length + value.history.reduce((sum, item) => sum + item.content.length, 0);
+  if (total > 24000) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'This conversation is too long. Start a new chat or shorten earlier messages.' });
+});
+
+const tutorSystemInstruction = `You are StudySmartly, a patient, precise school tutor who teaches for understanding rather than simply completing tasks.
+For a direct conceptual question, answer clearly first, then ask one short understanding check.
+For a specific maths or science exercise, give one progressive hint first and ask the student to try the next step; do not reveal the complete solution immediately.
+When checking work, identify the first incorrect step and explain why.
+If the student explicitly asks for a hint, give a hint rather than the answer.
+Use concise, age-appropriate Markdown and KaTeX-compatible LaTeX. Ask only one focused follow-up question at a time. Be accurate, do not invent facts, and correct mistakes openly.`;
+
+export const respondToTutor = createServerFn({ method: 'POST' })
+  .inputValidator(tutorFunctionInput)
+  .handler(async ({ data }) => {
+    try {
+      const [{ createOpenAI }, { generateText }, { getAuthenticatedAIContext, getUserAIKeys, consumeDailyAIUsage }] = await Promise.all([
+        import('@ai-sdk/openai'),
+        import('ai'),
+        import('@/lib/user-ai-keys.server'),
+      ]);
+      const { userId, supabase } = await getAuthenticatedAIContext(data.accessToken);
+      const personalKeys = await getUserAIKeys(userId, supabase);
+      const hasPersonalKey = Boolean(personalKeys.gemini || personalKeys.openrouter);
+      if (!hasPersonalKey) await consumeDailyAIUsage(supabase);
+      const geminiKey = personalKeys.gemini || (!hasPersonalKey ? process.env['GEMINI_API_KEY'] : '');
+      const openRouterKey = personalKeys.openrouter || (!hasPersonalKey ? process.env['OPENROUTER_API_KEY'] : '');
+      const providers = [
+        ...(geminiKey ? [{ name: 'Gemini', model: createOpenAI({ baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/', apiKey: geminiKey })('gemini-3.8-flash') }] : []),
+        ...(openRouterKey ? [{ name: 'OpenRouter', model: createOpenAI({ baseURL: 'https://openrouter.ai/api/v1', apiKey: openRouterKey })('openrouter/free') }] : []),
+      ];
+      if (!providers.length) throw new Error('No AI provider key is configured. Add a Gemini or OpenRouter key in Settings.');
+      const conversation = data.history.map((item) => (item.role === 'user' ? 'Student: ' : 'Tutor: ') + item.content).join('\\n\\n');
+      const prompt = `Subject: ${data.subject}\\n\\nConversation so far:\\n${conversation || '(This is the first message.)'}\\n\\nStudent's newest question: ${data.question}`;
+      let lastError: unknown;
+      for (const provider of providers) {
+        try {
+          const result = await generateText({ model: provider.model, system: tutorSystemInstruction, prompt, maxRetries: 0 });
+          if (!result.text.trim()) throw new Error(`${provider.name} returned an empty response.`);
+          return { success: true as const, text: result.text };
+        } catch (error) {
+          lastError = error;
+          console.error(`[AI Tutor] ${provider.name} failed:`, error);
+        }
+      }
+      throw lastError instanceof Error ? lastError : new Error('All configured AI providers failed.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[AI Tutor] Server function failed:', error);
+      return { success: false as const, error: message };
+    }
+  });
+
 export const generateDeck = createServerFn({ method: 'POST' }).middleware([safeServerBoundary, requireSupabaseAuth])
   .inputValidator(input.extend({ count: z.number(), metadata: z.string(), outline: z.string() }))
   .handler(async ({ data }) => safeResult('generateDeck', 'Could not generate the presentation. Please try again.', async () => {
