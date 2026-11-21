@@ -108,7 +108,7 @@ export const respondToTutor = createServerFn({ method: 'POST' })
       const { userId, supabase } = await getAuthenticatedAIContext(data.accessToken);
       const personalKeys = await getUserAIKeys(userId, supabase);
       const hasPersonalKey = Boolean(personalKeys.gemini || personalKeys.openrouter);
-      if (!hasPersonalKey) await consumeDailyAIUsage(supabase);
+      const usageCount = hasPersonalKey ? null : await consumeDailyAIUsage(supabase);
       const geminiKey = personalKeys.gemini || (!hasPersonalKey ? process.env['GEMINI_API_KEY'] : '');
       const openRouterKey = personalKeys.openrouter || (!hasPersonalKey ? process.env['OPENROUTER_API_KEY'] : '');
       const providers = [
@@ -137,7 +137,11 @@ export const respondToTutor = createServerFn({ method: 'POST' })
             maxRetries: 0,
           });
           if (!result.text.trim()) throw new Error(`${provider.name} returned an empty response.`);
-          return { success: true as const, text: result.text };
+          return {
+            success: true as const,
+            text: result.text,
+            ...(usageCount === null ? { unlimited: true as const } : { unlimited: false as const, remaining: Math.max(0, 15 - usageCount), limit: 15 }),
+          };
         } catch (error) {
           lastError = error;
           console.error(`[AI Tutor] ${provider.name} failed:`, error);
