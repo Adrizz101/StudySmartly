@@ -148,11 +148,13 @@ export default function Tutor() {
             : message),
         }));
       }
-    } catch {
+    } catch (error) {
       const errMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: 'The AI service is temporarily unavailable. Please try again shortly.',
+        content: error instanceof Error && error.message
+          ? error.message
+          : 'The AI service is temporarily unavailable. Please try again shortly.',
         timestamp: Date.now(),
       };
       updateSession(sessionId, (s) => ({ ...s, messages: [...s.messages, errMsg] }));
