@@ -112,8 +112,9 @@ export default function Tutor() {
         body: JSON.stringify({ subject: ctxSubject, question, history }),
       });
       if (!response.ok) {
-        const errorBody = await response.json().catch(() => null) as { error?: string } | null;
-        throw new Error(errorBody?.error || 'The tutor could not respond right now. Please try again.');
+        const errorBody = await response.json().catch(() => null) as { error?: string; message?: string } | null;
+        const exactError = errorBody?.error || errorBody?.message;
+        throw new Error(exactError || `Tutor request failed with HTTP ${response.status}.`);
       }
       if (!response.body) throw new Error('The tutor stream was empty.');
 
