@@ -70,44 +70,77 @@ export const Route = createFileRoute('/api/tutor/stream')({
 
           const geminiKey = personalKeys.gemini || (!hasPersonalKey ? process.env['GEMINI_API_KEY'] : '');
           const openRouterKey = personalKeys.openrouter || (!hasPersonalKey ? process.env['OPENROUTER_API_KEY'] : '');
-          const provider = geminiKey
-            ? createOpenAI({ baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/', apiKey: geminiKey })('gemini-3.8-flash')
-            : openRouterKey
-              ? createOpenAI({ baseURL: 'https://openrouter.ai/api/v1', apiKey: openRouterKey })('openrouter/free')
-              : null;
+          const providers = [
+            ...(geminiKey ? [{
+              name: 'Gemini',
+              model: createOpenAI({ baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/', apiKey: geminiKey })('gemini-3.8-flash'),
+            }] : []),
+            ...(openRouterKey ? [{
+              name: 'OpenRouter',
+              model: createOpenAI({ baseURL: 'https://openrouter.ai/api/v1', apiKey: openRouterKey })('openrouter/free'),
+            }] : []),
+          ];
 
-          if (!provider) {
+          if (providers.length === 0) {
             return Response.json({ error: 'No AI provider key is configured. Add a Gemini or OpenRouter key in Settings.' }, { status: 503 });
           }
 
           const { subject, question, history } = parsed.data;
           const conversation = history.map((item) => (item.role === 'user' ? 'Student: ' : 'Tutor: ') + item.content).join('\\n\\n');
-          const result = streamText({
-            model: provider,
-            system: tutorInstruction,
-            prompt: `Subject: ${subject}\\n\\nConversation so far:\\n${conversation || '(This is the first message.)'}\\n\\nStudent's newest question: ${question}`,
-            abortSignal: controller.signal,
-            experimental_transform: smoothStream({ chunking: 'word', delayInMs: 15 }),
-            maxRetries: 0,
-          });
-
-          const streamResponse = result.toTextStreamResponse({
-            headers: {
-              'Content-Type': 'text/plain; charset=utf-8',
-              'Cache-Control': 'no-cache, no-transform',
-              'X-Accel-Buffering': 'no',
-            },
-          });
-          const reader = streamResponse.body?.getReader();
-          if (!reader) throw new Error('The tutor stream could not be started.');
+          const prompt = `Subject: ${subject}\\n\\nConversation so far:\\n${conversation || '(This is the first message.)'}\\n\\nStudent's newest question: ${question}`;
+          const responseHeaders = {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Cache-Control': 'no-cache, no-transform',
+            'X-Accel-Buffering': 'no',
+          };
           const cleanup = () => {
             clearTimeout(timeout);
             request.signal.removeEventListener('abort', abortFromClient);
           };
+
+          let activeReader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+          let activeProvider = '';
+          let lastProviderError: unknown;
+          let firstChunk: Uint8Array | undefined;
+          for (const provider of providers) {
+            try {
+              const result = streamText({
+                model: provider.model,
+                system: tutorInstruction,
+                prompt,
+                abortSignal: controller.signal,
+                experimental_transform: smoothStream({ chunking: 'word', delayInMs: 15 }),
+                maxRetries: 0,
+              });
+              const streamResponse = result.toTextStreamResponse({ headers: responseHeaders });
+              const reader = streamResponse.body?.getReader();
+              if (!reader) throw new Error(`${provider.name} returned no response stream.`);
+              const first = await reader.read();
+              if (first.done) throw new Error(`${provider.name} returned an empty response.`);
+              activeReader = reader;
+              activeProvider = provider.name;
+              firstChunk = first.value;
+              console.info(`[AI Tutor] Streaming provider selected: ${activeProvider}`);
+              break;
+            } catch (error) {
+              lastProviderError = error;
+              console.error(`[AI Tutor] ${provider.name} failed before the first chunk; trying fallback if available.`, error);
+            }
+          }
+
+          if (!activeReader || !firstChunk) {
+            throw lastProviderError instanceof Error
+              ? lastProviderError
+              : new Error('All configured AI providers failed before streaming began.');
+          }
+
           const body = new ReadableStream<Uint8Array>({
+            start(streamController) {
+              streamController.enqueue(firstChunk!);
+            },
             async pull(streamController) {
               try {
-                const chunk = await reader.read();
+                const chunk = await activeReader!.read();
                 if (chunk.done) {
                   streamController.close();
                   cleanup();
@@ -115,20 +148,17 @@ export const Route = createFileRoute('/api/tutor/stream')({
                   streamController.enqueue(chunk.value);
                 }
               } catch (error) {
+                console.error(`[AI Tutor] ${activeProvider} stream failed after output began; fallback is not safe after partial output.`, error);
                 streamController.error(error);
                 cleanup();
               }
             },
             async cancel(reason) {
-              await reader.cancel(reason);
+              await activeReader!.cancel(reason);
               cleanup();
             },
           });
-          return new Response(body, {
-            status: streamResponse.status,
-            statusText: streamResponse.statusText,
-            headers: streamResponse.headers,
-          });
+          return new Response(body, { headers: responseHeaders });
         } catch (error) {
           clearTimeout(timeout);
           request.signal.removeEventListener('abort', abortFromClient);
