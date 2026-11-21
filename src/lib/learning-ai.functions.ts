@@ -66,6 +66,31 @@ When checking work, identify the first incorrect step and explain why.
 If the student explicitly asks for a hint, give a hint rather than the answer.
 Use concise, age-appropriate Markdown and KaTeX-compatible math. NEVER use square brackets [ ] to wrap math equations. For standalone equations, you MUST use double dollar signs \x24\x24 before and after the equation (for example, \x24\x24 15 - 5 = 10 \x24\x24). For inline math, use single dollar signs $ (for example, $2x = 10$). If a mathematical or chemical equation is too long to fit on a mobile screen, you MUST break it into multiple lines using the aligned environment (for example, \\begin{aligned} ... \\end{aligned}) or split it into multiple separate \x24\x24 ... \x24\x24 blocks. Never output a single block equation that is wider than 30 characters. Ask only one focused follow-up question at a time. Be accurate, do not invent facts, and correct mistakes openly.`;
 
+export const getTutorUsage = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ accessToken: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    try {
+      const [{ getAuthenticatedAIContext, getUserAIKeys }] = await Promise.all([
+        import('@/lib/user-ai-keys.server'),
+      ]);
+      const { userId, supabase } = await getAuthenticatedAIContext(data.accessToken);
+      const personalKeys = await getUserAIKeys(userId, supabase);
+      if (personalKeys.gemini || personalKeys.openrouter) {
+        return { success: true as const, unlimited: true, remaining: null, limit: 15 };
+      }
+      const { data: count, error } = await supabase.rpc('get_ai_usage');
+      if (error || typeof count !== 'number') {
+        throw new Error('Could not load your daily AI usage.');
+      }
+      return { success: true as const, unlimited: false, remaining: Math.max(0, 15 - count), limit: 15 };
+    } catch (error) {
+      return {
+        success: false as const,
+        error: error instanceof Error ? error.message : 'Could not load your daily AI usage.',
+      };
+    }
+  });
+
 export const respondToTutor = createServerFn({ method: 'POST' })
   .inputValidator(tutorFunctionInput)
   .handler(async ({ data }) => {
