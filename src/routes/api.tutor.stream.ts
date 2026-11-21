@@ -49,8 +49,8 @@ export const Route = createFileRoute('/api/tutor/stream')({
             return Response.json({ error: 'The tutor request was invalid.' }, { status: 400 });
           }
 
-          const { supabase } = await getAuthenticatedAIContext();
-          const personalKeys = await getUserAIKeys((await getAuthenticatedAIContext()).userId, supabase);
+          const { userId, supabase } = await getAuthenticatedAIContext();
+          const personalKeys = await getUserAIKeys(userId, supabase);
           const hasPersonalKey = Boolean(personalKeys.gemini || personalKeys.openrouter);
           if (!hasPersonalKey) await consumeDailyAIUsage(supabase);
 
@@ -77,22 +77,50 @@ export const Route = createFileRoute('/api/tutor/stream')({
             maxRetries: 0,
           });
 
-          const response = result.toTextStreamResponse({
+          const streamResponse = result.toTextStreamResponse({
             headers: {
               'Content-Type': 'text/plain; charset=utf-8',
               'Cache-Control': 'no-cache, no-transform',
               'X-Accel-Buffering': 'no',
-              'Content-Encoding': 'none',
             },
           });
-          return response;
+          const reader = streamResponse.body?.getReader();
+          if (!reader) throw new Error('The tutor stream could not be started.');
+          const cleanup = () => {
+            clearTimeout(timeout);
+            request.signal.removeEventListener('abort', abortFromClient);
+          };
+          const body = new ReadableStream<Uint8Array>({
+            async pull(streamController) {
+              try {
+                const chunk = await reader.read();
+                if (chunk.done) {
+                  streamController.close();
+                  cleanup();
+                } else {
+                  streamController.enqueue(chunk.value);
+                }
+              } catch (error) {
+                streamController.error(error);
+                cleanup();
+              }
+            },
+            async cancel(reason) {
+              await reader.cancel(reason);
+              cleanup();
+            },
+          });
+          return new Response(body, {
+            status: streamResponse.status,
+            statusText: streamResponse.statusText,
+            headers: streamResponse.headers,
+          });
         } catch (error) {
+          clearTimeout(timeout);
+          request.signal.removeEventListener('abort', abortFromClient);
           console.error('[AI Tutor] Streaming request failed:', error);
           const message = error instanceof Error ? error.message : 'The tutor could not respond right now.';
           return Response.json({ error: message }, { status: 500 });
-        } finally {
-          clearTimeout(timeout);
-          request.signal.removeEventListener('abort', abortFromClient);
         }
       },
     },
