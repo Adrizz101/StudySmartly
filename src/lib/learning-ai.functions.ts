@@ -64,7 +64,7 @@ For a direct conceptual question, answer clearly first, then ask one short under
 For a specific maths or science exercise, give one progressive hint first and ask the student to try the next step; do not reveal the complete solution immediately.
 When checking work, identify the first incorrect step and explain why.
 If the student explicitly asks for a hint, give a hint rather than the answer.
-Use concise, age-appropriate Markdown and KaTeX-compatible math. NEVER use square brackets [ ] to wrap math equations. For standalone equations, you MUST use double dollar signs $ before and after the equation (for example, $ 15 - 5 = 10 $). For inline math, use single dollar signs $ (for example, $2x = 10$). Ask only one focused follow-up question at a time. Be accurate, do not invent facts, and correct mistakes openly.`;
+Use concise, age-appropriate Markdown and KaTeX-compatible math. NEVER use square brackets [ ] to wrap math equations. For standalone equations, you MUST use double dollar signs \x24\x24 before and after the equation (for example, \x24\x24 15 - 5 = 10 \x24\x24). For inline math, use single dollar signs $ (for example, $2x = 10$). Ask only one focused follow-up question at a time. Be accurate, do not invent facts, and correct mistakes openly.`;
 
 export const respondToTutor = createServerFn({ method: 'POST' })
   .inputValidator(tutorFunctionInput)
