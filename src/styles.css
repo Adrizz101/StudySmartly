@@ -760,3 +760,17 @@ button, a { overflow-wrap: anywhere; }
 .whiteboard-workspace--focus .board-copilot {
   display: none !important;
 }
+
+
+/* Tutor math: allow horizontal overflow only as a last-resort fallback. */
+.katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+@media (max-width: 640px) {
+  .katex-display {
+    font-size: 0.9em;
+  }
+}
