@@ -108,14 +108,16 @@ export default function Tutor() {
       }
       const result = await getTutorUsage({ data: { accessToken } });
       if (!result.success) {
-        setUsageLabel('15 / 15 AI actions remaining');
+        setUsageLabel((current) => current === 'Checking daily usage…' ? '15 / 15 AI actions remaining' : current);
+      } else if (result.fallback) {
+        setUsageLabel((current) => current === 'Checking daily usage…' ? '15 / 15 AI actions remaining' : current);
       } else if (result.unlimited) {
         setUsageLabel('Unlimited AI');
       } else {
         setUsageLabel(`${result.remaining} / ${result.limit} AI actions remaining`);
       }
     } catch {
-      setUsageLabel('Usage unavailable');
+      setUsageLabel((current) => current === 'Checking daily usage…' ? '15 / 15 AI actions remaining' : current);
     }
   }, []);
 
