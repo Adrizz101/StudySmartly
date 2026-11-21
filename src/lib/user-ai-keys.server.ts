@@ -46,11 +46,11 @@ async function decryptUserAIKey(row: EncryptedKeyRow) {
   return new TextDecoder().decode(plaintext);
 }
 
-export async function getAuthenticatedAIContext(): Promise<{ userId: string; supabase: UserSupabaseClient }> {
+export async function getAuthenticatedAIContext(tokenOverride?: string): Promise<{ userId: string; supabase: UserSupabaseClient }> {
   const request = getRequest();
   const authorization = request?.headers.get('authorization');
-  if (!authorization?.startsWith('Bearer ')) throw new Error('Unauthorized: sign in before using AI.');
-  const token = authorization.slice(7);
+  const token = tokenOverride || (authorization?.startsWith('Bearer ') ? authorization.slice(7) : '');
+  if (!token) throw new Error('Unauthorized: sign in before using AI.');
   const url = process.env['SUPABASE_URL'];
   const publishableKey = process.env['SUPABASE_PUBLISHABLE_KEY'];
   if (!url || !publishableKey) throw new Error('Supabase server configuration is missing.');
