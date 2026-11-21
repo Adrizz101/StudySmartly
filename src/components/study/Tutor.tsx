@@ -8,7 +8,7 @@ import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useApp } from '@/store';
 import { supabase } from '@/integrations/supabase/client';
-import { respondToTutor } from '@/lib/learning-ai.functions';
+import { getTutorUsage, respondToTutor } from '@/lib/learning-ai.functions';
 import { ChatMessage, TutorSession } from '@/types';
 import { ImageUpload } from '@/components/ImageUpload';
 import {
@@ -40,7 +40,33 @@ export default function Tutor() {
   const [isThinking, setIsThinking] = useState(false);
   const [subject, setSubject] = useState('');
   const [mobilePanel, setMobilePanel] = useState<'chat' | 'history' | 'tools'>('chat');
+  const [usageLabel, setUsageLabel] = useState('Checking daily usage…');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const refreshUsage = useCallback(async () => {
+    try {
+      const { data: authData } = await supabase.auth.getSession();
+      const accessToken = authData.session?.access_token;
+      if (!accessToken) {
+        setUsageLabel('Sign in to view usage');
+        return;
+      }
+      const result = await getTutorUsage({ data: { accessToken } });
+      if (!result.success) {
+        setUsageLabel('Usage unavailable');
+      } else if (result.unlimited) {
+        setUsageLabel('Unlimited AI');
+      } else {
+        setUsageLabel(`${result.remaining} / ${result.limit} AI actions remaining`);
+      }
+    } catch {
+      setUsageLabel('Usage unavailable');
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshUsage();
+  }, [refreshUsage]);
 
   const activeSession = tutorSessions.find((s) => s.id === activeSessionId) || null;
 
@@ -117,6 +143,7 @@ export default function Tutor() {
         timestamp: Date.now(),
       };
       updateSession(sessionId, (s) => ({ ...s, messages: [...s.messages, aiMsg] }));
+      await refreshUsage();
     } catch (error) {
       const errMsg: ChatMessage = {
         id: crypto.randomUUID(),
@@ -130,7 +157,7 @@ export default function Tutor() {
     } finally {
       setIsThinking(false);
     }
-  }, [input, pendingImage, isThinking, activeSessionId, activeSession, subject, createSession, updateSession, setTutorSessions]);
+  }, [input, pendingImage, isThinking, activeSessionId, activeSession, subject, createSession, updateSession, setTutorSessions, refreshUsage]);
 
   const handleQuickPrompt = useCallback((prompt: string, subj: string) => {
     setSubject(subj);
@@ -188,7 +215,7 @@ export default function Tutor() {
           <Sparkles size={17} className="text-accent-500" />
           <div className="min-w-0 flex-1">
             <div className="truncate whitespace-nowrap text-xs font-semibold text-text sm:text-sm">StudySmartly AI Tutor</div>
-            <div className="hidden text-xs text-text-dim lg:block">Your study conversation</div>
+            <div className="text-[10px] leading-tight text-text-dim sm:text-xs" aria-live="polite">{usageLabel}</div>
           </div>
           <input value={subject} onChange={(e) => setSubject(e.target.value)} aria-label="Subject" placeholder="Subject" className="w-20 shrink-0 rounded-lg border border-border bg-surface-hover px-2 py-2 text-xs text-text outline-none focus:border-accent-500 sm:w-28 lg:w-36" />
         </header>
