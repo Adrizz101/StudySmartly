@@ -46,7 +46,7 @@ async function prepareTutorAttachment(file: File): Promise<TutorAttachment> {
       await loadingTask.destroy();
     }
     const text = pages.join('\\n\\n').trim();
-    if (!text) throw new Error('No selectable text was found in this PDF. Scanned PDFs need OCR; try uploading a page as an image instead.');
+    if (!text.trim()) throw new Error('It looks like this PDF is a scan or handwritten notes. Please take a photo and upload it as an image instead!');
     return { type: 'pdf', name: file.name, text };
   }
   if (!file.type.startsWith('image/')) throw new Error('Choose an image (JPG, PNG, WEBP) or a PDF.');
@@ -221,10 +221,12 @@ export default function Tutor() {
   const handleSelectedFile = useCallback(async (file?: File) => {
     if (!file) return;
     setAttachmentError('');
+    setPendingAttachment(null);
     setIsPreparingAttachment(true);
     try {
       setPendingAttachment(await prepareTutorAttachment(file));
     } catch (error) {
+      setPendingAttachment(null);
       setAttachmentError(error instanceof Error ? error.message : 'Could not read this file.');
     } finally {
       setIsPreparingAttachment(false);
