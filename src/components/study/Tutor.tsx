@@ -8,6 +8,7 @@ import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useApp } from '@/store';
 import { supabase } from '@/integrations/supabase/client';
+import { respondToTutor } from '@/lib/learning-ai.functions';
 import { ChatMessage, TutorSession } from '@/types';
 import { ImageUpload } from '@/components/ImageUpload';
 import {
@@ -103,52 +104,19 @@ export default function Tutor() {
       const accessToken = authData.session?.access_token;
       if (!accessToken) throw new Error('Your session expired. Please sign in again.');
 
-      const response = await fetch('/api/tutor/stream', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ subject: ctxSubject, question, history }),
+      const result = await respondToTutor({
+        data: { subject: ctxSubject, question, history, accessToken },
       });
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => null) as { error?: string; message?: string } | null;
-        const exactError = errorBody?.error || errorBody?.message;
-        throw new Error(exactError || `Tutor request failed with HTTP ${response.status}.`);
-      }
-      if (!response.body) throw new Error('The tutor stream was empty.');
+      if (!result.success) throw new Error(result.error);
+      if (!result.text.trim()) throw new Error('The tutor returned an empty response.');
 
       const aiMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: '',
+        content: result.text,
         timestamp: Date.now(),
       };
       updateSession(sessionId, (s) => ({ ...s, messages: [...s.messages, aiMsg] }));
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let completedText = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        completedText += decoder.decode(value, { stream: true });
-        updateSession(sessionId, (s) => ({
-          ...s,
-          messages: s.messages.map((message) => message.id === aiMsg.id
-            ? { ...message, content: completedText }
-            : message),
-        }));
-      }
-      completedText += decoder.decode();
-      if (completedText) {
-        updateSession(sessionId, (s) => ({
-          ...s,
-          messages: s.messages.map((message) => message.id === aiMsg.id
-            ? { ...message, content: completedText }
-            : message),
-        }));
-      }
     } catch (error) {
       const errMsg: ChatMessage = {
         id: crypto.randomUUID(),
@@ -183,7 +151,7 @@ export default function Tutor() {
 
   return (
     <div className="flex h-[calc(100dvh-120px)] min-h-0 flex-col gap-3 overflow-hidden lg:grid lg:grid-cols-[220px_minmax(0,1fr)_210px] lg:grid-rows-1">
-      <nav aria-label="Tutor sections" className="grid shrink-0 grid-cols-3 gap-1 rounded-xl border border-border bg-surface-hover p-1 lg:hidden">
+      <nav aria-label="Tutor sections" className="relative z-50 isolate grid shrink-0 grid-cols-3 gap-1 rounded-xl border border-border bg-[#09090b] p-1 shadow-lg lg:hidden">
         <button type="button" aria-pressed={mobilePanel === "chat"} onClick={() => setMobilePanel("chat")} className={mobilePanel === "chat" ? "rounded-lg bg-accent-600 px-2 py-2 text-xs font-medium text-white" : "rounded-lg px-2 py-2 text-xs font-medium text-text-muted hover:bg-surface-active"}>Chat</button>
         <button type="button" aria-pressed={mobilePanel === "history"} onClick={() => setMobilePanel("history")} className={mobilePanel === "history" ? "rounded-lg bg-accent-600 px-2 py-2 text-xs font-medium text-white" : "rounded-lg px-2 py-2 text-xs font-medium text-text-muted hover:bg-surface-active"}>Your learning</button>
         <button type="button" aria-pressed={mobilePanel === "tools"} onClick={() => setMobilePanel("tools")} className={mobilePanel === "tools" ? "rounded-lg bg-accent-600 px-2 py-2 text-xs font-medium text-white" : "rounded-lg px-2 py-2 text-xs font-medium text-text-muted hover:bg-surface-active"}>Study tools</button>
