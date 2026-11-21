@@ -148,7 +148,8 @@ export const Route = createFileRoute('/api/tutor/stream')({
           const retryAfter = responseHeaders?.get?.('Retry-After')
             ?? (errorRecord.headers instanceof Headers ? errorRecord.headers.get('Retry-After') : null);
 
-          console.error("TUTOR STREAM ERROR:", JSON.stringify({
+          console.error("TUTOR STREAM ERROR:", JSON.stringify(error, null, 2));
+          console.error('[AI Tutor] Detailed error context:', JSON.stringify({
             error,
             ownProperties: error instanceof Error
               ? Object.fromEntries(Object.getOwnPropertyNames(error).map((key) => [key, (error as unknown as Record<string, unknown>)[key]]))
