@@ -147,19 +147,20 @@ export default function Tutor() {
 
   const sendMessage = useCallback(async () => {
     if ((!input.trim() && !pendingAttachment) || isThinking || isPreparingAttachment) return;
+    const attachment = pendingAttachment;
     const isNewSession = !activeSessionId;
     const sessionId = activeSessionId || createSession();
     setActiveSessionId(sessionId);
-    const attachmentPrompt = pendingAttachment
-      ? (pendingAttachment.type === 'image' ? 'Please analyze the attached image.' : `Please help me understand the attached PDF: ${pendingAttachment.name}.`)
+    const attachmentPrompt = attachment
+      ? (attachment.type === 'image' ? 'Please analyze the attached image.' : `Please help me understand the attached PDF: ${attachment.name}.`)
       : '';
     const questionText = input.trim() || attachmentPrompt;
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
-      content: pendingAttachment?.type === 'pdf' ? `Attached PDF: ${pendingAttachment.name}\\n\\n${questionText}` : questionText,
+      content: attachment?.type === 'pdf' ? `Attached PDF: ${pendingAttachment.name}\\n\\n${questionText}` : questionText,
       timestamp: Date.now(),
-      image: pendingAttachment?.type === 'image' ? pendingAttachment.dataUrl : undefined,
+      image: attachment?.type === 'image' ? attachment.dataUrl : undefined,
     };
 
     const currentMessages = activeSession?.messages || [];
@@ -189,7 +190,7 @@ export default function Tutor() {
       if (!accessToken) throw new Error('Your session expired. Please sign in again.');
 
       const result = await respondToTutor({
-        data: { subject: ctxSubject, question, history, accessToken, attachment: pendingAttachment || undefined },
+        data: { subject: ctxSubject, question, history, accessToken, attachment: attachment || undefined },
       });
       if (!result.success) throw new Error(result.error);
       if (!result.text.trim()) throw new Error('The tutor returned an empty response.');
