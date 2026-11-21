@@ -20,8 +20,9 @@ export default defineConfig({
   },
   plugins: [
     tsConfigPaths(),
-    // Prerender the public app shell so the PWA has a safe offline entry point.
+    // Build Nitro output for Vercel so API handlers are deployed as server functions.
     nitro({
+      preset: "vercel",
       baseURL: "/",
       routeRules: {
         "/": { prerender: true },
