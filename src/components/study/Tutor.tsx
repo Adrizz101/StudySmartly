@@ -10,12 +10,62 @@ import { useApp } from '@/store';
 import { supabase } from '@/integrations/supabase/client';
 import { getTutorUsage, respondToTutor } from '@/lib/learning-ai.functions';
 import { ChatMessage, TutorSession } from '@/types';
-import { ImageUpload } from '@/components/ImageUpload';
 import {
-  Send, Bot, User, Plus, Trash2, Sparkles, Image as ImageIcon,
+  Send, Bot, User, Plus, Trash2, Sparkles, Image as ImageIcon, Upload, X, FileText,
   GraduationCap, BookOpen, Brain, Clock, AlertCircle, FileText,
   Layers, CalendarDays, Presentation, PanelLeft, Library,
 } from 'lucide-react';
+
+type TutorAttachment =
+  | { type: 'image'; name: string; dataUrl: string }
+  | { type: 'pdf'; name: string; text: string };
+
+async function prepareTutorAttachment(file: File): Promise<TutorAttachment> {
+  if (!file.size) throw new Error('The selected file is empty.');
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  if (isPdf) {
+    if (file.size > 8 * 1024 * 1024) throw new Error('Please choose a PDF smaller than 8 MB for mobile-friendly upload.');
+    const pdfjs = await import('pdfjs-dist');
+    pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
+    const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+    if (pdf.numPages > 20) {
+      await pdf.destroy();
+      throw new Error('Please split PDFs longer than 20 pages into smaller files.');
+    }
+    const pages: string[] = [];
+    try {
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+        const page = await pdf.getPage(pageNumber);
+        const content = await page.getTextContent();
+        const pageText = content.items.map((item) => ('str' in item ? item.str : '')).join(' ');
+        pages.push(`[Page ${pageNumber}]\\n${pageText}`);
+        if (pages.join('\\n').length > 60_000) throw new Error('This PDF contains too much text. Please upload a shorter section.');
+      }
+    } finally {
+      await pdf.destroy();
+    }
+    const text = pages.join('\\n\\n').trim();
+    if (!text) throw new Error('No selectable text was found in this PDF. Scanned PDFs need OCR; try uploading a page as an image instead.');
+    return { type: 'pdf', name: file.name, text };
+  }
+  if (!file.type.startsWith('image/')) throw new Error('Choose an image (JPG, PNG, WEBP) or a PDF.');
+  if (file.size > 5 * 1024 * 1024) throw new Error('Please choose an image smaller than 5 MB.');
+  const bitmap = await createImageBitmap(file);
+  try {
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('This browser could not prepare the image.');
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
+    if (dataUrl.length > 4_500_000) throw new Error('This image is still too large after compression. Choose a smaller image.');
+    return { type: 'image', name: file.name, dataUrl };
+  } finally {
+    bitmap.close();
+  }
+}
 
 const QUICK_PROMPTS = [
   { icon: BookOpen, text: 'Explain a difficult concept step by step', subject: 'General' },
@@ -36,7 +86,11 @@ export default function Tutor() {
   const { tutorSessions, setTutorSessions } = useApp();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [input, setInput] = useState('');
-  const [pendingImage, setPendingImage] = useState('');
+  const [pendingAttachment, setPendingAttachment] = useState<TutorAttachment | null>(null);
+  const [isPreparingAttachment, setIsPreparingAttachment] = useState(false);
+  const [attachmentError, setAttachmentError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isFileDragging, setIsFileDragging] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [subject, setSubject] = useState('');
   const [mobilePanel, setMobilePanel] = useState<'chat' | 'history' | 'tools'>('chat');
@@ -91,16 +145,20 @@ export default function Tutor() {
   }, [subject, setTutorSessions]);
 
   const sendMessage = useCallback(async () => {
-    if ((!input.trim() && !pendingImage) || isThinking) return;
+    if ((!input.trim() && !pendingAttachment) || isThinking || isPreparingAttachment) return;
     const isNewSession = !activeSessionId;
     const sessionId = activeSessionId || createSession();
     setActiveSessionId(sessionId);
+    const attachmentPrompt = pendingAttachment
+      ? (pendingAttachment.type === 'image' ? 'Please analyze the attached image.' : `Please help me understand the attached PDF: ${pendingAttachment.name}.`)
+      : '';
+    const questionText = input.trim() || attachmentPrompt;
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
-      content: input.trim(),
+      content: pendingAttachment?.type === 'pdf' ? `Attached PDF: ${pendingAttachment.name}\\n\\n${questionText}` : questionText,
       timestamp: Date.now(),
-      image: pendingImage || undefined,
+      image: pendingAttachment?.type === 'image' ? pendingAttachment.dataUrl : undefined,
     };
 
     const currentMessages = activeSession?.messages || [];
@@ -112,7 +170,8 @@ export default function Tutor() {
       updateSession(sessionId, (s) => ({ ...s, messages: [...s.messages, userMsg] }));
     }
     setInput('');
-    setPendingImage('');
+    setPendingAttachment(null);
+    setAttachmentError('');
     setIsThinking(true);
 
     const ctxSubject = subject || activeSession?.subject || 'this topic';
@@ -123,15 +182,13 @@ export default function Tutor() {
           .slice(-15)
           .map((message) => ({ role: message.role as 'user' | 'assistant', content: message.content })),
       ];
-      const question = userMsg.content + (userMsg.image
-        ? '\n\n[The student attached an image, but image analysis is not available in this phase. Ask them to describe the relevant content in text.]'
-        : '');
+      const question = questionText;
       const { data: authData } = await supabase.auth.getSession();
       const accessToken = authData.session?.access_token;
       if (!accessToken) throw new Error('Your session expired. Please sign in again.');
 
       const result = await respondToTutor({
-        data: { subject: ctxSubject, question, history, accessToken },
+        data: { subject: ctxSubject, question, history, accessToken, attachment: pendingAttachment || undefined },
       });
       if (!result.success) throw new Error(result.error);
       if (!result.text.trim()) throw new Error('The tutor returned an empty response.');
@@ -157,7 +214,21 @@ export default function Tutor() {
     } finally {
       setIsThinking(false);
     }
-  }, [input, pendingImage, isThinking, activeSessionId, activeSession, subject, createSession, updateSession, setTutorSessions, refreshUsage]);
+  }, [input, pendingAttachment, isThinking, isPreparingAttachment, activeSessionId, activeSession, subject, createSession, updateSession, setTutorSessions, refreshUsage]);
+
+  const handleSelectedFile = useCallback(async (file?: File) => {
+    if (!file) return;
+    setAttachmentError('');
+    setIsPreparingAttachment(true);
+    try {
+      setPendingAttachment(await prepareTutorAttachment(file));
+    } catch (error) {
+      setAttachmentError(error instanceof Error ? error.message : 'Could not read this file.');
+    } finally {
+      setIsPreparingAttachment(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }, []);
 
   const handleQuickPrompt = useCallback((prompt: string, subj: string) => {
     setSubject(subj);
@@ -173,7 +244,7 @@ export default function Tutor() {
     setActiveSessionId(null);
     setSubject('');
     setInput('');
-    setPendingImage('');
+    setPendingAttachment(null);
   };
 
   return (
@@ -210,7 +281,11 @@ export default function Tutor() {
         </div>
       </aside>
 
-      <section className={"glass surface-elevated min-h-0 min-w-0 flex-col overflow-hidden rounded-xl " + (mobilePanel === "chat" ? "flex flex-1" : "hidden") + " lg:flex"}>
+      <section
+        onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); setIsFileDragging(true); } }}
+        onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsFileDragging(false); }}
+        onDrop={(event) => { if (event.dataTransfer.files.length) { event.preventDefault(); setIsFileDragging(false); void handleSelectedFile(event.dataTransfer.files[0]); } }}
+        className={"relative glass surface-elevated min-h-0 min-w-0 flex-col overflow-hidden rounded-xl " + (mobilePanel === "chat" ? "flex flex-1" : "hidden") + " lg:flex"}>
         <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2.5 lg:px-4 lg:py-3">
           <Sparkles size={17} className="text-accent-500" />
           <div className="min-w-0 flex-1">
@@ -242,13 +317,20 @@ export default function Tutor() {
         </div>
 
         <div className="relative z-20 mt-auto flex shrink-0 flex-col gap-2 border-t border-white/10 bg-[#09090b] p-4 shadow-[0_-8px_24px_rgba(0,0,0,0.22)]">
-          {pendingImage && <div className="flex items-center gap-2 text-xs text-text-muted"><ImageIcon size={14} className="shrink-0" /> Image preview only for now. Describe it in your message; image analysis is coming in Phase 3.</div>}
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.pdf" className="hidden" onChange={(event) => void handleSelectedFile(event.target.files?.[0])} />
+          {pendingAttachment && <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-surface-hover px-3 py-2 text-xs text-text-muted">
+            {pendingAttachment.type === 'image' ? <ImageIcon size={15} className="shrink-0" /> : <FileText size={15} className="shrink-0" />}
+            <span className="min-w-0 flex-1 truncate">{pendingAttachment.name}</span>
+            <button type="button" aria-label="Remove attachment" onClick={() => setPendingAttachment(null)} className="rounded p-1 hover:bg-surface-active"><X size={14} /></button>
+          </div>}
+          {isPreparingAttachment && <div className="text-xs text-text-muted" role="status">Preparing attachment…</div>}
+          {attachmentError && <div className="text-xs text-red-400" role="alert">{attachmentError}</div>}
           <div className="flex min-w-0 items-end gap-2">
-            <ImageUpload compact onImageSelected={setPendingImage} label="Choose image" />
+            <Button variant="source" aria-label="Attach image or PDF" title="Attach image or PDF" onClick={() => fileInputRef.current?.click()} disabled={isPreparingAttachment || isThinking} className="h-11 min-h-[44px] shrink-0 rounded-lg p-2 text-text-muted hover:bg-surface-hover"><Upload size={18} /></Button>
             <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
             }} rows={1} placeholder="Ask your tutor anything…" className="h-11 min-h-[44px] max-h-11 min-w-0 flex-1 resize-none overflow-y-auto rounded-xl border border-border bg-surface-hover px-3 py-2 text-sm leading-5 text-text outline-none focus:border-accent-500" />
-            <Button variant="source" aria-label="Send message" onClick={sendMessage} disabled={(!input.trim() && !pendingImage) || isThinking} className="h-11 min-h-[44px] shrink-0 rounded-xl bg-accent-600 p-2.5 text-white transition-colors hover:bg-accent-700 disabled:opacity-50"><Send size={18} /></Button>
+            <Button variant="source" aria-label="Send message" onClick={sendMessage} disabled={(!input.trim() && !pendingAttachment) || isThinking || isPreparingAttachment} className="h-11 min-h-[44px] shrink-0 rounded-xl bg-accent-600 p-2.5 text-white transition-colors hover:bg-accent-700 disabled:opacity-50"><Send size={18} /></Button>
           </div>
           <div className="flex items-start gap-1.5 text-[10px] leading-snug text-text-dim lg:items-center lg:text-[11px]"><AlertCircle size={11} className="mt-0.5 shrink-0 lg:mt-0" /><span className="min-w-0">AI answers can make mistakes. Check important information against your textbook or teacher.</span></div>
         </div>
