@@ -132,9 +132,45 @@ export const Route = createFileRoute('/api/tutor/stream')({
         } catch (error) {
           clearTimeout(timeout);
           request.signal.removeEventListener('abort', abortFromClient);
-          console.error('[AI Tutor] Streaming request failed:', error);
-          const message = error instanceof Error ? error.message : 'The tutor could not respond right now.';
-          return Response.json({ error: message }, { status: 500 });
+
+          const errorRecord = error && typeof error === 'object'
+            ? error as Record<string, unknown>
+            : {};
+          const errorMessage = error instanceof Error
+            ? error.message
+            : typeof errorRecord.message === 'string'
+              ? errorRecord.message
+              : String(error);
+          const statusCode = Number(errorRecord.statusCode ?? errorRecord.status ?? errorRecord.code);
+          const responseHeaders = errorRecord.response && typeof errorRecord.response === 'object'
+            ? (errorRecord.response as { headers?: Headers }).headers
+            : undefined;
+          const retryAfter = responseHeaders?.get?.('Retry-After')
+            ?? (errorRecord.headers instanceof Headers ? errorRecord.headers.get('Retry-After') : null);
+
+          console.error("TUTOR STREAM ERROR:", JSON.stringify({
+            error,
+            ownProperties: error instanceof Error
+              ? Object.fromEntries(Object.getOwnPropertyNames(error).map((key) => [key, (error as unknown as Record<string, unknown>)[key]]))
+              : errorRecord,
+            statusCode,
+            message: errorMessage,
+            retryAfter,
+          }, null, 2));
+          if (retryAfter) console.error('[AI Tutor] Retry-After header:', retryAfter);
+
+          const normalizedMessage = errorMessage.toLowerCase();
+          const isRateLimit = statusCode === 429
+            || normalizedMessage.includes('429')
+            || normalizedMessage.includes('rate limit')
+            || normalizedMessage.includes('resource_exhausted');
+          const isKeyError = statusCode === 401 || statusCode === 403;
+          const message = isRateLimit
+            ? "You've reached the daily AI limit. Please try again tomorrow, or add your own API key in Settings to continue."
+            : isKeyError
+              ? 'There is an issue with the AI API key. Please check your key configuration in Settings.'
+              : `An unexpected error occurred: ${error instanceof Error ? error.name : typeof error}.`;
+          return Response.json({ error: message }, { status: isRateLimit ? 429 : isKeyError ? statusCode : 500 });
         }
       },
     },
