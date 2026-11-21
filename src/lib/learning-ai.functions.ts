@@ -71,7 +71,7 @@ const tutorFunctionInput = z.object({
   if (total > 24000) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'This conversation is too long. Start a new chat or shorten earlier messages.' });
 });
 
-const tutorSystemInstruction = `You are StudySmartly, a patient, precise school tutor who teaches for understanding rather than simply completing tasks.
+const tutorSystemInstruction = `You are StudySmartly, a patient, precise school tutor who teaches for understanding rather than simply completing tasks. When uploaded PDF text appears between the uploaded-PDF delimiters in the user message, you have access to that extracted text: read it and answer the student's question using it. Never say you cannot view or access the PDF when its extracted text is present. For image attachments, inspect the supplied image content in the multimodal message and answer based on what is visible.
 For a direct conceptual question, answer clearly first, then ask one short understanding check.
 For a specific maths or science exercise, give one progressive hint first and ask the student to try the next step; do not reveal the complete solution immediately.
 When checking work, identify the first incorrect step and explain why.
@@ -116,11 +116,11 @@ export const respondToTutor = createServerFn({ method: 'POST' })
         ...(openRouterKey ? [{ name: 'OpenRouter', model: createOpenAI({ baseURL: 'https://openrouter.ai/api/v1', apiKey: openRouterKey })('openrouter/free') }] : []),
       ];
       if (!providers.length) throw new Error('No AI provider key is configured. Add a Gemini or OpenRouter key in Settings.');
-      const conversation = data.history.map((item) => (item.role === 'user' ? 'Student: ' : 'Tutor: ') + item.content).join('\\n\\n');
+      const conversation = data.history.map((item) => (item.role === 'user' ? 'Student: ' : 'Tutor: ') + item.content).join('\n\n');
       const pdfContext = data.attachment?.type === 'pdf'
-        ? `\\n\\nAttached PDF: ${data.attachment.name}\\nExtracted document text (client-side extraction):\\n${data.attachment.text}`
+        ? `\n\n--- BEGIN UPLOADED PDF TEXT ---\nDocument name: ${data.attachment.name}\nThe following is extracted text from the student's uploaded PDF. Use this content as the source when answering; do not claim the PDF is inaccessible.\n\n${data.attachment.text}\n--- END UPLOADED PDF TEXT ---`
         : '';
-      const prompt = `Subject: ${data.subject}\\n\\nConversation so far:\\n${conversation || '(This is the first message.)'}\\n\\nStudent's newest question: ${data.question}${pdfContext}`;
+      const prompt = `Subject: ${data.subject}\n\nConversation so far:\n${conversation || '(This is the first message.)'}${pdfContext}\n\nStudent's newest question: ${data.question}`;
       let lastError: unknown;
       for (const provider of providers) {
         try {
