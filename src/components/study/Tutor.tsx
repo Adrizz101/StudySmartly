@@ -202,7 +202,19 @@ export default function Tutor() {
         timestamp: Date.now(),
       };
       updateSession(sessionId, (s) => ({ ...s, messages: [...s.messages, aiMsg] }));
-      await refreshUsage();
+      if (result.unlimited) {
+        setUsageLabel('Unlimited AI');
+      } else if (typeof result.remaining === 'number' && typeof result.limit === 'number') {
+        setUsageLabel(`${result.remaining} / ${result.limit} AI actions remaining`);
+      } else {
+        // Keep the display moving even if the usage read/write response is unavailable.
+        setUsageLabel((current) => {
+          const match = current.match(/^(\\d+)\\s*\\/\\s*(\\d+) AI actions remaining$/);
+          if (!match) return '14 / 15 AI actions remaining';
+          return `${Math.max(0, Number(match[1]) - 1)} / ${match[2]} AI actions remaining`;
+        });
+      }
+      void refreshUsage();
     } catch (error) {
       const errMsg: ChatMessage = {
         id: crypto.randomUUID(),
