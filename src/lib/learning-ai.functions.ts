@@ -54,6 +54,18 @@ const tutorFunctionInput = z.object({
   question: z.string().trim().min(1).max(4000),
   history: z.array(tutorHistoryMessage).max(16),
   accessToken: z.string().min(1),
+  attachment: z.discriminatedUnion('type', [
+    z.object({
+      type: z.literal('image'),
+      name: z.string().min(1).max(160),
+      dataUrl: z.string().startsWith('data:image/').max(4_500_000),
+    }),
+    z.object({
+      type: z.literal('pdf'),
+      name: z.string().min(1).max(160),
+      text: z.string().min(1).max(60_000),
+    }),
+  ]).optional(),
 }).superRefine((value, ctx) => {
   const total = value.question.length + value.history.reduce((sum, item) => sum + item.content.length, 0);
   if (total > 24000) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'This conversation is too long. Start a new chat or shorten earlier messages.' });
@@ -112,11 +124,25 @@ export const respondToTutor = createServerFn({ method: 'POST' })
       ];
       if (!providers.length) throw new Error('No AI provider key is configured. Add a Gemini or OpenRouter key in Settings.');
       const conversation = data.history.map((item) => (item.role === 'user' ? 'Student: ' : 'Tutor: ') + item.content).join('\\n\\n');
-      const prompt = `Subject: ${data.subject}\\n\\nConversation so far:\\n${conversation || '(This is the first message.)'}\\n\\nStudent's newest question: ${data.question}`;
+      const pdfContext = data.attachment?.type === 'pdf'
+        ? `\\n\\nAttached PDF: ${data.attachment.name}\\nExtracted document text (client-side extraction):\\n${data.attachment.text}`
+        : '';
+      const prompt = `Subject: ${data.subject}\\n\\nConversation so far:\\n${conversation || '(This is the first message.)'}\\n\\nStudent's newest question: ${data.question}${pdfContext}`;
       let lastError: unknown;
       for (const provider of providers) {
         try {
-          const result = await generateText({ model: provider.model, system: tutorSystemInstruction, prompt, maxRetries: 0 });
+          const messages = data.attachment?.type === 'image'
+            ? [{ role: 'user' as const, content: [
+                { type: 'text' as const, text: prompt + `\\n\\nThe student attached an image named ${data.attachment.name}. Analyze its visible content and help with the student's question.` },
+                { type: 'image' as const, image: data.attachment.dataUrl },
+              ] }]
+            : undefined;
+          const result = await generateText({
+            model: provider.model,
+            system: tutorSystemInstruction,
+            ...(messages ? { messages } : { prompt }),
+            maxRetries: 0,
+          });
           if (!result.text.trim()) throw new Error(`${provider.name} returned an empty response.`);
           return { success: true as const, text: result.text };
         } catch (error) {
