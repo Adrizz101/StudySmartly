@@ -4,10 +4,10 @@ import remarkMath from 'remark-math';
 import remarkBreaks from 'remark-breaks';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useApp } from '@/store';
-import { respondToTutor } from '@/lib/learning-ai.functions';
+import { supabase } from '@/integrations/supabase/client';
 import { ChatMessage, TutorSession } from '@/types';
 import { ImageUpload } from '@/components/ImageUpload';
 import {
@@ -99,22 +99,55 @@ export default function Tutor() {
       const question = userMsg.content + (userMsg.image
         ? '\n\n[The student attached an image, but image analysis is not available in this phase. Ask them to describe the relevant content in text.]'
         : '');
-      const result = await respondToTutor({
-        data: {
-          subject: ctxSubject,
-          question,
-          history,
+      const { data: authData } = await supabase.auth.getSession();
+      const accessToken = authData.session?.access_token;
+      if (!accessToken) throw new Error('Your session expired. Please sign in again.');
+
+      const response = await fetch('/api/tutor/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
         },
+        body: JSON.stringify({ subject: ctxSubject, question, history }),
       });
-      if (!result.success) throw new Error(result.error);
-      const response = result.data.response;
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(errorBody?.error || 'The tutor could not respond right now. Please try again.');
+      }
+      if (!response.body) throw new Error('The tutor stream was empty.');
+
       const aiMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: response,
+        content: '',
         timestamp: Date.now(),
       };
       updateSession(sessionId, (s) => ({ ...s, messages: [...s.messages, aiMsg] }));
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let completedText = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        completedText += decoder.decode(value, { stream: true });
+        updateSession(sessionId, (s) => ({
+          ...s,
+          messages: s.messages.map((message) => message.id === aiMsg.id
+            ? { ...message, content: completedText }
+            : message),
+        }));
+      }
+      completedText += decoder.decode();
+      if (completedText) {
+        updateSession(sessionId, (s) => ({
+          ...s,
+          messages: s.messages.map((message) => message.id === aiMsg.id
+            ? { ...message, content: completedText }
+            : message),
+        }));
+      }
     } catch {
       const errMsg: ChatMessage = {
         id: crypto.randomUUID(),
@@ -244,7 +277,7 @@ export default function Tutor() {
 }
 
 
-function MarkdownMessage({ content }: { content: string }) {
+const MarkdownMessage = memo(function MarkdownMessage({ content }: { content: string }) {
   return (
     <div className="prose-chat space-y-3 break-words">
       <ReactMarkdown
@@ -272,7 +305,7 @@ function MarkdownMessage({ content }: { content: string }) {
       </ReactMarkdown>
     </div>
   );
-}
+});
 
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user';
