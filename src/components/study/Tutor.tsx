@@ -211,9 +211,11 @@ export default function Tutor() {
       } else {
         // Keep the display moving even if the usage read/write response is unavailable.
         setUsageLabel((current) => {
-          const match = current.match(/^(\\d+)\\s*\\/\\s*(\\d+) AI actions remaining$/);
-          if (!match) return '14 / 15 AI actions remaining';
-          return `${Math.max(0, Number(match[1]) - 1)} / ${match[2]} AI actions remaining`;
+          const [remainingText, limitText] = current.split(' / ');
+          const remaining = Number.parseInt(remainingText, 10);
+          const limit = Number.parseInt(limitText, 10);
+          if (!Number.isFinite(remaining) || !Number.isFinite(limit)) return '14 / 15 AI actions remaining';
+          return `${Math.max(0, remaining - 1)} / ${limit} AI actions remaining`;
         });
       }
       void refreshUsage();
