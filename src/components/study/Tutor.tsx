@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getTutorUsage, respondToTutor } from '@/lib/learning-ai.functions';
 import { ChatMessage, TutorSession } from '@/types';
 import {
-  Send, Bot, User, Plus, Trash2, Sparkles, Image as ImageIcon, Upload, X, FileText,
+  Send, Bot, User, Plus, Trash2, Sparkles, Image as ImageIcon, Upload, X,
   GraduationCap, BookOpen, Brain, Clock, AlertCircle, FileText,
   Layers, CalendarDays, Presentation, PanelLeft, Library,
 } from 'lucide-react';
