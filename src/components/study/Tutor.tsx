@@ -210,16 +210,16 @@ export default function Tutor() {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="mt-auto shrink-0 border-t border-border p-2.5 lg:p-3">
-          {pendingImage && <div className="mb-2 flex items-center gap-2 text-xs text-text-muted"><ImageIcon size={14} /> Image preview only for now. Describe it in your message; image analysis is coming in Phase 3.</div>}
-          <div className="flex items-end gap-2">
+        <div className="relative z-20 mt-auto flex shrink-0 flex-col gap-2 border-t border-white/10 bg-[#09090b] p-4 shadow-[0_-8px_24px_rgba(0,0,0,0.22)]">
+          {pendingImage && <div className="flex items-center gap-2 text-xs text-text-muted"><ImageIcon size={14} className="shrink-0" /> Image preview only for now. Describe it in your message; image analysis is coming in Phase 3.</div>}
+          <div className="flex min-w-0 items-end gap-2">
             <ImageUpload compact onImageSelected={setPendingImage} label="Choose image" />
             <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-            }} rows={1} placeholder="Ask your tutor anything…" className="max-h-32 min-h-10 flex-1 resize-none rounded-xl border border-border bg-surface-hover px-3 py-2 text-sm text-text outline-none focus:border-accent-500 lg:min-h-11 lg:px-3.5 lg:py-2.5" />
-            <Button variant="source" aria-label="Send message" onClick={sendMessage} disabled={(!input.trim() && !pendingImage) || isThinking} className="shrink-0 rounded-xl bg-accent-600 p-2.5 text-white transition-colors hover:bg-accent-700 disabled:opacity-50 lg:p-3"><Send size={18} /></Button>
+            }} rows={1} placeholder="Ask your tutor anything…" className="h-11 min-h-[44px] max-h-11 min-w-0 flex-1 resize-none overflow-y-auto rounded-xl border border-border bg-surface-hover px-3 py-2 text-sm leading-5 text-text outline-none focus:border-accent-500" />
+            <Button variant="source" aria-label="Send message" onClick={sendMessage} disabled={(!input.trim() && !pendingImage) || isThinking} className="h-11 min-h-[44px] shrink-0 rounded-xl bg-accent-600 p-2.5 text-white transition-colors hover:bg-accent-700 disabled:opacity-50"><Send size={18} /></Button>
           </div>
-          <div className="mt-1.5 flex items-start gap-1.5 text-[10px] leading-snug text-text-dim lg:mt-2 lg:items-center lg:text-[11px]"><AlertCircle size={11} /> AI answers can make mistakes. Check important information against your textbook or teacher.</div>
+          <div className="flex items-start gap-1.5 text-[10px] leading-snug text-text-dim lg:items-center lg:text-[11px]"><AlertCircle size={11} className="mt-0.5 shrink-0 lg:mt-0" /><span className="min-w-0">AI answers can make mistakes. Check important information against your textbook or teacher.</span></div>
         </div>
       </section>
 
