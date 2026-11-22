@@ -2,8 +2,6 @@ import { createFileRoute } from '@tanstack/react-router';
 import { generateImage } from '@/lib/image-gateway.server';
 import { authorizeImage, chargeDailyImageUsage, refundDailyImageUsage } from '@/lib/image-auth.server';
 
-const DAILY_IMAGE_LIMIT = 5;
-
 export async function handleGenerateImagePost(request: Request): Promise<Response> {
         const authorization = await authorizeImage(request);
         if (authorization instanceof Response) return authorization;
@@ -28,8 +26,9 @@ export async function handleGenerateImagePost(request: Request): Promise<Respons
           console.error('[Image Quota] Could not charge image usage:', error);
           return new Response('Could not verify your daily image usage. Please try again.', { status: 503 });
         }
-        if (usageStatus === -1) {
-          return new Response(`You've used today's image limit (${DAILY_IMAGE_LIMIT}). It resets at midnight UTC.`, { status: 429 });
+        if (usageStatus < 0) {
+          const dailyLimit = Math.abs(usageStatus);
+          return new Response(`You've used today's image limit (${dailyLimit}). It resets at midnight UTC.`, { status: 429 });
         }
         if (usageStatus === 0) {
           return new Response('This image request was already processed. Start a new generation if you need another image.', { status: 409 });
