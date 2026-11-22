@@ -346,7 +346,7 @@ export default function Tutor() {
           {isPreparingAttachment && <div className="text-xs text-text-muted" role="status">Preparing attachment…</div>}
           {attachmentError && <div className="text-xs text-red-400" role="alert">{attachmentError}</div>}
           <div className="flex min-w-0 items-end gap-2">
-            <Button variant="source" aria-label="Attach image or PDF" title="Attach image or PDF" onClick={() => fileInputRef.current?.click()} disabled={isPreparingAttachment || isThinking} className="h-11 min-h-[44px] shrink-0 rounded-lg p-2 text-text-muted hover:bg-surface-hover"><Upload size={18} /></Button>
+            <Button data-tour="upload" variant="source" aria-label="Attach image or PDF" title="Attach image or PDF" onClick={() => fileInputRef.current?.click()} disabled={isPreparingAttachment || isThinking} className="h-11 min-h-[44px] shrink-0 rounded-lg p-2 text-text-muted hover:bg-surface-hover"><Upload size={18} /></Button>
             <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
             }} rows={1} placeholder="Ask your tutor anything…" className="h-11 min-h-[44px] max-h-11 min-w-0 flex-1 resize-none overflow-y-auto rounded-xl border border-border bg-surface-hover px-3 py-2 text-sm leading-5 text-text outline-none focus:border-accent-500" />
