@@ -40,7 +40,7 @@ describe('image generation quota', () => {
   });
 
   it('blocks the sixth image request before calling OpenAI', async () => {
-    mocks.chargeDailyImageUsage.mockResolvedValue(-1);
+    mocks.chargeDailyImageUsage.mockResolvedValue(-5);
     const response = await handleGenerateImagePost(request());
     expect(response.status).toBe(429);
     expect(await response.text()).toContain("today's image limit (5)");
