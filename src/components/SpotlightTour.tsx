@@ -1,13 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { driver, type Driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
-import { useLocation, useNavigate } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 
 const TOUR_KEY = 'studysmartly_tour_completed';
 
 export default function SpotlightTour() {
   const navigate = useNavigate();
-  const pathname = useLocation({ select: (location) => location.pathname });
   const driverRef = useRef<Driver | null>(null);
   const startedRef = useRef(false);
 
@@ -37,7 +36,7 @@ export default function SpotlightTour() {
         stageRadius: 16,
         steps: [
           {
-            element: isMobile ? '[data-tour="sidebar"]' : '.sidebar-shell',
+            element: isMobile ? '[data-tour="sidebar-mobile"]' : '.sidebar-shell',
             popover: {
               title: 'Your command center',
               description: "Hey! Welcome to StudySmartly. This is your command center. Let's take a quick look around.",
@@ -134,17 +133,6 @@ export default function SpotlightTour() {
     return () => window.clearTimeout(timer);
   }, [navigate]);
 
-  useEffect(() => {
-    const tour = driverRef.current;
-    if (!tour) return;
-    if (pathname === '/tutor' && tour.isActive()) {
-      // The Tutor route now contains the upload control used by the sixth step.
-      window.setTimeout(() => {
-        const current = tour.getActiveIndex();
-        if (current === 4) tour.moveNext();
-      }, 250);
-    }
-  }, [pathname]);
 
   return null;
 }
