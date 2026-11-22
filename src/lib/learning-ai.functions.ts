@@ -99,8 +99,10 @@ export const getTutorUsage = createServerFn({ method: 'POST' })
 export const respondToTutor = createServerFn({ method: 'POST' })
   .inputValidator(tutorFunctionInput)
   .handler(async ({ data }) => {
+    let quotaSupabase: unknown;
+    let quotaCharged = false;
     try {
-      const [{ createOpenAI }, { generateText }, { getAuthenticatedAIContext, getUserAIKeys, consumeDailyAIUsage }] = await Promise.all([
+      const [{ createOpenAI }, { generateText }, { getAuthenticatedAIContext, getUserAIKeys, consumeDailyAIUsage, refundDailyAIUsage }] = await Promise.all([
         import('@ai-sdk/openai'),
         import('ai'),
         import('@/lib/user-ai-keys.server'),
@@ -108,7 +110,6 @@ export const respondToTutor = createServerFn({ method: 'POST' })
       const { userId, supabase } = await getAuthenticatedAIContext(data.accessToken);
       const personalKeys = await getUserAIKeys(userId, supabase);
       const hasPersonalKey = Boolean(personalKeys.gemini || personalKeys.openrouter);
-      const usageCount = hasPersonalKey ? null : await consumeDailyAIUsage(supabase);
       const geminiKey = personalKeys.gemini || (!hasPersonalKey ? process.env['GEMINI_API_KEY'] : '');
       const openRouterKey = personalKeys.openrouter || (!hasPersonalKey ? process.env['OPENROUTER_API_KEY'] : '');
       const providers = [
@@ -116,6 +117,8 @@ export const respondToTutor = createServerFn({ method: 'POST' })
         ...(openRouterKey ? [{ name: 'OpenRouter', model: createOpenAI({ baseURL: 'https://openrouter.ai/api/v1', apiKey: openRouterKey })('openrouter/free') }] : []),
       ];
       if (!providers.length) throw new Error('No AI provider key is configured. Add a Gemini or OpenRouter key in Settings.');
+      const usageCount = hasPersonalKey ? null : await consumeDailyAIUsage(supabase);
+      if (usageCount !== null) { quotaSupabase = supabase; quotaCharged = true; }
       const conversation = data.history.map((item) => (item.role === 'user' ? 'Student: ' : 'Tutor: ') + item.content).join('\n\n');
       const pdfContext = data.attachment?.type === 'pdf'
         ? `\n\n--- BEGIN UPLOADED PDF TEXT ---\nDocument name: ${data.attachment.name}\nThe following is extracted text from the student's uploaded PDF. Use this content as the source when answering; do not claim the PDF is inaccessible.\n\n${data.attachment.text}\n--- END UPLOADED PDF TEXT ---`
@@ -137,6 +140,7 @@ export const respondToTutor = createServerFn({ method: 'POST' })
             maxRetries: 0,
           });
           if (!result.text.trim()) throw new Error(`${provider.name} returned an empty response.`);
+          quotaCharged = false;
           return {
             success: true as const,
             text: result.text,
@@ -149,6 +153,10 @@ export const respondToTutor = createServerFn({ method: 'POST' })
       }
       throw lastError instanceof Error ? lastError : new Error('All configured AI providers failed.');
     } catch (error) {
+      if (quotaCharged && quotaSupabase) {
+        try { await (await import('@/lib/user-ai-keys.server')).refundDailyAIUsage(quotaSupabase as never); }
+        catch (refundError) { console.error('[AI Tutor] Could not refund failed Tutor request:', refundError); }
+      }
       const message = error instanceof Error ? error.message : String(error);
       console.error('[AI Tutor] Server function failed:', error);
       return { success: false as const, error: message };
