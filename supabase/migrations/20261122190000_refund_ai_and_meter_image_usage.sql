@@ -53,7 +53,7 @@ revoke all on public.user_image_usage from anon, authenticated;
 grant select on public.user_image_usage to authenticated;
 
 -- Returns 1 when this request ID is newly charged, 0 when it was already
--- charged (a replay/retry), and -1 when the account has reached five images.
+-- charged (a replay/retry), and the negative daily limit when it is reached.
 create or replace function public.charge_image_usage(p_request_id text)
 returns integer
 language plpgsql
@@ -95,7 +95,7 @@ begin
      and usage_date = v_date;
 
   if v_count >= v_daily_limit then
-    return -1;
+    return -v_daily_limit;
   end if;
 
   insert into public.user_image_usage (user_id, usage_date, request_id)
