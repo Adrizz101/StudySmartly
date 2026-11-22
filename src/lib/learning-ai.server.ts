@@ -2,7 +2,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import type { SourceInput } from './learning-models';
-import { consumeDailyAIUsage, getAuthenticatedAIContext, getUserAIKeys } from './user-ai-keys.server';
+import { consumeDailyAIUsage, refundDailyAIUsage, getAuthenticatedAIContext, getUserAIKeys } from './user-ai-keys.server';
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -19,7 +19,7 @@ function rawAIResponse(error: unknown): string | null {
   return null;
 }
 
-type StructuredAIOptions = { logRawResponse?: boolean };
+type StructuredAIOptions = { logRawResponse?: boolean; charge?: 'charge' | 'skip' };
 
 export async function structuredAI<T>(
   schema: z.ZodType<T>,
@@ -111,9 +111,8 @@ export async function structuredAI<T>(
     );
   }
 
-  if (!hasPersonalKey) {
-    await consumeDailyAIUsage(supabase);
-  }
+  const shouldCharge = !hasPersonalKey && options.charge !== 'skip';
+  if (shouldCharge) await consumeDailyAIUsage(supabase);
 
   const failures: string[] = [];
   for (const provider of providers) {
@@ -148,7 +147,7 @@ export async function structuredAI<T>(
         });
         const parsed = schema.safeParse(object);
         if (parsed.success) {
-          return { output: parsed.data, runId: runId || provider.name + '-run' };
+          return { output: parsed.data, runId: runId || provider.name + '-run', quotaCharged: shouldCharge };
         }
         providerError = new Error(parsed.error.issues.map((issue) => (issue.path.join('.') || 'response') + ': ' + issue.message).join('; '));
         if (options.logRawResponse) {
@@ -176,6 +175,13 @@ export async function structuredAI<T>(
   }
 
   console.error('[AI] All configured providers failed:', failures);
+  if (shouldCharge) {
+    try {
+      await refundDailyAIUsage(supabase);
+    } catch (refundError) {
+      console.error('[AI Quota] Refund failed after all providers failed:', refundError);
+    }
+  }
   throw new Error('StudySmartly could not generate a valid response right now. Please try again in a moment.');
 }
 
@@ -323,4 +329,10 @@ export async function parseScheduleWithAI(text: string) {
     }
     throw error;
   }
+}
+
+
+export async function refundCurrentUserAIUsage() {
+  const { supabase } = await getAuthenticatedAIContext();
+  await refundDailyAIUsage(supabase);
 }
