@@ -97,6 +97,14 @@ export default function SpotlightTour() {
           },
           {
             element: '[data-tour="upload"]',
+            onNextClick: () => {
+              if (window.matchMedia('(max-width: 1023px)').matches) {
+                window.dispatchEvent(new Event('studysmartly:open-mobile-nav'));
+                window.setTimeout(() => tour.moveNext(), 300);
+              } else {
+                tour.moveNext();
+              }
+            },
             popover: {
               title: 'Upload your notes',
               description: "Got a photo of a textbook or a PDF? Upload it here and I'll read it for you.",
