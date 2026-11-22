@@ -17,9 +17,15 @@ export function StudyLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const openAcademy = () => setAcademyOpen(true);
+    const openMobileNavigation = () => setMobileOpen(true);
+    const closeMobileNavigation = () => setMobileOpen(false);
     window.addEventListener('studysmartly:open-academy', openAcademy);
+    window.addEventListener('studysmartly:open-mobile-nav', openMobileNavigation);
+    window.addEventListener('studysmartly:close-mobile-nav', closeMobileNavigation);
     return () => {
       window.removeEventListener('studysmartly:open-academy', openAcademy);
+      window.removeEventListener('studysmartly:open-mobile-nav', openMobileNavigation);
+      window.removeEventListener('studysmartly:close-mobile-nav', closeMobileNavigation);
     };
   }, []);
   useEffect(() => {
