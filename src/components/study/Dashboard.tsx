@@ -115,7 +115,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   ];
 
   return (
-    <div data-tour="dashboard" className="space-y-5">
+    <div className="space-y-5">
       {/* Hero */}
       <div className="relative overflow-hidden rounded-2xl glass surface-elevated p-5 lg:p-6 motion-card">
         <div className="absolute top-0 right-0 w-64 h-64 bg-accent-500/10 rounded-full blur-3xl -mr-20 -mt-20" />
