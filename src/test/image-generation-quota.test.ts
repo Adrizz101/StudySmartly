@@ -25,7 +25,7 @@ const request = () => new Request('https://studysmartly.test/api/generate-image'
 });
 const imageStream = () => new ReadableStream<Uint8Array>({
   start(controller) {
-    controller.enqueue(new TextEncoder().encode('data: {"b64_json":"abc123"}\n\n'));
+    controller.enqueue(new TextEncoder().encode('event: image_generation.completed\ndata: {"b64_json":"abc123"}\n\n'));
     controller.close();
   },
 });
