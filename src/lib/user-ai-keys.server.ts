@@ -105,3 +105,12 @@ export async function consumeDailyAIUsage(supabase: UserSupabaseClient) {
   }
   return data;
 }
+
+
+export async function refundDailyAIUsage(supabase: UserSupabaseClient) {
+  const { error } = await supabase.rpc('refund_ai_usage');
+  if (error) {
+    console.error('[AI Quota] Could not refund daily AI usage:', error);
+    throw new Error('Could not restore your daily AI usage. Please contact support if the count looks incorrect.');
+  }
+}
