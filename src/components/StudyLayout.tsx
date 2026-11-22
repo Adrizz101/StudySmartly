@@ -5,7 +5,6 @@ import { Sidebar, TopBar } from '@/components/Sidebar';
 import type { ViewKey } from '@/types';
 import { AnimatedRoute } from '@/components/animated-route';
 import StudyAcademy from '@/components/StudyAcademy';
-import SpotlightTour from '@/components/SpotlightTour';
 
 export function StudyLayout({ children }: { children: ReactNode }) {
   const pathname = useLocation({ select: (location) => location.pathname });
@@ -17,15 +16,9 @@ export function StudyLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const openAcademy = () => setAcademyOpen(true);
-    const openMobileNavigation = () => setMobileOpen(true);
-    const closeMobileNavigation = () => setMobileOpen(false);
     window.addEventListener('studysmartly:open-academy', openAcademy);
-    window.addEventListener('studysmartly:open-mobile-nav', openMobileNavigation);
-    window.addEventListener('studysmartly:close-mobile-nav', closeMobileNavigation);
     return () => {
       window.removeEventListener('studysmartly:open-academy', openAcademy);
-      window.removeEventListener('studysmartly:open-mobile-nav', openMobileNavigation);
-      window.removeEventListener('studysmartly:close-mobile-nav', closeMobileNavigation);
     };
   }, []);
   useEffect(() => {
@@ -51,7 +44,6 @@ export function StudyLayout({ children }: { children: ReactNode }) {
     <FocusModeContext.Provider value={{ focusMode, setFocusMode }}>
       <div className="flex min-h-screen bg-bg">
         {academyOpen && <StudyAcademy onClose={() => setAcademyOpen(false)} />}
-        <SpotlightTour />
         <div className={focusMode ? 'hidden' : 'contents'}>
           <Sidebar current={view} onNavigate={(next) => navigate({ to: next === 'dashboard' ? '/' : `/${next}` })} mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((value) => !value)} />
         </div>
