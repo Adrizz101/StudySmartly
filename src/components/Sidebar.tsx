@@ -46,6 +46,7 @@ export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile, collap
           return (
             <Button variant="source"
               key={item.key}
+              data-tour={item.key === 'flashcards' ? 'flashcards' : item.key === 'exams' ? 'exams' : item.key === 'tutor' ? 'tutor' : item.key === 'settings' ? 'settings' : undefined}
               onClick={() => {
                 // Navigate immediately; analytics must never make the UI wait for auth.
                 onNavigate(item.key);
@@ -169,6 +170,7 @@ export function TopBar({ view, onMenuClick }: TopBarProps) {
         <Button
           variant="source"
           aria-label="Open navigation menu"
+          data-tour="sidebar-mobile"
           onClick={onMenuClick}
           className="lg:hidden shrink-0 p-2 rounded-lg hover:bg-surface-hover text-text-muted"
         >
