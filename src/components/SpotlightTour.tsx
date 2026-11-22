@@ -46,6 +46,14 @@ export default function SpotlightTour() {
           },
           {
             element: '[data-tour="dashboard"]',
+            onNextClick: () => {
+              if (window.matchMedia('(max-width: 1023px)').matches) {
+                window.dispatchEvent(new Event('studysmartly:open-mobile-nav'));
+                window.setTimeout(() => tour.moveNext(), 300);
+              } else {
+                tour.moveNext();
+              }
+            },
             popover: {
               title: 'Your dashboard',
               description: "Here you can see what's due, your study streak, and what to tackle next.",
@@ -80,6 +88,9 @@ export default function SpotlightTour() {
               align: 'start',
             },
             onNextClick: () => {
+              if (window.matchMedia('(max-width: 1023px)').matches) {
+                window.dispatchEvent(new Event('studysmartly:close-mobile-nav'));
+              }
               void navigate({ to: '/tutor' });
               window.setTimeout(() => tour.moveNext(), 500);
             },
