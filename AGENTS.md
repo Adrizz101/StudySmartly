@@ -1,6 +1,32 @@
-## StudySmart source adaptation
-- Keep the existing pinned TanStack runtime and file routes; source screens live in reusable study components so every section has a real URL.
-- Mount the browser-state provider and study layout behind ClientOnly because the imported application initializes localStorage and time-dependent views during render.
-- Preserve source browser storage and user-configured connectors during this source-replacement task; introducing accounts or Cloud storage is a separate change.
-- Use the Button source variant for imported controls to preserve their original dimensions and interaction styling.
-- Load bundled PDF libraries on export; html2canvas-pro supports the current Tailwind color syntax without relying on global CDN scripts.
+# StudySmartly - AI Agent Guidelines
+
+## Core Stack
+- React 19, TanStack Start, Tailwind CSS v4, Supabase, Vercel AI SDK, Zod.
+
+## 🚨 Critical Rules (Do not violate)
+
+### 1. Routing & Server Functions
+- DO NOT create custom nested API routes (like `/api/tutor/stream`). The TanStack route generator often fails to register them, causing persistent Vercel 404 errors.
+- ALWAYS use TanStack `createServerFn` for backend logic. If an API route is absolutely necessary, use a flat file format (`api.tutor.stream.ts`) and verify it appears in `routeTree.gen.ts`.
+- NEVER manually edit `routeTree.gen.ts`. It is auto-generated.
+
+### 2. String Escaping & Regex
+- **LaTeX / JSON:** When writing system prompts containing LaTeX, ALWAYS wrap the prompt in `String.raw` template literals. Do NOT use regular strings with backslashes (e.g., `\frac`), as Vite will crash on invalid Unicode escapes.
+- **Regex:** AVOID complex regular expressions for parsing strings. Use `.split()`, `.trim()`, or standard string methods instead to prevent Vercel build crashes (like the `ENOENT` regex failure).
+
+### 3. Package Management
+- DO NOT install new packages unless absolutely necessary. If you must, check `package.json` first. Vercel is configured with `--no-frozen-lockfile`, so it will not crash if the lockfile is out of sync.
+- Use `pdfjs-dist` for client-side PDF extraction (already installed).
+
+### 4. Mobile UI & Styling
+- The app is mobile-first. 
+- Chat containers must use `flex flex-col`, `min-h-0`, and `overflow-y-auto` to prevent input boxes from overlapping content.
+- Long KaTeX equations must be wrapped in `overflow-x: auto` or split by the AI into multiple lines so they don't break the mobile screen width.
+
+### 5. AI Tutor (Socratic Method)
+- The Tutor MUST use the Socratic method. Do not give direct answers to math/science problems; provide progressive hints.
+- Formatting must use Markdown (bullet points, bold) and KaTeX (`$$...$$` for block math). No square brackets `[ ]` around equations.
+
+## Development Workflow
+- Commit to `main` only when the code is verified to work.
+- If a Vercel build fails, read the logs before guessing.
