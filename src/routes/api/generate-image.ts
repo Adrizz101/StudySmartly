@@ -4,10 +4,7 @@ import { authorizeImage, chargeDailyImageUsage, refundDailyImageUsage } from '@/
 
 const DAILY_IMAGE_LIMIT = 5;
 
-export const Route = createFileRoute('/api/generate-image')({
-  server: {
-    handlers: {
-      POST: async ({ request }) => {
+export async function handleGenerateImagePost(request: Request): Promise<Response> {
         const authorization = await authorizeImage(request);
         if (authorization instanceof Response) return authorization;
 
@@ -94,7 +91,12 @@ export const Route = createFileRoute('/api/generate-image')({
             'Cache-Control': 'no-store',
           },
         });
-      },
+}
+
+export const Route = createFileRoute('/api/generate-image')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => handleGenerateImagePost(request),
     },
   },
 });
