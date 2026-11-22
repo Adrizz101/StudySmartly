@@ -99,10 +99,10 @@ export const getTutorUsage = createServerFn({ method: 'POST' })
 export const respondToTutor = createServerFn({ method: 'POST' })
   .inputValidator(tutorFunctionInput)
   .handler(async ({ data }) => {
-    let quotaSupabase: unknown;
+    let quotaSupabase: any;
     let quotaCharged = false;
     try {
-      const [{ createOpenAI }, { generateText }, { getAuthenticatedAIContext, getUserAIKeys, consumeDailyAIUsage, refundDailyAIUsage }] = await Promise.all([
+      const [{ createOpenAI }, { generateText }, { getAuthenticatedAIContext, getUserAIKeys, consumeDailyAIUsage }] = await Promise.all([
         import('@ai-sdk/openai'),
         import('ai'),
         import('@/lib/user-ai-keys.server'),
@@ -154,7 +154,7 @@ export const respondToTutor = createServerFn({ method: 'POST' })
       throw lastError instanceof Error ? lastError : new Error('All configured AI providers failed.');
     } catch (error) {
       if (quotaCharged && quotaSupabase) {
-        try { await (await import('@/lib/user-ai-keys.server')).refundDailyAIUsage(quotaSupabase as never); }
+        try { await (await import('@/lib/user-ai-keys.server')).refundDailyAIUsage(quotaSupabase); }
         catch (refundError) { console.error('[AI Tutor] Could not refund failed Tutor request:', refundError); }
       }
       const message = error instanceof Error ? error.message : String(error);
