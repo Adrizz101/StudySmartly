@@ -63,25 +63,44 @@ export async function handleGenerateImagePost(request: Request): Promise<Respons
           return new Response('Image generation returned no image.', { status: 502 });
         }
 
-        // Inspect the passing stream without buffering it. The request is charged only
-        // if OpenAI actually emits an image payload; the client's non-streaming retry
-        // reuses the same request ID and therefore cannot charge twice.
+        // Inspect the stream while forwarding it. Streaming responses are charged
+        // only after a completed image event; non-streaming retries need a b64_json.
         let sawImage = false;
         let tail = '';
         const decoder = new TextDecoder();
-        const inspectedBody = upstream.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
-          transform(chunk, controller) {
-            const text = tail + decoder.decode(chunk, { stream: true });
-            if (text.includes('"b64_json"')) sawImage = true;
-            tail = text.slice(-24);
-            controller.enqueue(chunk);
+        const reader = upstream.body.getReader();
+        const inspectedBody = new ReadableStream<Uint8Array>({
+          async pull(controller) {
+            try {
+              const chunk = await reader.read();
+              if (chunk.done) {
+                const finalText = tail + decoder.decode();
+                if (body.stream === false && finalText.includes('"b64_json"')) sawImage = true;
+                if (!sawImage) await refundDailyImageUsage(authorization.supabase, requestId);
+                controller.close();
+                return;
+              }
+              const text = tail + decoder.decode(chunk.value, { stream: true });
+              if (body.stream === false) {
+                if (text.includes('"b64_json"')) sawImage = true;
+              } else if (
+                text.includes('image_generation.completed') ||
+                text.includes('image_edit.completed')
+              ) {
+                if (text.includes('"b64_json"')) sawImage = true;
+              }
+              tail = text.slice(-256);
+              controller.enqueue(chunk.value);
+            } catch (error) {
+              if (!sawImage) await refundDailyImageUsage(authorization.supabase, requestId);
+              controller.error(error);
+            }
           },
-          async flush() {
-            const finalText = tail + decoder.decode();
-            if (finalText.includes('"b64_json"')) sawImage = true;
+          async cancel(reason) {
+            await reader.cancel(reason).catch(() => {});
             if (!sawImage) await refundDailyImageUsage(authorization.supabase, requestId);
           },
-        }));
+        });
 
         return new Response(inspectedBody, {
           status: upstream.status,
