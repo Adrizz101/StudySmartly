@@ -169,7 +169,6 @@ export function TopBar({ view, onMenuClick }: TopBarProps) {
         <Button
           variant="source"
           aria-label="Open navigation menu"
-          data-tour="sidebar-mobile"
           onClick={onMenuClick}
           className="lg:hidden shrink-0 p-2 rounded-lg hover:bg-surface-hover text-text-muted"
         >
