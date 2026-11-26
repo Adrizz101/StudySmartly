@@ -90,7 +90,7 @@ export default function ConceptMap({ map }: { map: ConceptMapData }) {
         edges={graph.edges}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: 0.2, minZoom: 0.5, maxZoom: 1.1 }}
+        fitViewOptions={{ padding: 0.2 }}
         panOnDrag
         zoomOnPinch
         nodesDraggable={false}
