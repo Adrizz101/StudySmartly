@@ -170,7 +170,7 @@ export default function FlashcardStudio(){
  }
  function explainWithAITutor(){
    if(!current)return;
-   const prompt=`Explain this flashcard clearly, step by step, clearly, step by step.\nQuestion: ${current.question}\nAnswer: ${current.answer}\nAdditional explanation: ${current.explanation}\nSubject: ${current.subject}\nTopic: ${current.topic}`;
+   const prompt=`Explain this flashcard clearly, step by step.\nQuestion: ${current.question}\nAnswer: ${current.answer}\nAdditional explanation: ${current.explanation}\nSubject: ${current.subject}\nTopic: ${current.topic}`;
    try{window.sessionStorage.setItem('studysmartly_tutor_prompt',prompt);}catch{/* Navigation still works; user can paste the prompt manually. */}
    void navigate({to:'/tutor'});
  }
