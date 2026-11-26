@@ -6,6 +6,7 @@ import { useApp } from '@/store';
 import { ViewKey } from '@/types';
 import { Calendar, Bot, FileText, Mic, BookOpen, Clock, TrendingUp, AlertCircle, Plus, Layers3 } from 'lucide-react';
 import { formatDateLabel, formatTimeLabel } from '@/lib/syllabus';
+import { useGamification } from '@/lib/useGamification';
 
 interface DashboardProps {
   onNavigate: (v: ViewKey) => void;
@@ -13,6 +14,7 @@ interface DashboardProps {
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
   const { courses, events, tutorSessions, documents, transcriptions, settings } = useApp();
+  const { stats: gamification } = useGamification();
   type NextSession = { kind: 'flashcards'; deckId: string; subject: string; topic: string; count: number } | { kind: 'topic'; subject: string; topic: string; chapter: string; mastery: number };
   const [nextSession, setNextSession] = useState<NextSession | null>(null);
   const [nextSessionLoading, setNextSessionLoading] = useState(true);
@@ -144,6 +146,40 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           />
         </div>
       </div>
+
+      <section className="rounded-2xl glass surface-elevated border border-border p-4 sm:p-5 motion-card" aria-labelledby="daily-goal-title">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-accent-400">Daily goal</span>
+            <h3 id="daily-goal-title" className="mt-1 text-lg font-bold text-text">Earn {gamification.daily_goal} XP today</h3>
+            <p className="mt-1 text-sm text-text-muted">
+              {gamification.daily_xp >= gamification.daily_goal
+                ? 'Daily goal complete. Great work today.'
+                : `${Math.max(0, gamification.daily_goal - gamification.daily_xp)} XP to reach your daily goal.`}
+              {' '}One successful study action keeps your streak active.
+            </p>
+          </div>
+          <div className="w-full shrink-0 sm:w-56">
+            <div className="mb-1 flex items-center justify-between text-xs font-semibold tabular-nums text-text-muted">
+              <span>⚡ {gamification.daily_xp} XP</span>
+              <span>{gamification.daily_goal} XP</span>
+            </div>
+            <div
+              className="h-2.5 overflow-hidden rounded-full bg-surface-hover"
+              role="progressbar"
+              aria-label="Daily XP goal progress"
+              aria-valuemin={0}
+              aria-valuemax={gamification.daily_goal}
+              aria-valuenow={Math.min(gamification.daily_xp, gamification.daily_goal)}
+            >
+              <div
+                className="h-full rounded-full bg-accent-500 transition-[width] duration-300"
+                style={{ width: `${Math.min(100, (gamification.daily_xp / gamification.daily_goal) * 100)}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section className="relative overflow-hidden rounded-2xl glass surface-elevated border border-accent-500/25 p-5 sm:p-6 motion-card" aria-labelledby="next-study-session-title">
         <div className="absolute -right-10 -top-12 h-44 w-44 rounded-full bg-accent-500/10 blur-3xl" />
