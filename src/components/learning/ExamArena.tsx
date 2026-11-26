@@ -10,16 +10,18 @@ import { load, save } from '@/lib/storage';
 import { AIConsent, requireAISession } from './AIConsent';
 import { SourcePicker } from './SourcePicker';
 import InteractiveLoader from '@/components/ui/InteractiveLoader';
+import { useGamification } from '@/lib/useGamification';
 
 const letters=['A','B','C','D'];
 export default function ExamArena(){
   const reduceMotion = useReducedMotion();
+  const { recordActivity } = useGamification();
   const [sources,setSources]=useState<SourceInput[]>([]),[prompt,setPrompt]=useState(''),[key,setKey]=useState(''),[consent,setConsent]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
   const [exam,setExam]=useState<Exam|null>(null),[answers,setAnswers]=useState<Record<number,number>>({}),[index,setIndex]=useState(0),[review,setReview]=useState<number[]>([]),[result,setResult]=useState<Attempt|null>(null);
   const [analysis,setAnalysis]=useState<MistakeAnalysis|null>(null),[analysisBusy,setAnalysisBusy]=useState(false),[analysisError,setAnalysisError]=useState('');
   const [minutes,setMinutes]=useState(30),[deadline,setDeadline]=useState<number|null>(null),[seconds,setSeconds]=useState(0),[attempts,setAttempts]=useState<Attempt[]>(()=>load('exam-attempts',[]));
   const prepare=useServerFn(prepareExam),analyze=useServerFn(analyzeExamMistakes),navigate=useNavigate();
-  function submit(){if(!exam||result)return;const a={id:crypto.randomUUID(),exam,answers,submittedAt:Date.now()};setResult(a);setDeadline(null);setAttempts(prev=>{const next=[a,...prev];save('exam-attempts',next);return next;});}
+  function submit(){if(!exam||result)return;const a={id:crypto.randomUUID(),exam,answers,submittedAt:Date.now()};setResult(a);setDeadline(null);setAttempts(prev=>{const next=[a,...prev];save('exam-attempts',next);return next;});void recordActivity('exam_submit');}
   useEffect(()=>{if(!deadline)return;const tick=()=>{const left=Math.max(0,Math.ceil((deadline-Date.now())/1000));setSeconds(left);if(!left)submit();};tick();const t=setInterval(tick,1000);return()=>clearInterval(t);},[deadline,answers,exam,result]);
   async function create(){setError('');setBusy(true);try{if(!consent)throw new Error('Consent to AI processing before continuing.');await requireAISession();const r=await prepare({data:{prompt:prompt||'Extract the MCQ past-paper questions from my uploaded sources.',sources,key,consent:true}});if(r.success===false){setError(r.error);return;}if(!r.data.questions.some(canGrade))throw new Error('No questions passed verification. Add a clearer paper or an answer key.');setExam(r.data);setAnswers({});setIndex(0);setReview([]);setResult(null);setDeadline(null);}catch(e){setError(e instanceof Error?e.message:'Could not prepare this test.');}finally{setBusy(false);}}
 
