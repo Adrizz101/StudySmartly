@@ -75,7 +75,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   function startRecommendedSession() {
     if (!nextSession) { onNavigate('tutor'); return; }
     if (nextSession.kind === 'topic') {
-      const prompt = 'Teach me this weak topic using a clear, step-by-step with the AI Tutor. Explain it step by step and use a visual concept map where helpful. Subject: ' + nextSession.subject + '. Chapter: ' + nextSession.chapter + '. Topic: ' + nextSession.topic + '. My current mastery score is ' + nextSession.mastery + '%. Start with the foundations, use a labelled diagram or structured explanation where useful, and finish with a short recall check.';
+      const prompt = 'Teach me this weak topic with the AI Tutor. Explain it step by step and use a visual concept map where helpful. Subject: ' + nextSession.subject + '. Chapter: ' + nextSession.chapter + '. Topic: ' + nextSession.topic + '. My current mastery score is ' + nextSession.mastery + '%. Start with the foundations, use a labelled diagram or structured explanation where useful, and finish with a short recall check.';
       try { window.sessionStorage.setItem('studysmartly_tutor_prompt', prompt); }
       catch (error) { console.warn('[Dashboard] Could not persist Tutor topic handoff:', error); }
       onNavigate('tutor');
