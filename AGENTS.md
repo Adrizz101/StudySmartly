@@ -23,9 +23,9 @@
 - Chat containers must use `flex flex-col`, `min-h-0`, and `overflow-y-auto` to prevent input boxes from overlapping content.
 - Long KaTeX equations must be wrapped in `overflow-x: auto` or split by the AI into multiple lines so they don't break the mobile screen width.
 
-### 5. AI Tutor (Socratic Method)
-- The Tutor MUST use the Socratic method. Do not give direct answers to math/science problems; provide progressive hints.
-- Formatting must use Markdown (bullet points, bold) and KaTeX (`$$...$$` for block math). No square brackets `[ ]` around equations.
+### 5. AI Tutor (Teaching Personas)
+- The Tutor supports four teaching personas (Socratic, ELI5, Exam Focus, Direct Answer). Socratic is the default, but the AI dynamically injects the selected persona's instructions. Do not remove this selector.
+- Preserve Markdown formatting (bullet points, bold) and KaTeX (`$...$` for block math). No square brackets `[ ]` around equations.
 
 ## Development Workflow
 - Commit to `main` only when the code is verified to work.
