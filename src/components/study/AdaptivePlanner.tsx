@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { AlertCircle, BookOpen, CalendarDays, CheckCircle2, Clock3, FileText, Plus, RefreshCw, Settings2, Target, Trash2, Upload } from 'lucide-react';
+import { AlertCircle, BookOpen, CalendarDays, CheckCircle2, Clock3, FileText, Plus, RefreshCw, Settings2, Target, Trash2, Upload, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useApp } from '@/store';
 import InteractiveLoader from '@/components/ui/InteractiveLoader';
 import { readSource } from '@/lib/source-files';
 import { extractSyllabusTopics } from '@/lib/learning-ai.functions';
+import { buildStudySchedule } from '@/lib/smart-scheduling';
 
 type Priority = 'low' | 'normal' | 'high';
 type Topic = { id: string; user_id: string; course_id: string | null; subject: string; chapter: string; concept: string; mastery_score: number; estimated_hours?: number | null; estimatedHours?: number | null; priority: Priority; last_practiced_at: string | null };
@@ -14,7 +15,6 @@ type StudySession = { id: string; topic_id: string | null; title: string; subjec
 type Preferences = { weekday_available_minutes: number; weekend_available_minutes: number; preferred_start_time: string; preferred_end_time: string; session_duration_minutes: number; break_duration_minutes: number; study_days: number[]; timezone: string };
 
 const DEFAULTS: Preferences = { weekday_available_minutes: 120, weekend_available_minutes: 180, preferred_start_time: '16:00', preferred_end_time: '21:00', session_duration_minutes: 40, break_duration_minutes: 10, study_days: [1,2,3,4,5,6,0], timezone: 'Asia/Kolkata' };
-const priorityWeight: Record<Priority, number> = { high: 3, normal: 2, low: 1 };
 const dayLabel = (date: Date) => date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 const startOfWeek = (date: Date) => { const monday = new Date(date); monday.setHours(0, 0, 0, 0); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7)); return monday.getTime(); };
 
@@ -44,6 +44,7 @@ export default function AdaptivePlanner() {
   const [completingSessionIds, setCompletingSessionIds] = useState<string[]>([]);
   const [deletingSessionIds, setDeletingSessionIds] = useState<string[]>([]);
   const [clearingSchedule, setClearingSchedule] = useState(false);
+  const [autoAdjustToast, setAutoAdjustToast] = useState('');
 
   const loadPlanner = useCallback(async () => {
     setBusy(true); setError('');
@@ -69,6 +70,12 @@ export default function AdaptivePlanner() {
   }, []);
 
   useEffect(() => { void loadPlanner(); }, [loadPlanner]);
+
+  useEffect(() => {
+    if (!autoAdjustToast) return;
+    const timeout = window.setTimeout(() => setAutoAdjustToast(''), 4500);
+    return () => window.clearTimeout(timeout);
+  }, [autoAdjustToast]);
 
   async function addTopic(e: FormEvent) {
     e.preventDefault(); setSaving(true); setError(''); setNotice('');
@@ -159,64 +166,47 @@ export default function AdaptivePlanner() {
   const highRiskWeeks = weeklyWorkload.filter(week => week.highRisk);
   const weakTopics = [...topics].sort((a,b) => a.mastery_score - b.mastery_score).slice(0,4);
 
-  async function generatePlan() {
+  async function schedulePlan(replaceFuturePlanned: boolean) {
     setSaving(true); setError(''); setNotice('');
     try {
-      if (!topics.length) throw new Error('Add at least one topic before generating a plan.');
-      const duration = preferences.session_duration_minutes;
-      const breakMs = preferences.break_duration_minutes * 60000;
-      const startParts = preferences.preferred_start_time.split(':').map(Number);
-      const endParts = preferences.preferred_end_time.split(':').map(Number);
-      const startMinute = startParts[0] * 60 + startParts[1];
-      const endMinute = endParts[0] * 60 + endParts[1];
-      const available = endMinute - startMinute;
-      if (available < duration) throw new Error('Your available time window is shorter than one study session.');
-      const ranked = [...topics].sort((a,b) =>
-        (priorityWeight[b.priority] * 100 + (100 - b.mastery_score)) -
-        (priorityWeight[a.priority] * 100 + (100 - a.mastery_score))
-      );
-      const occupied: Array<{ start: number; end: number }> = [];
-      sessions.filter(s => s.status === 'planned').forEach(s => occupied.push({ start: new Date(s.scheduled_start).getTime(), end: new Date(s.scheduled_end).getTime() }));
+      if (!topics.some(topic => topic.mastery_score < 100)) throw new Error('All tracked topics are marked complete. Add or update a topic before scheduling more study.');
+      if (!userId) throw new Error('Please sign in again before updating your study schedule.');
       const now = new Date();
-      events.forEach(ev => {
-        const start = new Date(`${ev.date}T${ev.startTime}:00`).getTime();
-        const end = new Date(`${ev.date}T${ev.endTime}:00`).getTime();
-        if (Number.isFinite(start) && Number.isFinite(end)) occupied.push({ start, end });
-      });
-      const proposed: Array<Record<string, unknown>> = [];
-      let cursor = 0;
-      for (let dayOffset = 0; dayOffset < 14 && cursor < ranked.length * 2; dayOffset++) {
-        const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset);
-        if (!preferences.study_days.includes(day.getDay())) continue;
-        const minutesAvailable = day.getDay() === 0 || day.getDay() === 6 ? preferences.weekend_available_minutes : preferences.weekday_available_minutes;
-        const count = Math.min(Math.floor(minutesAvailable / (duration + preferences.break_duration_minutes || 1)), Math.floor(available / duration));
-        let placed = 0;
-        for (let slot = 0; slot < Math.floor(available / duration) && placed < count && cursor < ranked.length * 2; slot++) {
-          const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), Math.floor(startMinute / 60), startMinute % 60 + slot * (duration + preferences.break_duration_minutes));
-          const end = new Date(start.getTime() + duration * 60000);
-          if (start.getTime() <= Date.now()) continue;
-          const conflict = occupied.some(o => start.getTime() < o.end && end.getTime() > o.start) || proposed.some(p => start.getTime() < new Date(String(p.scheduled_end)).getTime() && end.getTime() > new Date(String(p.scheduled_start)).getTime());
-          if (conflict) continue;
-          const topic = ranked[cursor % ranked.length];
-          proposed.push({
-            user_id: userId, topic_id: topic.id, title: topic.concept, subject: topic.subject,
-            chapter: topic.chapter, concept: topic.concept, scheduled_start: start.toISOString(),
-            scheduled_end: end.toISOString(), duration_minutes: duration, status: 'planned',
-            priority: topic.priority, source: 'adaptive_planner',
-            rationale: topic.mastery_score < 50 ? 'Prioritised because this topic has a low mastery score.' : topic.priority === 'high' ? 'Prioritised based on your selected importance.' : 'Scheduled to maintain consistent revision.',
-          });
-          placed++; cursor++;
-        }
+      const result = buildStudySchedule({ topics, existingSessions: sessions, events, preferences, now, replaceFuturePlanned });
+      if (!result.sessions.length) throw new Error('No free study slots were found in the next 14 days. Adjust your availability or remove conflicting events.');
+      const nowIso = now.toISOString();
+      let removedSessions: StudySession[] = [];
+      if (replaceFuturePlanned) {
+        const { data: removed, error: deleteError } = await supabase.from('study_sessions')
+          .delete().eq('user_id', userId).eq('status', 'planned').gt('scheduled_start', nowIso).select('*');
+        if (deleteError) throw deleteError;
+        removedSessions = (removed ?? []) as StudySession[];
       }
-      if (!proposed.length) throw new Error('No free study slots were found in the next 14 days. Adjust your availability or remove conflicting events.');
-      const { data, error: insertError } = await supabase.from('study_sessions').insert(proposed).select('*');
-      if (insertError) throw insertError;
-      setSessions(prev => [...prev, ...(data as StudySession[])].sort((a,b) => a.scheduled_start.localeCompare(b.scheduled_start)));
-      setNotice(`Created ${data.length} study sessions over the next 14 days. Existing events and planned sessions were kept clear.`);
+      const payload = result.sessions.map(session => ({ ...session, user_id: userId }));
+      const { data, error: insertError } = await supabase.from('study_sessions').insert(payload).select('*');
+      if (insertError) {
+        if (removedSessions.length) {
+          const { error: restoreError } = await supabase.from('study_sessions').insert(removedSessions);
+          if (restoreError) console.error('[Adaptive Planner] Could not restore the previous schedule after a failed adjustment:', restoreError);
+        }
+        throw insertError;
+      }
+      const removedIds = new Set(removedSessions.map(session => session.id));
+      setSessions(prev => [...prev.filter(session => !removedIds.has(session.id)), ...((data ?? []) as StudySession[])]
+        .sort((a, b) => a.scheduled_start.localeCompare(b.scheduled_start)));
+      const availableHours = (result.availableMinutes / 60).toFixed(1);
+      const scheduledHours = (result.sessions.reduce((total, session) => total + session.duration_minutes, 0) / 60).toFixed(1);
+      const remainingMessage = result.unscheduledTopics > 0
+        ? ` ${result.unscheduledTopics} topic${result.unscheduledTopics === 1 ? '' : 's'} still need scheduling; add availability or use a later planning window.`
+        : ' All incomplete topics fit in the 14-day planning window.';
+      setNotice(`${replaceFuturePlanned ? 'Rebalanced' : 'Created'} ${result.sessions.length} sessions (${scheduledHours} study hours) using up to ${availableHours} available hours over the next 14 days.${remainingMessage}`);
+      if (replaceFuturePlanned) setAutoAdjustToast("Schedule adjusted around your events. You're all set!");
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not generate your study plan.'); }
     finally { setSaving(false); }
   }
 
+  async function generatePlan() { await schedulePlan(false); }
+  async function autoAdjustSchedule() { await schedulePlan(true); }
   async function deleteStudySession(session: StudySession) {
     if (deletingSessionIds.includes(session.id) || clearingSchedule) return;
     setError(''); setNotice('');
@@ -385,7 +375,7 @@ export default function AdaptivePlanner() {
 
   return <div className="learning-workspace space-y-6 motion-stagger">
     <header className="learning-heading"><div><span className="workspace-eyebrow">PLAN / ADAPTIVE STUDY PLANNER</span><h1>Adaptive Study Planner</h1><p className="text-sm text-text-muted mt-1">A realistic revision plan built around your weak topics, available time and existing commitments.</p></div>
-      <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setShowSettings(v => !v)}><Settings2 size={16}/> Preferences</Button><Button onClick={() => void generatePlan()} disabled={saving || busy || !topics.length}><RefreshCw size={16}/>{saving ? 'Working…' : 'Generate plan'}</Button><Button type="button" variant="ghost" onClick={() => void clearSchedule()} disabled={busy || clearingSchedule || upcoming.length === 0 || deletingSessionIds.length > 0} className="text-text-muted hover:text-destructive">{clearingSchedule ? <RefreshCw size={15} className="animate-spin"/> : <Trash2 size={15}/>} {clearingSchedule ? 'Clearing…' : 'Clear schedule'}</Button></div>
+      <div className="flex flex-wrap gap-2"><Button onClick={() => void autoAdjustSchedule()} disabled={saving || busy || !topics.some(topic => topic.mastery_score < 100)} className="bg-accent-600 hover:bg-accent-700 text-white"><Sparkles size={16}/> Auto-Adjust Schedule</Button><Button variant="outline" onClick={() => setShowSettings(v => !v)}><Settings2 size={16}/> Preferences</Button><Button onClick={() => void generatePlan()} disabled={saving || busy || !topics.length}><RefreshCw size={16}/>{saving ? 'Working…' : 'Generate plan'}</Button><Button type="button" variant="ghost" onClick={() => void clearSchedule()} disabled={busy || clearingSchedule || upcoming.length === 0 || deletingSessionIds.length > 0} className="text-text-muted hover:text-destructive">{clearingSchedule ? <RefreshCw size={15} className="animate-spin"/> : <Trash2 size={15}/>} {clearingSchedule ? 'Clearing…' : 'Clear schedule'}</Button></div>
     </header>
     {highRiskWeeks.length > 0 && <div role="alert" className="rounded-xl border-2 border-red-500 bg-red-500/10 p-4 text-red-700 dark:text-red-300"><div className="flex items-start gap-3"><AlertCircle size={20} className="mt-0.5 shrink-0"/><div><p className="font-bold">High workload detected</p>{highRiskWeeks.map(week => <p key={week.weekNumber} className="mt-1 text-sm">Warning: You have a heavy workload in Week {week.weekNumber}. Consider reallocating time. <span className="font-semibold">({week.hours.toFixed(1)} estimated hours · High Risk)</span></p>)}</div></div></div>}
     {error && <p role="alert" className="learning-error">{error}</p>}
@@ -438,5 +428,6 @@ export default function AdaptivePlanner() {
       {weeklyWorkload.length > 0 && <div className="mb-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-2">{weeklyWorkload.map(week => <div key={week.weekNumber} className={`rounded-lg border p-3 ${week.highRisk ? 'border-red-500 bg-red-500/10' : 'border-border bg-surface-hover/40'}`}><div className="flex items-center justify-between gap-2"><span className="text-sm font-semibold text-text">Week {week.weekNumber}</span>{week.highRisk ? <span className="text-xs font-bold text-red-600 dark:text-red-300">High Risk</span> : <span className="text-xs text-text-muted">Within limit</span>}</div><p className="mt-1 text-lg font-bold tabular-nums text-text">{week.hours.toFixed(1)} <span className="text-xs font-normal text-text-muted">estimated hours</span></p></div>)}</div>}
       {busy ? <div className="space-y-2" aria-busy="true" aria-label="Loading sessions"><div className="skeleton-glass h-16"/><div className="skeleton-glass h-16"/><div className="skeleton-glass h-16"/></div> : upcoming.length ? <div className="space-y-2">{upcoming.map((s,index)=><motion.article key={s.id} initial={reduceMotion?false:{opacity:0,y:16}} animate={{opacity:1,y:0}} transition={{duration:reduceMotion?0:0.3,delay:reduceMotion?0:index*0.07}} whileHover={reduceMotion?undefined:{scale:1.01}} whileTap={reduceMotion?undefined:{scale:0.99}} className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3"><div className="min-w-0 flex-1"><div className="text-sm font-medium text-text">{s.title}</div><div className="text-xs text-text-muted">{s.subject}{s.chapter? ` · ${s.chapter}`:''} · {dayLabel(new Date(s.scheduled_start))} · {new Date(s.scheduled_start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}–{new Date(s.scheduled_end).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div><div className="text-xs text-text-muted mt-1">{s.rationale}</div></div><span className="text-xs text-text-muted">{s.duration_minutes} min</span><Button variant="outline" size="sm" onClick={()=>void completeStudySession(s)} disabled={completingSessionIds.includes(s.id)}><CheckCircle2 size={14}/>{completingSessionIds.includes(s.id) ? 'Saving…' : 'Done'}</Button><Button variant="ghost" size="icon" aria-label="Mark session missed" onClick={()=>void updateSessionStatus(s,'missed')}><Clock3 size={14}/></Button><Button variant="ghost" size="icon" aria-label={`Delete session: ${s.title}`} title="Delete session" onClick={()=>void deleteStudySession(s)} disabled={deletingSessionIds.includes(s.id) || clearingSchedule || completingSessionIds.includes(s.id)} className="text-text-muted hover:text-destructive">{deletingSessionIds.includes(s.id) ? <RefreshCw size={14} className="animate-spin"/> : <Trash2 size={14}/>}</Button></motion.article>)}</div> : <div className="text-center py-8"><CalendarDays className="mx-auto text-text-dim mb-2" size={30}/><p className="text-sm text-text-muted">No sessions planned yet.</p><p className="text-xs text-text-dim mt-1">Add topics, then generate your first revision plan.</p></div>}
     </section>
+    {autoAdjustToast && <div role="status" aria-live="polite" className="fixed bottom-5 right-5 z-[100] max-w-sm rounded-xl border border-emerald-500/30 bg-surface-elevated px-4 py-3 text-sm font-semibold text-text shadow-xl">{autoAdjustToast}</div>}
   </div>;
 }

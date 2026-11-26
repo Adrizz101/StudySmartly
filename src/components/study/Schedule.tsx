@@ -21,6 +21,9 @@ const EVENT_TYPE_META: Record<ScheduleEvent['type'], { label: string; color: str
 
 const COURSE_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#f43f5e', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
 
+function formatLocalDate(date: Date): string {
+  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+}
 function normalizeScheduleDate(value: string): string | null {
   const raw = value.trim();
   const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
@@ -116,7 +119,7 @@ export default function Schedule() {
     // Previous month padding
     for (let i = 0; i < startOffset; i++) {
       const d = new Date(year, month, -startOffset + i + 1);
-      days.push({ date: d.toISOString().slice(0, 10), day: d.getDate(), inMonth: false });
+      days.push({ date: formatLocalDate(d), day: d.getDate(), inMonth: false });
     }
     for (let d = 1; d <= daysInMonth; d++) {
       const date = new Date(year, month, d);
@@ -133,19 +136,36 @@ export default function Schedule() {
 
   const eventsByDate = useMemo(() => {
     const map: Record<string, ScheduleEvent[]> = {};
-    events.forEach((e) => {
-      if (!map[e.date]) map[e.date] = [];
-      map[e.date]?.push(e);
+    const addForDate = (event: ScheduleEvent, date: string) => { if (!map[date]) map[date] = []; map[date]?.push({ ...event, date }); };
+    events.forEach((event) => {
+      if (event.recurrence !== 'weekly') { addForDate(event, event.date); return; }
+      const baseDate = new Date(event.date + 'T00:00:00');
+      if (!Number.isFinite(baseDate.getTime())) return;
+      calendarDays.forEach((day) => {
+        const occurrenceDate = new Date(day.date + 'T00:00:00');
+        if (day.date >= event.date && occurrenceDate.getDay() === baseDate.getDay()) addForDate(event, day.date);
+      });
     });
     Object.values(map).forEach((arr) => arr.sort((a, b) => a.startTime.localeCompare(b.startTime)));
     return map;
-  }, [events]);
+  }, [events, calendarDays]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = formatLocalDate(new Date());
   const selectedEvents = selectedDate ? eventsByDate[selectedDate] || [] : [];
-  const upcomingAll = events
-    .filter((e) => e.date >= today)
-    .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+  const upcomingAll = useMemo(() => {
+    const occurrences: ScheduleEvent[] = [];
+    const todayDate = new Date(); todayDate.setHours(0, 0, 0, 0);
+    for (const event of events) {
+      if (event.recurrence !== 'weekly') { if (event.date >= today) occurrences.push(event); continue; }
+      const baseDate = new Date(event.date + 'T00:00:00'); if (!Number.isFinite(baseDate.getTime())) continue;
+      for (let offset = 0; offset < 30; offset++) {
+        const occurrence = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate() + offset);
+        const date = formatLocalDate(occurrence);
+        if (date >= event.date && occurrence.getDay() === baseDate.getDay()) occurrences.push({ ...event, date });
+      }
+    }
+    return occurrences.sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+  }, [events, today]);
 
   return (
     <div className="space-y-6">
@@ -516,6 +536,11 @@ function EventModal({ open, onClose, defaultDate, courses, onSave }: {
   const [type, setType] = useState<ScheduleEvent['type']>('lecture');
   const [courseId, setCourseId] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
+  const [repeatWeekly, setRepeatWeekly] = useState(false);
+
+  useEffect(() => {
+    if (open) { setDate(defaultDate); setRepeatWeekly(false); }
+  }, [open, defaultDate]);
 
   return (
     <Modal open={open} onClose={onClose} title="Add Event">
@@ -585,6 +610,11 @@ function EventModal({ open, onClose, defaultDate, courses, onSave }: {
             ))}
           </select>
         </div>
+        <label className="flex items-center gap-2.5 cursor-pointer rounded-xl border border-border bg-surface-hover/50 px-3 py-3">
+          <input type="checkbox" checked={repeatWeekly} onChange={(e) => setRepeatWeekly(e.target.checked)} className="h-4 w-4 accent-accent-500"/>
+          <span className="text-sm font-medium text-text">Repeat Weekly</span>
+          <span className="ml-auto text-xs text-text-dim">Every {new Date(date + "T00:00:00").toLocaleDateString(undefined, { weekday: "long" })}</span>
+        </label>
         <div>
           <label className="text-sm font-medium text-text-muted block mb-1.5">Notes (optional)</label>
           <textarea
@@ -596,7 +626,7 @@ function EventModal({ open, onClose, defaultDate, courses, onSave }: {
           />
         </div>
         <Button variant="source"
-          onClick={() => onSave({ title, date, startTime, endTime, type, courseId, notes })}
+          onClick={() => onSave({ title, date, startTime, endTime, type, courseId, notes, recurrence: repeatWeekly ? 'weekly' : 'none' })}
           disabled={!title.trim()}
           className="w-full py-2.5 rounded-xl bg-accent-600 hover:bg-accent-700 disabled:opacity-50 disabled:cursor-not-allowed text-study-white font-medium text-sm transition-colors"
         >

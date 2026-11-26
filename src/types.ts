@@ -30,6 +30,7 @@ export interface ScheduleEvent {
   startTime: string;
   endTime: string;
   type: 'lecture' | 'exam' | 'assignment' | 'study' | 'other';
+  recurrence?: 'none' | 'weekly' | undefined;
   notes?: string | undefined;
 }
 
