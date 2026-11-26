@@ -247,7 +247,7 @@ export const editDeckSlide = createServerFn({ method: 'POST' }).middleware([safe
     return (await structuredAI(deckSlideSchema, 'Edit only the selected slide following the student request. Preserve factual accuracy, citations and detail unless explicitly changed. Set layoutType to exactly one of title, split, bento, or timeline, and keep the legacy layout field consistent with it. Use split for two-column explanations, bento for an uneven dominant-plus-supporting grid, and timeline only for chronological or sequential content. Use at most 4 cards/bullets and concise text that fits a presentation.', `${data.prompt}\nCurrent slide: ${data.slide}`, data.sources)).output;
   }));
 export const explainBoard = createServerFn({ method: 'POST' }).middleware([safeServerBoundary, requireSupabaseAuth])
-  .inputValidator(input.extend({ board: z.string(), messages: z.array(z.object({ question: z.string(), answer: z.string(), citations: z.array(z.string()) })) })).handler(async ({ data }) => safeResult('explainBoard', 'Could not explain the whiteboard. Please try again.', async () => {
+  .inputValidator(input.extend({ board: z.string(), messages: z.array(z.object({ question: z.string(), answer: z.string(), citations: z.array(z.string()) })) })).handler(async ({ data }) => safeResult('explainBoard', 'Could not explain this visual lesson. Please try again.', async () => {
     const { structuredAI } = await import('./learning-ai.server');
     const tutorPrompt = [
       'You are an interactive visual tutor: a patient, precise classroom teacher. Explain the student\'s newest question clearly and supportively, using the full conversation history as context.',
