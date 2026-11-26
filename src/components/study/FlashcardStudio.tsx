@@ -73,6 +73,7 @@ function getMistakeSource() {
 
 export default function FlashcardStudio(){
  const navigate=useNavigate();
+ const { recordActivity } = useGamification();
  const [decks,setDecks]=useState<Deck[]>([]),[cards,setCards]=useState<Card[]>([]),[selected,setSelected]=useState(''),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [title,setTitle]=useState(''),[subject,setSubject]=useState('General'),[sourceText,setSourceText]=useState(''),[sources,setSources]=useState<SourceInput[]>([]),[mistakeText,setMistakeText]=useState(''),[count,setCount]=useState(12),[consent,setConsent]=useState(false),[revealed,setRevealed]=useState(false),[index,setIndex]=useState(0),[reviewTopic,setReviewTopic]=useState(''),[selectedOption,setSelectedOption]=useState<number|null>(null);
  const generate=useServerFn(generateFlashcards);
@@ -165,6 +166,7 @@ export default function FlashcardStudio(){
      if(updateError){if(reviewRow?.id)await supabase.from('flashcard_reviews').delete().eq('id',reviewRow.id).eq('user_id',auth.user.id);throw updateError;}
      setCards(prev=>prev.map(c=>c.id===current.id?{...c,...next}:c));setRevealed(false);setSelectedOption(null);setIndex(i=>rating==='again'?Math.min(i+1,Math.max(0,due.length-1)):Math.min(i,Math.max(0,due.length-2)));
      setNotice(rating==='again'?'Marked Again · this card stays due for another attempt in this session.':`Reviewed · next review in ${next.interval_days} day${next.interval_days===1?'':'s'}.`);
+     void recordActivity('flashcard_review');
    }catch(e){setError(e instanceof Error?e.message:'Could not save review.');}
    finally{setBusy(false);}
  }
