@@ -96,71 +96,93 @@ export const getTutorUsage = createServerFn({ method: 'POST' })
     }
   });
 
+export type TutorStreamChunk =
+  | { type: 'text'; text: string }
+  | { type: 'done'; unlimited: boolean; remaining?: number; limit?: number }
+  | { type: 'error'; error: string };
+
 export const respondToTutor = createServerFn({ method: 'POST' })
   .inputValidator(tutorFunctionInput)
-  .handler(async ({ data }) => {
-    let quotaSupabase: any;
-    let quotaCharged = false;
-    try {
-      const [{ createOpenAI }, { generateText }, { getAuthenticatedAIContext, getUserAIKeys, consumeDailyAIUsage }] = await Promise.all([
-        import('@ai-sdk/openai'),
-        import('ai'),
-        import('@/lib/user-ai-keys.server'),
-      ]);
-      const { userId, supabase } = await getAuthenticatedAIContext(data.accessToken);
-      const personalKeys = await getUserAIKeys(userId, supabase);
-      const hasPersonalKey = Boolean(personalKeys.gemini || personalKeys.openrouter);
-      const geminiKey = personalKeys.gemini || (!hasPersonalKey ? process.env['GEMINI_API_KEY'] : '');
-      const openRouterKey = personalKeys.openrouter || (!hasPersonalKey ? process.env['OPENROUTER_API_KEY'] : '');
-      const providers = [
-        ...(geminiKey ? [{ name: 'Gemini', model: createOpenAI({ baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/', apiKey: geminiKey })('gemini-3.8-flash') }] : []),
-        ...(openRouterKey ? [{ name: 'OpenRouter', model: createOpenAI({ baseURL: 'https://openrouter.ai/api/v1', apiKey: openRouterKey })('openrouter/free') }] : []),
-      ];
-      if (!providers.length) throw new Error('No AI provider key is configured. Add a Gemini or OpenRouter key in Settings.');
-      const usageCount = hasPersonalKey ? null : await consumeDailyAIUsage(supabase);
-      if (usageCount !== null) { quotaSupabase = supabase; quotaCharged = true; }
-      const conversation = data.history.map((item) => (item.role === 'user' ? 'Student: ' : 'Tutor: ') + item.content).join('\n\n');
-      const pdfContext = data.attachment?.type === 'pdf'
-        ? `\n\n--- BEGIN UPLOADED PDF TEXT ---\nDocument name: ${data.attachment.name}\nThe following is extracted text from the student's uploaded PDF. Use this content as the source when answering; do not claim the PDF is inaccessible.\n\n${data.attachment.text}\n--- END UPLOADED PDF TEXT ---`
-        : '';
-      const prompt = `Subject: ${data.subject}\n\nConversation so far:\n${conversation || '(This is the first message.)'}${pdfContext}\n\nStudent's newest question: ${data.question}`;
-      let lastError: unknown;
-      for (const provider of providers) {
+  .handler(async ({ data }): Promise<ReadableStream<TutorStreamChunk>> => {
+    const [{ createOpenAI }, { streamText, smoothStream }, { getAuthenticatedAIContext, getUserAIKeys, consumeDailyAIUsage, refundDailyAIUsage }] = await Promise.all([
+      import('@ai-sdk/openai'),
+      import('ai'),
+      import('@/lib/user-ai-keys.server'),
+    ]);
+    const { userId, supabase } = await getAuthenticatedAIContext(data.accessToken);
+    const personalKeys = await getUserAIKeys(userId, supabase);
+    const hasPersonalKey = Boolean(personalKeys.gemini || personalKeys.openrouter);
+    const geminiKey = personalKeys.gemini || (!hasPersonalKey ? process.env['GEMINI_API_KEY'] : '');
+    const openRouterKey = personalKeys.openrouter || (!hasPersonalKey ? process.env['OPENROUTER_API_KEY'] : '');
+    const providers = [
+      ...(geminiKey ? [{ name: 'Gemini', model: createOpenAI({ baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/', apiKey: geminiKey })('gemini-3.8-flash') }] : []),
+      ...(openRouterKey ? [{ name: 'OpenRouter', model: createOpenAI({ baseURL: 'https://openrouter.ai/api/v1', apiKey: openRouterKey })('openrouter/free') }] : []),
+    ];
+    if (!providers.length) throw new Error('No AI provider key is configured. Add a Gemini or OpenRouter key in Settings.');
+
+    const usageCount = hasPersonalKey ? null : await consumeDailyAIUsage(supabase);
+    let quotaCharged = usageCount !== null;
+    const conversation = data.history.map((item) => (item.role === 'user' ? 'Student: ' : 'Tutor: ') + item.content).join('\n\n');
+    const pdfContext = data.attachment?.type === 'pdf'
+      ? '\n\n--- BEGIN UPLOADED PDF TEXT ---\nDocument name: ' + data.attachment.name + '\nThe following is extracted text from the student\'s uploaded PDF. Use this content as the source when answering; do not claim the PDF is inaccessible.\n\n' + data.attachment.text + '\n--- END UPLOADED PDF TEXT ---'
+      : '';
+    const prompt = 'Subject: ' + data.subject + '\n\nConversation so far:\n' + (conversation || '(This is the first message.)') + pdfContext + '\n\nStudent\'s newest question: ' + data.question;
+    const messages = data.attachment?.type === 'image'
+      ? [{ role: 'user' as const, content: [
+          { type: 'text' as const, text: prompt + '\n\nThe student attached an image named ' + data.attachment.name + '. Analyze its visible content and help with the student\'s question.' },
+          { type: 'image' as const, image: data.attachment.dataUrl },
+        ] }]
+      : undefined;
+
+    return new ReadableStream<TutorStreamChunk>({
+      async start(controller) {
+        let lastError: unknown;
+        let hasEmittedText = false;
         try {
-          const messages = data.attachment?.type === 'image'
-            ? [{ role: 'user' as const, content: [
-                { type: 'text' as const, text: prompt + `\\n\\nThe student attached an image named ${data.attachment.name}. Analyze its visible content and help with the student's question.` },
-                { type: 'image' as const, image: data.attachment.dataUrl },
-              ] }]
-            : undefined;
-          const result = await generateText({
-            model: provider.model,
-            system: tutorSystemInstruction,
-            ...(messages ? { messages } : { prompt }),
-            maxRetries: 0,
-          });
-          if (!result.text.trim()) throw new Error(`${provider.name} returned an empty response.`);
-          quotaCharged = false;
-          return {
-            success: true as const,
-            text: result.text,
-            ...(usageCount === null ? { unlimited: true as const } : { unlimited: false as const, remaining: Math.max(0, 15 - usageCount), limit: 15 }),
-          };
+          for (const provider of providers) {
+            try {
+              const result = streamText({
+                model: provider.model,
+                system: tutorSystemInstruction,
+                ...(messages ? { messages } : { prompt }),
+                maxRetries: 0,
+                experimental_transform: smoothStream({ chunking: 'word', delayInMs: 12 }),
+              });
+              for await (const text of result.textStream) {
+                if (!text) continue;
+                hasEmittedText = true;
+                controller.enqueue({ type: 'text', text });
+              }
+              if (!hasEmittedText) throw new Error(provider.name + ' returned an empty response.');
+              quotaCharged = false;
+              controller.enqueue({
+                type: 'done',
+                unlimited: usageCount === null,
+                ...(usageCount === null ? {} : { remaining: Math.max(0, 15 - usageCount), limit: 15 }),
+              });
+              controller.close();
+              return;
+            } catch (error) {
+              lastError = error;
+              console.error('[AI Tutor] ' + provider.name + ' streaming failed:', error);
+              if (hasEmittedText) throw error;
+            }
+          }
+          throw lastError instanceof Error ? lastError : new Error('All configured AI providers failed.');
         } catch (error) {
-          lastError = error;
-          console.error(`[AI Tutor] ${provider.name} failed:`, error);
+          if (quotaCharged) {
+            try { await refundDailyAIUsage(supabase); }
+            catch (refundError) { console.error('[AI Tutor] Could not refund failed Tutor request:', refundError); }
+            quotaCharged = false;
+          }
+          const message = error instanceof Error ? error.message : String(error);
+          console.error('[AI Tutor] Stream failed:', error);
+          controller.enqueue({ type: 'error', error: message });
+          controller.close();
         }
-      }
-      throw lastError instanceof Error ? lastError : new Error('All configured AI providers failed.');
-    } catch (error) {
-      if (quotaCharged && quotaSupabase) {
-        try { await (await import('@/lib/user-ai-keys.server')).refundDailyAIUsage(quotaSupabase); }
-        catch (refundError) { console.error('[AI Tutor] Could not refund failed Tutor request:', refundError); }
-      }
-      const message = error instanceof Error ? error.message : String(error);
-      console.error('[AI Tutor] Server function failed:', error);
-      return { success: false as const, error: message };
-    }
+      },
+      cancel() {},
+    });
   });
 
 export const generateDeck = createServerFn({ method: 'POST' }).middleware([safeServerBoundary, requireSupabaseAuth])
