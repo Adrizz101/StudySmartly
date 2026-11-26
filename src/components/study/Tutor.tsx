@@ -23,24 +23,22 @@ type TeachingPersona = 'socratic' | 'explain-simply' | 'exam-focus' | 'direct-an
 /** Convert rendered tutor Markdown/LaTeX into readable plain text for browser speech. */
 function cleanTextForSpeech(text: string): string {
   return text
-    .replace(/```[\\s\\S]*?```/g, (block) => block.replace(/^```[^\\n]*\\n?/, '').replace(/```$/, ' '))
-    .replace(/\\frac\\s*\\{([^{}]*)\\}\\s*\\{([^{}]*)\\}/g, '$1 divided by $2')
-    .replace(/\\sqrt\\s*\\{([^{}]*)\\}/g, 'square root of $1')
-    .replace(/\\text\\s*\\{([^{}]*)\\}/g, '$1')
-    .replace(/\\\\[a-zA-Z]+/g, ' ')
-    .replace(/\\\\[()[\\]{}]/g, ' ')
-    .replace(/\\\\[,;!]/g, ' ')
-    .replace(/\\$\\$?|\\\\\\(|\\\\\\)|\\\\\\[|\\\\\\]/g, ' ')
-    .replace(/!\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1')
-    .replace(/\\[([^\\]]+)\\]\\([^)]*\\)/g, '$1')
-    .replace(/^\\s{0,3}#{1,6}\\s+/gm, '')
-    .replace(/^\\s{0,3}(?:[-*+]\\s+|\\d+[.)]\\s+)/gm, '')
-    .replace(/[*_~`]/g, '')
+    .replace(/\\frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, '$1 divided by $2')
+    .replace(/\\sqrt\s*\{([^{}]*)\}/g, 'square root of $1')
+    .replace(/\\text\s*\{([^{}]*)\}/g, '$1')
+    .replace(/\\[a-zA-Z]+/g, ' ')
+    .replace(/\\[()[\]{}]/g, ' ')
+    .replace(/\\[,;!]/g, ' ')
+    .replace(/\$\$?|\\\(|\\\)|\\\[|\\\]/g, ' ')
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s{0,3}(?:[-*+]\s+|\d+[.)]\s+)/gm, '')
+    .replace(/[*_~\x60]/g, '')
     .replace(/[{}]/g, ' ')
-    .replace(/\\s+/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 }
-
 type TutorAttachment =
   | { type: 'image'; name: string; dataUrl: string }
   | { type: 'pdf'; name: string; text: string };
