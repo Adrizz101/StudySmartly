@@ -8,12 +8,14 @@ import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useApp } from '@/store';
 import { supabase } from '@/integrations/supabase/client';
-import { getTutorUsage, respondToTutor } from '@/lib/learning-ai.functions';
+import { getTutorUsage, respondToTutor, generateConceptMap } from '@/lib/learning-ai.functions';
+import ConceptMap from '@/components/learning/ConceptMap';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChatMessage, TutorSession } from '@/types';
 import {
   Send, Bot, User, Plus, Trash2, Sparkles, Image as ImageIcon, Upload, X,
   GraduationCap, BookOpen, Brain, Clock, AlertCircle, FileText,
-  Layers, CalendarDays, Presentation, PanelLeft, Library,
+  Layers, CalendarDays, Presentation, PanelLeft, Library, Network,
 } from 'lucide-react';
 
 type TutorAttachment =
@@ -93,6 +95,7 @@ export default function Tutor() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isFileDragging, setIsFileDragging] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
+  const [isGeneratingMap, setIsGeneratingMap] = useState(false);
   const [subject, setSubject] = useState('');
   const [mobilePanel, setMobilePanel] = useState<'chat' | 'history' | 'tools'>('chat');
   const [usageLabel, setUsageLabel] = useState('Checking daily usage…');
@@ -259,6 +262,26 @@ export default function Tutor() {
     }
   }, [input, pendingAttachment, isThinking, isPreparingAttachment, activeSessionId, activeSession, subject, createSession, updateSession, setTutorSessions, refreshUsage]);
 
+  const visualizeTopic = useCallback(async () => {
+    const topic = input.trim() || [...(activeSession?.messages ?? [])].reverse().find((message) => message.role === 'user')?.content.trim() || subject.trim();
+    if (!topic || isGeneratingMap || isThinking) return;
+    setIsGeneratingMap(true);
+    let sessionId = activeSessionId;
+    if (!sessionId) sessionId = createSession();
+    try {
+      const result = await generateConceptMap({ data: { topic: topic.slice(0, 300) } });
+      if (!result.success) throw new Error(result.error);
+      const mapMessage: ChatMessage = { id: crypto.randomUUID(), role: 'assistant', content: '', conceptMap: result.data, timestamp: Date.now() };
+      updateSession(sessionId, (session) => ({ ...session, messages: [...session.messages, mapMessage] }));
+      setMobilePanel('chat');
+      void refreshUsage();
+    } catch (error) {
+      const errorMessage: ChatMessage = { id: crypto.randomUUID(), role: 'assistant', content: error instanceof Error ? error.message : 'Could not generate the concept map. Please try again.', timestamp: Date.now() };
+      updateSession(sessionId, (session) => ({ ...session, messages: [...session.messages, errorMessage] }));
+    } finally {
+      setIsGeneratingMap(false);
+    }
+  }, [input, activeSession, activeSessionId, subject, isGeneratingMap, isThinking, createSession, updateSession, refreshUsage]);
   const handleSelectedFile = useCallback(async (file?: File) => {
     if (!file) return;
     setAttachmentError('');
@@ -357,7 +380,7 @@ export default function Tutor() {
               </div>
             </div>
           ) : activeSession.messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)}
-          {isThinking && <div className="flex items-center gap-2 text-sm text-text-muted"><Bot size={17} className="text-accent-500" /> Thinking…</div>}
+          {(isThinking || isGeneratingMap) && <div className="flex items-center gap-2 text-sm text-text-muted"><Bot size={17} className="text-accent-500" /> {isGeneratingMap ? 'Building your visual map…' : 'Thinking…'}</div>}
           <div ref={messagesEndRef} />
         </div>
 
@@ -372,6 +395,7 @@ export default function Tutor() {
           {attachmentError && <div className="text-xs text-red-400" role="alert">{attachmentError}</div>}
           <div className="flex min-w-0 items-end gap-2">
             <Button variant="source" aria-label="Attach image or PDF" title="Attach image or PDF" onClick={() => fileInputRef.current?.click()} disabled={isPreparingAttachment || isThinking} className="h-11 min-h-[44px] shrink-0 rounded-lg p-2 text-text-muted hover:bg-surface-hover"><Upload size={18} /></Button>
+            <Button variant="source" aria-label="Visualize topic" title="Create a concept map" onClick={() => void visualizeTopic()} disabled={isGeneratingMap || isThinking || (!input.trim() && !activeSession?.messages.some((message) => message.role === 'user') && !subject.trim())} className="h-11 min-h-[44px] shrink-0 rounded-lg border border-border p-2 text-text-muted hover:bg-surface-hover disabled:opacity-50">{isGeneratingMap ? <Sparkles size={18} className="animate-pulse" /> : <Network size={18} />}</Button>
             <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
             }} rows={1} placeholder="Ask your tutor anything…" className="h-11 min-h-[44px] max-h-11 min-w-0 flex-1 resize-none overflow-y-auto rounded-xl border border-border bg-surface-hover px-3 py-2 text-sm leading-5 text-text outline-none focus:border-accent-500" />
@@ -441,9 +465,13 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       </div>
       <div className={`min-w-0 max-w-[85%] ${isUser ? 'items-end' : ''}`}>
         {message.image && <img src={message.image} alt="Selected attachment preview" className="mb-2 max-h-48 rounded-xl border border-border object-cover" />}
-        <div className={`min-w-0 max-w-full overflow-x-auto rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${isUser ? 'rounded-tr-sm bg-study-blue-600 text-white' : 'rounded-tl-sm bg-surface-hover text-text'}`}>
+        {message.conceptMap && <Card className="w-full min-w-0 max-w-full overflow-hidden border-border bg-surface-hover shadow-none">
+          <CardHeader className="p-3 pb-2"><CardTitle className="text-sm">{message.conceptMap.title}</CardTitle></CardHeader>
+          <CardContent className="min-w-0 max-w-full overflow-hidden px-3 pb-3 pt-0"><ConceptMap map={message.conceptMap} /></CardContent>
+        </Card>}
+        {!message.conceptMap && <div className={`min-w-0 max-w-full overflow-x-auto rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${isUser ? 'rounded-tr-sm bg-study-blue-600 text-white' : 'rounded-tl-sm bg-surface-hover text-text'}`}>
           <MarkdownMessage content={message.content} />
-        </div>
+        </div>}
       </div>
     </div>
   );
