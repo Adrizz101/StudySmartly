@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { AlertCircle, BookOpen, CalendarDays, CheckCircle2, Clock3, FileText, Plus, RefreshCw, Settings2, Target, Trash2, Upload, Sparkles } from 'lucide-react';
+import { AlertCircle, BookOpen, CalendarDays, CheckCircle2, Clock3, Plus, RefreshCw, Settings2, Target, Trash2, Upload, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useApp } from '@/store';
