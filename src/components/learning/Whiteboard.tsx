@@ -8,7 +8,7 @@ export default function VisualLearningWorkspace() {
   return (
     <ErrorBoundary featureName="AI Tutor">
       <ClientOnly fallback={<p>Opening visual learning workspace…</p>}>
-        <Suspense fallback={<p>Opening whiteboard…</p>}>
+        <Suspense fallback={<p>Opening visual learning workspace…</p>}>
           <DrawingBoard />
         </Suspense>
       </ClientOnly>
