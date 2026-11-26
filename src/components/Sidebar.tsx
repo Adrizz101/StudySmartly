@@ -6,6 +6,7 @@ import { useApp } from '@/store';
 import { supabase } from '@/integrations/supabase/client';
 import { PomodoroTimer } from '@/components/PomodoroTimer';
 import { trackEvent } from '@/lib/analytics';
+import { useGamification } from '@/lib/useGamification';
 
 const NAV_ITEMS: { key: ViewKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -152,6 +153,7 @@ interface TopBarProps {
 }
 
 export function TopBar({ view, onMenuClick }: TopBarProps) {
+  const { stats: gamification } = useGamification();
   const label = NAV_ITEMS.find((n) => n.key === view)?.label ?? '';
   return (
     <header className="sticky top-0 z-20 glass border-b border-border px-4 sm:px-5 lg:px-6 py-3 flex items-center justify-between gap-4 min-h-[64px]">
@@ -167,7 +169,13 @@ export function TopBar({ view, onMenuClick }: TopBarProps) {
         </Button>
         <h2 className="truncate text-base lg:text-lg font-semibold leading-none text-text">{label}</h2>
       </div>
-      <div className="flex shrink-0 items-center justify-end">
+      <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2">
+        <span title={`Current study streak: ${gamification.current_streak} days`} className="inline-flex items-center gap-1 rounded-full border border-border bg-surface/80 px-2 py-1.5 text-[11px] font-semibold tabular-nums text-text sm:px-2.5 sm:text-xs">
+          <span aria-hidden="true">🔥</span><span className="hidden sm:inline">Streak</span> {gamification.current_streak}
+        </span>
+        <span title={`Total experience: ${gamification.total_xp} XP`} className="inline-flex items-center gap-1 rounded-full border border-border bg-surface/80 px-2 py-1.5 text-[11px] font-semibold tabular-nums text-text sm:px-2.5 sm:text-xs">
+          <span aria-hidden="true">⚡</span><span className="hidden sm:inline">XP</span> {gamification.total_xp.toLocaleString()}
+        </span>
         <PomodoroTimer />
       </div>
     </header>
