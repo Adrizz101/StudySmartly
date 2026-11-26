@@ -250,7 +250,7 @@ export default function Tutor() {
 
       const currentSession = tutorSessionsRef.current.find((session) => session.id === sessionId);
       if (currentSession?.subject === 'General') {
-        const fallbackTitle = questionText.trim().split(/\\s+/).slice(0, 4).join(' ') || 'New conversation';
+        const fallbackTitle = questionText.trim().split(/\s+/).slice(0, 4).join(' ') || 'New conversation';
         const titleMessages = [
           { role: 'user' as const, content: questionText.slice(0, 4000) },
           { role: 'assistant' as const, content: assistantContent.slice(0, 4000) },
