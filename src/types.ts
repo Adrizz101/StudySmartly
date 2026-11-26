@@ -39,6 +39,7 @@ export interface ChatMessage {
   content: string;
   timestamp: number;
   image?: string | undefined;
+  conceptMap?: import('./lib/learning-models').ConceptMapData | undefined;
 }
 
 export interface TutorSession {
