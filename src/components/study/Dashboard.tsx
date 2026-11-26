@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { useApp } from '@/store';
 import { ViewKey } from '@/types';
-import { Calendar, Bot, FileText, Mic, BookOpen, Clock, TrendingUp, AlertCircle, Plus, Layers3 } from 'lucide-react';
+import { Calendar, Bot, FileText, Mic, BookOpen, Clock, TrendingUp, AlertCircle, Plus, Layers3, Brain } from 'lucide-react';
 import { formatDateLabel, formatTimeLabel } from '@/lib/syllabus';
 import { useGamification } from '@/lib/useGamification';
 
@@ -19,6 +19,43 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   const [nextSession, setNextSession] = useState<NextSession | null>(null);
   const [nextSessionLoading, setNextSessionLoading] = useState(true);
   const [nextSessionError, setNextSessionError] = useState(false);
+  type WeakTopic = { subject: string; chapter: string; concept: string; mastery_score: number };
+  const [learningTwinTopics, setLearningTwinTopics] = useState<WeakTopic[]>([]);
+  const [learningTwinLoading, setLearningTwinLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function loadLearningTwin() {
+      try {
+        const { data, error } = await (supabase as any).from('learning_topics')
+          .select('subject, chapter, concept, mastery_score')
+          .lt('mastery_score', 50)
+          .order('mastery_score', { ascending: true })
+          .limit(2);
+        if (error) throw error;
+        if (active) setLearningTwinTopics((data ?? []).map((topic: any) => ({
+          subject: String(topic.subject || 'General'),
+          chapter: String(topic.chapter || ''),
+          concept: String(topic.concept || topic.chapter || 'Revision'),
+          mastery_score: Number(topic.mastery_score ?? 0),
+        })));
+      } catch (error) {
+        console.warn('[Dashboard] Could not load Learning Twin topics:', error);
+        if (active) setLearningTwinTopics([]);
+      } finally {
+        if (active) setLearningTwinLoading(false);
+      }
+    }
+    void loadLearningTwin();
+    return () => { active = false; };
+  }, []);
+
+  function reviewLearningTwinTopic(topic: WeakTopic) {
+    const prompt = 'I want to review ' + topic.concept + '. I\'m struggling with it. Please teach it step by step, starting with the foundations, and check my understanding as we go. Subject: ' + topic.subject + (topic.chapter ? '. Chapter: ' + topic.chapter : '') + '. My current mastery score is ' + topic.mastery_score + '%.';
+    try { window.sessionStorage.setItem('studysmartly_tutor_prompt', prompt); }
+    catch (error) { console.warn('[Dashboard] Could not persist Learning Twin Tutor handoff:', error); }
+    onNavigate('tutor');
+  }
 
   useEffect(() => {
     let active = true;
@@ -179,6 +216,32 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="rounded-2xl glass surface-elevated border border-border p-4 sm:p-5 motion-card" aria-labelledby="learning-twin-title">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-500/15 text-accent-400"><Brain size={20} /></div>
+          <div className="min-w-0">
+            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-accent-400">Personalised learning profile</span>
+            <h3 id="learning-twin-title" className="mt-1 text-lg font-bold text-text">Your Learning Twin</h3>
+          </div>
+        </div>
+        {learningTwinLoading ? <p className="text-sm text-text-muted">Finding topics to strengthen…</p> : learningTwinTopics.length ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {learningTwinTopics.map((topic, index) => (
+              <div key={topic.subject + ":" + topic.chapter + ":" + topic.concept + ":" + index} className="min-w-0 rounded-xl border border-border bg-surface-hover/60 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-semibold text-text">{topic.concept}</p>
+                    <p className="mt-1 text-xs text-text-muted">{topic.subject}{topic.chapter ? " · " + topic.chapter : ""}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-amber-500/10 px-2 py-1 text-xs font-semibold tabular-nums text-amber-400">{topic.mastery_score}%</span>
+                </div>
+                <Button className="mt-3 min-h-10 w-full text-sm" onClick={() => reviewLearningTwinTopic(topic)}>Fix this with AI Tutor</Button>
+              </div>
+            ))}
+          </div>
+        ) : <p className="text-sm text-text-muted">No weak topics recorded yet. As you practise across StudySmartly, your Learning Twin will highlight what to strengthen here.</p>}
       </section>
 
       <section className="relative overflow-hidden rounded-2xl glass surface-elevated border border-accent-500/25 p-5 sm:p-6 motion-card" aria-labelledby="next-study-session-title">

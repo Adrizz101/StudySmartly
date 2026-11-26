@@ -118,6 +118,42 @@ export const respondToTutor = createServerFn({ method: 'POST' })
       import('@/lib/user-ai-keys.server'),
     ]);
     const { userId, supabase } = await getAuthenticatedAIContext(data.accessToken);
+    // Build a private Learning Twin profile from this student's own study history.
+    // These lookups are best-effort: a missing profile must never block tutoring.
+    let learningTwinContext = '';
+    try {
+      const [weakTopicsResult, strugglingCardsResult] = await Promise.all([
+        supabase.from('learning_topics')
+          .select('subject, chapter, concept, mastery_score')
+          .lt('mastery_score', 50)
+          .order('mastery_score', { ascending: true })
+          .limit(3),
+        supabase.from('flashcards')
+          .select('question, subject, topic, interval_days, lapses, last_reviewed_at')
+          .or('interval_days.lte.1,lapses.gt.0')
+          .order('last_reviewed_at', { ascending: false, nullsFirst: false })
+          .limit(2),
+      ]);
+      if (weakTopicsResult.error) throw weakTopicsResult.error;
+      if (strugglingCardsResult.error) throw strugglingCardsResult.error;
+      const weakTopics = (weakTopicsResult.data ?? []).map((topic) => {
+        const name = topic.concept || topic.chapter || 'Unspecified topic';
+        return String(topic.subject ? topic.subject + ' — ' + name : name) + ' (' + Number(topic.mastery_score ?? 0) + '% mastery)';
+      });
+      const strugglingCards = (strugglingCardsResult.data ?? []).map((card) => {
+        const question = String(card.question ?? '').trim().slice(0, 220);
+        const topic = String(card.topic || card.subject || 'General');
+        return topic + ': ' + question + ' (interval: ' + Number(card.interval_days ?? 0) + ' days; lapses: ' + Number(card.lapses ?? 0) + ')';
+      });
+      learningTwinContext = [
+        'Here is the student\'s current struggle profile:',
+        '- Weak Topics: ' + (weakTopics.length ? weakTopics.join('; ') : 'No recorded topics below 50% mastery.'),
+        '- Recent Flashcard Struggles: ' + (strugglingCards.length ? strugglingCards.join('; ') : 'No recent low-interval or lapsed cards found.'),
+        'If this is the start of a new conversation, act like a proactive tutor who remembers their past struggles. You may gently bring up one of these weak areas as a suggestion for what to study, or ask if they want to review it before moving on.',
+      ].join('\n');
+    } catch (error) {
+      console.warn('[AI Tutor] Could not load the Learning Twin profile:', error);
+    }
     const personalKeys = await getUserAIKeys(userId, supabase);
     const hasPersonalKey = Boolean(personalKeys.gemini || personalKeys.openrouter);
     const geminiKey = personalKeys.gemini || (!hasPersonalKey ? process.env['GEMINI_API_KEY'] : '');
@@ -151,7 +187,7 @@ export const respondToTutor = createServerFn({ method: 'POST' })
             try {
               const result = streamText({
                 model: provider.model,
-                system: tutorSystemInstruction + '\n\n' + tutorPersonaInstructions[data.persona],
+                system: tutorSystemInstruction + '\n\n' + tutorPersonaInstructions[data.persona] + (learningTwinContext ? '\n\n' + learningTwinContext : ''),
                 ...(messages ? { messages } : { prompt }),
                 maxRetries: 0,
                 experimental_transform: smoothStream({ chunking: 'word', delayInMs: 12 }),
