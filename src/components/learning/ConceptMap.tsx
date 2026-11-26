@@ -3,7 +3,6 @@ import dagre from '@dagrejs/dagre';
 import {
   ReactFlow,
   Background,
-  Controls,
   Handle,
   Position,
   type Edge,
@@ -47,7 +46,8 @@ const nodeTypes = { concept: ConceptNode };
 function layoutGraph(map: ConceptMapData): { nodes: Node<ConceptNodeData>[]; edges: Edge[] } {
   const graph = new dagre.graphlib.Graph();
   graph.setDefaultEdgeLabel(() => ({}));
-  graph.setGraph({ rankdir: 'TB', nodesep: 36, ranksep: 64, marginx: 24, marginy: 24 });
+  // Dagre uses rankdir for its layout direction; TB keeps the concept map vertical.
+graph.setGraph({ rankdir: 'TB', nodesep: 36, ranksep: 64, marginx: 24, marginy: 24 });
 
   map.nodes.forEach((node) => graph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT }));
   map.edges.forEach((edge, index) => graph.setEdge(edge.source, edge.target, { label: edge.label ?? '', id: 'edge-' + index }));
@@ -84,13 +84,13 @@ export default function ConceptMap({ map }: { map: ConceptMapData }) {
   const graph = useMemo(() => layoutGraph(map), [map]);
 
   const renderFlow = (className: string) => (
-    <div className={className}>
+    <div className={`relative min-w-0 overflow-hidden ${className}`}>
       <ReactFlow
         nodes={graph.nodes}
         edges={graph.edges}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: 0.2 }}
+        fitViewOptions={{ padding: 0.1, maxZoom: 1 }}
         panOnDrag
         zoomOnPinch
         nodesDraggable={false}
@@ -100,7 +100,6 @@ export default function ConceptMap({ map }: { map: ConceptMapData }) {
         className="bg-[#0a0c10]"
       >
         <Background variant="dots" gap={22} size={1} color="#263244" />
-        <Controls showInteractive={false} />
       </ReactFlow>
     </div>
   );
