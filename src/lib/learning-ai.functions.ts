@@ -1,7 +1,7 @@
 import { createMiddleware, createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import { z } from 'zod';
-import { deckSchema, boardSchema, examSchema, mistakeAnalysisSchema, revisionPackageSchema, validateSlideCount } from './learning-models';
+import { deckSchema, boardSchema, examSchema, mistakeAnalysisSchema, revisionPackageSchema, validateSlideCount, conceptMapSchema } from './learning-models';
 
 
 type ServerResult<T> =
@@ -356,3 +356,18 @@ export const parseScheduleWithAI = createServerFn({ method: 'POST' })
       const result = await parseSchedule(data.text);
       return result.events;
     }));
+
+
+export const generateConceptMap = createServerFn({ method: 'POST' })
+  .middleware([safeServerBoundary, requireSupabaseAuth])
+  .inputValidator(z.object({ topic: z.string().trim().min(2).max(300) }))
+  .handler(async ({ data }) => safeResult('generateConceptMap', 'Could not generate this concept map. Please try again.', async () => {
+    const { structuredAI } = await import('./learning-ai.server');
+    const result = await structuredAI(
+      conceptMapSchema,
+      'You are an expert visual-learning designer. Build a clear hierarchical concept map for the student topic. Return clean JSON matching the schema. Every node label and edge label must be no more than 5 words. Use one topic root, meaningful subtopics, and concise supporting details. Use unique simple node IDs. Connect every non-root node to a relevant parent. Avoid duplicate concepts, long explanations, and decorative filler.',
+      'Create a concise concept map for this topic: ' + data.topic + '. Keep the structure useful for a school student and labels to at most five words.',
+      [{ name: 'Requested topic', text: data.topic, images: [] }],
+    );
+    return result.output;
+  }));
