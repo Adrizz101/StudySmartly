@@ -448,7 +448,7 @@ export default function AdaptivePlanner() {
               <label className="flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border p-5 text-center text-sm text-text-muted"><Upload size={26}/><span className="font-medium text-text">{syllabusFile ? syllabusFile.name : 'Tap to choose a syllabus or textbook index'}</span><span className="text-xs">PDF, TXT, Markdown, CSV, PNG, JPG or WEBP · Max 20 MB</span><input className="sr-only" type="file" accept=".pdf,.txt,.md,.csv,image/png,image/jpeg,image/webp" onChange={e => setSyllabusFile(e.target.files?.[0] ?? null)} disabled={extracting}/></label>}
             {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
             {extracting ? <div aria-live="polite"><p className="mb-2 text-center text-sm font-medium text-text">Reading your syllabus and identifying topics…</p><InteractiveLoader/></div> :
-              <Button type="button" block onClick={() => void bulkImportTopics()} disabled={busy || saving || (!syllabusText.trim() && importMode === 'paste') || (!syllabusFile && importMode === 'file')}><Sparkles size={16}/> Magic Import</Button>}
+              <Button type="button" className="w-full" onClick={() => void bulkImportTopics()} disabled={busy || saving || (!syllabusText.trim() && importMode === 'paste') || (!syllabusFile && importMode === 'file')}><Sparkles size={16}/> Magic Import</Button>}
             <p className="text-xs text-text-muted">Nothing is saved until you review and confirm the extracted topics.</p>
           </>}
           {previewTopics.length > 0 && <>
@@ -462,7 +462,7 @@ export default function AdaptivePlanner() {
             {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
             <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-border bg-surface-elevated pt-3 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" onClick={() => { setPreviewTopics([]); setShowBulkImport(false); }} disabled={saving}>Cancel</Button>
-              <Button type="button" block onClick={() => void confirmSyllabusImport()} disabled={saving || !previewTopics.length}>{saving ? <><RefreshCw size={15} className="animate-spin"/> Saving topics…</> : <><CheckCircle2 size={15}/> Confirm &amp; Add {previewTopics.length} Topics</>}</Button>
+              <Button type="button" className="w-full" onClick={() => void confirmSyllabusImport()} disabled={saving || !previewTopics.length}>{saving ? <><RefreshCw size={15} className="animate-spin"/> Saving topics…</> : <><CheckCircle2 size={15}/> Confirm &amp; Add {previewTopics.length} Topics</>}</Button>
             </div>
           </>}
         </div>
