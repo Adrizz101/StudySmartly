@@ -4,10 +4,10 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const DrawingBoard = lazy(() => import('./DrawingBoard'));
 
-export default function Whiteboard() {
+export default function VisualLearningWorkspace() {
   return (
-    <ErrorBoundary featureName="AI Whiteboard">
-      <ClientOnly fallback={<p>Opening whiteboard…</p>}>
+    <ErrorBoundary featureName="AI Tutor">
+      <ClientOnly fallback={<p>Opening visual learning workspace…</p>}>
         <Suspense fallback={<p>Opening whiteboard…</p>}>
           <DrawingBoard />
         </Suspense>
