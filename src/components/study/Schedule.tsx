@@ -3,12 +3,14 @@ import { useState, useMemo, useEffect } from 'react';
 import { useApp } from '@/store';
 import { Course, ScheduleEvent } from '@/types';
 import { formatDateLabel, formatTimeLabel } from '@/lib/syllabus';
-import { parseScheduleWithAI } from '@/lib/learning-ai.functions';
+import { extractSchedule, parseScheduleWithAI } from '@/lib/learning-ai.functions';
+import { supabase } from '@/integrations/supabase/client';
+import { buildStudySchedule } from '@/lib/smart-scheduling';
 import InteractiveLoader from '@/components/ui/InteractiveLoader';
 import { Modal } from '@/components/Modal';
 import {
   Plus, ChevronLeft, ChevronRight, Calendar as CalIcon, Trash2, FileText,
-  BookOpen, Clock, FileUp, X, GraduationCap,
+  BookOpen, Clock, FileUp, X, GraduationCap, Sparkles, ImagePlus,
 } from 'lucide-react';
 
 const EVENT_TYPE_META: Record<ScheduleEvent['type'], { label: string; color: string }> = {
@@ -63,12 +65,148 @@ export default function Schedule() {
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showSyllabusModal, setShowSyllabusModal] = useState(false);
+  const [showMagicImportModal, setShowMagicImportModal] = useState(false);
+  const [magicImportText, setMagicImportText] = useState('');
+  const [magicImportImage, setMagicImportImage] = useState<File | null>(null);
+  const [isMagicImporting, setIsMagicImporting] = useState(false);
+  const [magicImportError, setMagicImportError] = useState('');
+  const [magicImportToast, setMagicImportToast] = useState('');
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isParsingSchedule, setIsParsingSchedule] = useState(false);
   const [scheduleParseError, setScheduleParseError] = useState('');
 
   const monthYear = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  useEffect(() => {
+    if (!magicImportToast) return;
+    const timeout = window.setTimeout(() => setMagicImportToast(''), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [magicImportToast]);
+
+  async function handleMagicImport() {
+    setIsMagicImporting(true);
+    setMagicImportError('');
+    try {
+      if (!magicImportText.trim() && !magicImportImage) {
+        throw new Error('Paste your schedule or upload a timetable image first.');
+      }
+      let imageBase64: string | undefined;
+      if (magicImportImage) {
+        if (!magicImportImage.type.startsWith('image/')) throw new Error('Please choose a valid image.');
+        if (magicImportImage.size > 3 * 1024 * 1024) throw new Error('Please keep timetable images under 3 MB.');
+        imageBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Could not read the selected image.'));
+          reader.onerror = () => reject(new Error('Could not read the selected image.'));
+          reader.readAsDataURL(magicImportImage);
+        });
+      }
+
+      const result = await extractSchedule({ data: { text: magicImportText.trim(), imageBase64 } });
+      if (result.success === false) throw new Error(result.error);
+
+      const now = new Date();
+      const currentTime = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+      const importedKeys = new Set<string>();
+      const importedEvents: ScheduleEvent[] = result.data.flatMap((event) => {
+        const startTime = normalizeScheduleTime(event.startTime);
+        const endTime = normalizeScheduleTime(event.endTime);
+        if (!event.title.trim() || !startTime || !endTime || endTime <= startTime) return [];
+        if (event.isRecurring && event.dayOfWeek === undefined) return [];
+        const date = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        if (event.dayOfWeek !== undefined) {
+          const offset = (event.dayOfWeek - date.getDay() + 7) % 7;
+          date.setDate(date.getDate() + (offset === 0 && startTime <= currentTime ? 7 : offset));
+        }
+        const title = event.title.trim();
+        const key = [title.toLowerCase(), event.dayOfWeek ?? 'today', startTime, endTime, event.isRecurring].join('|');
+        if (importedKeys.has(key)) return [];
+        importedKeys.add(key);
+        const lowerTitle = title.toLowerCase();
+        const type: ScheduleEvent['type'] = /exam|test|quiz/.test(lowerTitle) ? 'exam'
+          : /assignment|homework|submission/.test(lowerTitle) ? 'assignment'
+          : /study|revision|self.study/.test(lowerTitle) ? 'study' : 'lecture';
+        return [{
+          id: crypto.randomUUID(), title, courseId: null, date: formatLocalDate(date),
+          startTime, endTime, type, recurrence: event.isRecurring ? 'weekly' : 'none',
+        }];
+      });
+
+      if (!importedEvents.length) {
+        throw new Error('No complete class events were found. Check that the source includes event names, weekdays and start/end times.');
+      }
+
+      // Keep imported calendar events even if the planner is unavailable or has no topics yet.
+      addEvents(importedEvents);
+      setShowMagicImportModal(false);
+      setMagicImportText('');
+      setMagicImportImage(null);
+
+      try {
+        const { data: auth, error: authError } = await supabase.auth.getUser();
+        if (authError) throw authError;
+        if (!auth.user) throw new Error('Please sign in again to generate your study plan.');
+
+        const [topicResult, sessionResult, preferenceResult] = await Promise.all([
+          (supabase as any).from('learning_topics').select('*').order('updated_at', { ascending: false }),
+          (supabase as any).from('study_sessions').select('*').order('scheduled_start', { ascending: true }).limit(250),
+          (supabase as any).from('planner_preferences').select('*').maybeSingle(),
+        ]);
+        if (topicResult.error) throw topicResult.error;
+        if (sessionResult.error) throw sessionResult.error;
+        if (preferenceResult.error) throw preferenceResult.error;
+
+        const topics = topicResult.data ?? [];
+        if (!topics.some((topic: { mastery_score: number }) => topic.mastery_score < 100)) {
+          setMagicImportToast('Schedule imported. Add incomplete learning topics to generate your study plan.');
+          return;
+        }
+
+        const defaults = {
+          weekday_available_minutes: 120, weekend_available_minutes: 180,
+          preferred_start_time: '16:00', preferred_end_time: '21:00',
+          session_duration_minutes: 40, break_duration_minutes: 10,
+          study_days: [1, 2, 3, 4, 5, 6, 0], timezone: 'Asia/Kolkata',
+        };
+        const schedulingPreferences = { ...defaults, ...(preferenceResult.data ?? {}) };
+        const plan = buildStudySchedule({
+          topics, existingSessions: sessionResult.data ?? [],
+          events: [...events, ...importedEvents], preferences: schedulingPreferences,
+          now: new Date(), replaceFuturePlanned: true,
+        });
+        if (!plan.sessions.length) {
+          setMagicImportToast('Schedule imported. No free study slots were found in the next 14 days.');
+          return;
+        }
+
+        const nowIso = new Date().toISOString();
+        const { data: removed, error: deleteError } = await (supabase as any).from('study_sessions')
+          .delete().eq('user_id', auth.user.id).eq('status', 'planned')
+          .gt('scheduled_start', nowIso).select('*');
+        if (deleteError) throw deleteError;
+        const removedSessions = removed ?? [];
+        const { error: insertError } = await (supabase as any).from('study_sessions')
+          .insert(plan.sessions.map(session => ({ ...session, user_id: auth.user.id })));
+        if (insertError) {
+          if (removedSessions.length) {
+            const { error: restoreError } = await (supabase as any).from('study_sessions').insert(removedSessions);
+            if (restoreError) console.error('[Magic Schedule Import] Could not restore the previous study plan:', restoreError);
+          }
+          throw insertError;
+        }
+        setMagicImportToast('Schedule imported and study plan generated!');
+      } catch (plannerError) {
+        console.error('[Magic Schedule Import] Calendar events were imported, but the study plan could not be adjusted:', plannerError);
+        const message = plannerError instanceof Error ? plannerError.message : 'Please open Adaptive Planner and try Auto-Adjust.';
+        setMagicImportToast('Schedule imported, but study plan generation failed: ' + message);
+      }
+    } catch (error) {
+      setMagicImportError(error instanceof Error ? error.message : 'Could not import this schedule. Please try again.');
+    } finally {
+      setIsMagicImporting(false);
+    }
+  }
 
   async function handleScheduleParse(text: string, courseId: string | null) {
     setIsParsingSchedule(true);
@@ -194,6 +332,12 @@ export default function Schedule() {
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
+          <Button variant="source"
+            onClick={() => { setMagicImportError(''); setShowMagicImportModal(true); }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent-600/10 border border-accent-500/30 hover:bg-accent-600/20 text-sm font-medium text-text transition-all"
+          >
+            <Sparkles size={16} /> Import Schedule
+          </Button>
           <Button variant="source"
             onClick={() => setShowSyllabusModal(true)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl glass hover:surface-elevated text-sm font-medium text-text transition-all"
@@ -411,6 +555,41 @@ export default function Schedule() {
           setShowEventModal(false);
         }}
       />
+
+      <Modal open={showMagicImportModal} onClose={() => { if (!isMagicImporting) setShowMagicImportModal(false); }} title="Magic Schedule Import" maxWidth="max-w-2xl">
+        <div className="space-y-5">
+          <div>
+            <label className="mb-2 block text-sm font-medium text-text">Paste your schedule, syllabus, or brain dump here.</label>
+            <textarea
+              value={magicImportText}
+              onChange={(event) => setMagicImportText(event.target.value)}
+              placeholder="I have school Mon-Fri 8am-2pm, tuition on Tue/Thu at 4pm, and I want to study 2 hours a day."
+              rows={6}
+              disabled={isMagicImporting}
+              className="w-full min-h-36 resize-y rounded-xl border border-border bg-surface-hover px-3.5 py-3 text-sm text-text placeholder:text-text-dim focus:border-accent-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-2 block text-sm font-medium text-text">Upload a screenshot of your school timetable.</label>
+            <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-surface-hover/40 p-5 text-center text-sm text-text-muted hover:border-accent-500 transition-colors">
+              <ImagePlus size={24} className="text-accent-500" />
+              <span>{magicImportImage ? magicImportImage.name : 'Choose a timetable screenshot'}</span>
+              <span className="text-xs text-text-dim">PNG, JPG or WEBP · Max 3 MB</span>
+              <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" disabled={isMagicImporting} onChange={(event) => setMagicImportImage(event.target.files?.[0] ?? null)} />
+            </label>
+            {magicImportImage && <Button type="button" variant="ghost" size="sm" onClick={() => setMagicImportImage(null)} disabled={isMagicImporting}>Remove image</Button>}
+          </div>
+          {magicImportError && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-500">{magicImportError}</p>}
+          {isMagicImporting ? <InteractiveLoader /> : (
+            <Button type="button" onClick={() => void handleMagicImport()} disabled={!magicImportText.trim() && !magicImportImage} className="w-full">
+              <Sparkles size={16} /> Magic Import
+            </Button>
+          )}
+          <p className="text-xs text-text-dim">Recurring classes are added as weekly calendar events. If an event has a start time but no end time, a one-hour duration is assumed. Study sessions are rebuilt around your imported timetable.</p>
+        </div>
+      </Modal>
+
+      {magicImportToast && <div role="status" aria-live="polite" className="fixed bottom-5 right-5 z-[100] max-w-sm rounded-xl border border-emerald-500/30 bg-surface-elevated px-4 py-3 text-sm font-semibold text-text shadow-xl">{magicImportToast}</div>}
 
       {/* Syllabus Modal */}
       <SyllabusModal

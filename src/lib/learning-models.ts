@@ -49,6 +49,17 @@ export const scheduleEventSchema = z.object({
   type: z.enum(['Lecture', 'Exam', 'Assignment', 'Study', 'Other']).catch('Other'),
 });
 export const scheduleExtractionSchema = z.object({ events: z.array(scheduleEventSchema).max(250) });
+
+export const magicScheduleExtractionSchema = z.object({
+  events: z.array(z.object({
+    title: z.string().trim().min(2).max(100),
+    dayOfWeek: z.number().int().min(0).max(6).optional(),
+    startTime: z.string().trim().min(1).max(24),
+    endTime: z.string().trim().min(1).max(24),
+    isRecurring: z.boolean(),
+  })).max(150),
+});
+export type MagicScheduleExtraction = z.infer<typeof magicScheduleExtractionSchema>;
 export type ScheduleExtraction = z.infer<typeof scheduleExtractionSchema>;
 
 export const revisionPackageSchema = z.object({

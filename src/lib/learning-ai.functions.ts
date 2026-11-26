@@ -393,6 +393,19 @@ export const generateRevisionPackage = createServerFn({ method: 'POST' })
     return result.output;
   }));
 
+export const extractSchedule = createServerFn({ method: 'POST' })
+  .middleware([safeServerBoundary, requireSupabaseAuth])
+  .inputValidator(z.object({
+    text: z.string().max(100000).default(''),
+    imageBase64: z.string().startsWith('data:image/').max(4_500_000).optional(),
+  }).refine((value) => Boolean(value.text.trim()) || Boolean(value.imageBase64), {
+    message: 'Paste schedule text or upload a timetable image.',
+  }))
+  .handler(async ({ data }) => safeResult('extractSchedule', 'Could not extract this timetable. Try clearer text or a sharper image.', async () => {
+    const { extractScheduleFromSource } = await import('./learning-ai.server');
+    return extractScheduleFromSource(data.text, data.imageBase64);
+  }));
+
 export const parseScheduleWithAI = createServerFn({ method: 'POST' })
   .middleware([safeServerBoundary, requireSupabaseAuth])
   .inputValidator(z.object({ text: z.string().trim().min(1).max(100000) }))
