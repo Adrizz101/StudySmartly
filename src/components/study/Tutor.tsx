@@ -269,7 +269,12 @@ export default function Tutor() {
     let sessionId = activeSessionId;
     if (!sessionId) sessionId = createSession();
     try {
-      const result = await generateConceptMap({ data: { topic: topic.slice(0, 300) } });
+      const conversationContext = (activeSession?.messages ?? [])
+        .slice(-16)
+        .map((message) => (message.role === 'user' ? 'Student: ' : 'Tutor: ') + message.content)
+        .join('\\n\\n')
+        .slice(-20000);
+      const result = await generateConceptMap({ data: { topic: topic.slice(0, 300), context: conversationContext } });
       if (!result.success) throw new Error(result.error);
       const mapMessage: ChatMessage = { id: crypto.randomUUID(), role: 'assistant', content: '', conceptMap: result.data, timestamp: Date.now() };
       updateSession(sessionId, (session) => ({ ...session, messages: [...session.messages, mapMessage] }));
