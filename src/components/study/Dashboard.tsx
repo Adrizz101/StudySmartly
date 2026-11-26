@@ -75,9 +75,9 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   function startRecommendedSession() {
     if (!nextSession) { onNavigate('tutor'); return; }
     if (nextSession.kind === 'topic') {
-      const prompt = 'Teach me this weak topic using a clear, step-by-step visual lesson on the AI Whiteboard. Subject: ' + nextSession.subject + '. Chapter: ' + nextSession.chapter + '. Topic: ' + nextSession.topic + '. My current mastery score is ' + nextSession.mastery + '%. Start with the foundations, use a labelled diagram or structured explanation where useful, and finish with a short recall check.';
-      try { window.sessionStorage.setItem('studysmartly_whiteboard_prompt', prompt); }
-      catch (error) { console.warn('[Dashboard] Could not persist Whiteboard topic handoff:', error); }
+      const prompt = 'Teach me this weak topic using a clear, step-by-step with the AI Tutor. Explain it step by step and use a visual concept map where helpful. Subject: ' + nextSession.subject + '. Chapter: ' + nextSession.chapter + '. Topic: ' + nextSession.topic + '. My current mastery score is ' + nextSession.mastery + '%. Start with the foundations, use a labelled diagram or structured explanation where useful, and finish with a short recall check.';
+      try { window.sessionStorage.setItem('studysmartly_tutor_prompt', prompt); }
+      catch (error) { console.warn('[Dashboard] Could not persist Tutor topic handoff:', error); }
       onNavigate('tutor');
       return;
     }
@@ -108,7 +108,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
   const quickActions: { label: string; desc: string; icon: typeof Calendar; view: ViewKey; color: string }[] = [
     { label: 'Plan Schedule', desc: 'Add events or parse a syllabus', icon: Calendar, view: 'schedule', color: 'from-study-emerald-500 to-study-teal-600' },
-    { label: 'AI Whiteboard', desc: 'Draw, upload and get visual explanations', icon: Bot, view: 'tutor', color: 'from-study-blue-500 to-study-indigo-600' },
+    { label: 'AI Tutor', desc: 'Chat, upload PDFs, and generate visual concept maps.', icon: Bot, view: 'tutor', color: 'from-study-blue-500 to-study-indigo-600' },
     { label: 'Smart Flashcards', desc: 'Generate cards and review with spaced repetition', icon: Layers3, view: 'flashcards', color: 'from-study-purple-500 to-study-indigo-600' },
     { label: 'Build Document', desc: 'Generate slides & study guides', icon: FileText, view: 'studio', color: 'from-study-amber-500 to-study-orange-600' },
     { label: 'Transcribe Lecture', desc: 'Live speech-to-text capture', icon: Mic, view: 'transcriber', color: 'from-study-rose-500 to-study-pink-600' },
@@ -155,7 +155,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
               <div className="mt-3 space-y-1 text-sm">
                 <p className="text-text"><span className="text-text-muted">Subject:</span> {nextSession.subject}</p>
                 <p className="text-text"><span className="text-text-muted">Topic:</span> {nextSession.topic}</p>
-                <p className="text-text-muted"><span className="text-text">Reason:</span> {nextSession.kind === 'flashcards' ? 'You have ' + nextSession.count + ' flashcard' + (nextSession.count === 1 ? '' : 's') + ' due for review.' : 'Your mastery is ' + nextSession.mastery + '%, below the 50% target. Study it on the AI Whiteboard.'}</p>
+                <p className="text-text-muted"><span className="text-text">Reason:</span> {nextSession.kind === 'flashcards' ? 'You have ' + nextSession.count + ' flashcard' + (nextSession.count === 1 ? '' : 's') + ' due for review.' : 'Your mastery is ' + nextSession.mastery + '%, below the 50% target. Study it with the AI Tutor.'}</p>
               </div>
             ) : <p className="mt-2 max-w-xl text-sm text-text-muted">{nextSessionError ? 'Your review schedule could not be loaded. You can still start a visual lesson.' : 'No flashcards are due and no topics are below 50% mastery. Keep up your revision.'}</p>}
           </div>
