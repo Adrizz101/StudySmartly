@@ -12,6 +12,7 @@ import { getTutorUsage, respondToTutor, generateConceptMap, generateChatTitle } 
 import ConceptMap from '@/components/learning/ConceptMap';
 import { Card, CardContent } from '@/components/ui/card';
 import { ChatMessage, TutorSession } from '@/types';
+import { useGamification } from '@/lib/useGamification';
 import {
   Send, Bot, User, Plus, Trash2, Sparkles, Image as ImageIcon, Upload, X,
   GraduationCap, BookOpen, Brain, Clock, AlertCircle, FileText,
@@ -108,6 +109,7 @@ const TOOL_LINKS = [
 
 export default function Tutor() {
   const { tutorSessions, setTutorSessions } = useApp();
+  const { recordActivity } = useGamification();
   const tutorSessionsRef = useRef(tutorSessions);
   tutorSessionsRef.current = tutorSessions;
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -325,6 +327,7 @@ export default function Tutor() {
       }
       if (!assistantContent.trim()) throw new Error('The tutor returned an empty response.');
       if (!receivedDone) throw new Error('The tutor stream ended before completion. Please try again.');
+      void recordActivity('tutor_chat');
 
       const currentSession = tutorSessionsRef.current.find((session) => session.id === sessionId);
       if (currentSession?.subject === 'General') {
@@ -360,7 +363,7 @@ export default function Tutor() {
     } finally {
       setIsThinking(false);
     }
-  }, [input, pendingAttachment, isThinking, isPreparingAttachment, activeSessionId, activeSession, subject, persona, createSession, updateSession, setTutorSessions, refreshUsage]);
+  }, [input, pendingAttachment, isThinking, isPreparingAttachment, activeSessionId, activeSession, subject, persona, createSession, updateSession, setTutorSessions, refreshUsage, recordActivity]);
 
   const visualizeTopic = useCallback(async () => {
     const topic = input.trim() || [...(activeSession?.messages ?? [])].reverse().find((message) => message.role === 'user')?.content.trim() || subject.trim();
