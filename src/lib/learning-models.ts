@@ -130,17 +130,22 @@ export function diagnose(attempts: Attempt[]) {
 }
 
 
+const conceptMapLabelSchema = z.string().trim().min(1).max(80).refine(
+  (value) => value.split(' ').filter(Boolean).length <= 5,
+  'Concept map labels must contain no more than five words.',
+);
+
 export const conceptMapSchema = z.object({
   title: z.string().trim().min(1).max(100),
   nodes: z.array(z.object({
     id: z.string().trim().min(1).max(80),
-    label: z.string().trim().min(1).max(80),
+    label: conceptMapLabelSchema,
     type: z.enum(['topic', 'subtopic', 'detail']),
   })).min(1).max(40),
   edges: z.array(z.object({
     source: z.string().trim().min(1).max(80),
     target: z.string().trim().min(1).max(80),
-    label: z.string().trim().max(80).optional(),
+    label: conceptMapLabelSchema.optional(),
   })).max(80),
 }).superRefine((value, ctx) => {
   const ids = new Set(value.nodes.map((node) => node.id));
