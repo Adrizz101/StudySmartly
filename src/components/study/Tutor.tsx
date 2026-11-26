@@ -229,7 +229,6 @@ export default function Tutor() {
                 }],
               };
             });
-            setIsThinking(false);
           } else if (value.type === 'done') {
             receivedDone = true;
             if (value.unlimited) setUsageLabel('Unlimited AI');
@@ -400,7 +399,7 @@ export default function Tutor() {
           {attachmentError && <div className="text-xs text-red-400" role="alert">{attachmentError}</div>}
           <div className="flex min-w-0 items-end gap-2">
             <Button variant="source" aria-label="Attach image or PDF" title="Attach image or PDF" onClick={() => fileInputRef.current?.click()} disabled={isPreparingAttachment || isThinking} className="h-11 min-h-[44px] shrink-0 rounded-lg p-2 text-text-muted hover:bg-surface-hover"><Upload size={18} /></Button>
-            <Button variant="source" aria-label="Visualize topic" title="Create a concept map" onClick={() => void visualizeTopic()} disabled={isGeneratingMap || isThinking || (!input.trim() && !activeSession?.messages.some((message) => message.role === 'user') && !subject.trim())} className="h-11 min-h-[44px] shrink-0 rounded-lg border border-border p-2 text-text-muted hover:bg-surface-hover disabled:opacity-50">{isGeneratingMap ? <Sparkles size={18} className="animate-pulse" /> : <Network size={18} />}</Button>
+            <Button variant="source" aria-label="Visualize topic" title="Create a concept map" onClick={() => void visualizeTopic()} disabled={isGeneratingMap || isThinking || !activeSession?.messages.some((message) => message.role === 'assistant' && message.content.trim().length > 0 && !message.conceptMap)} className="h-11 min-h-[44px] shrink-0 rounded-lg border border-border p-2 text-text-muted hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50">{isGeneratingMap ? <Sparkles size={18} className="animate-pulse" /> : <Network size={18} />}</Button>
             <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
             }} rows={1} placeholder="Ask your tutor anything…" className="h-11 min-h-[44px] max-h-11 min-w-0 flex-1 resize-none overflow-y-auto rounded-xl border border-border bg-surface-hover px-3 py-2 text-sm leading-5 text-text outline-none focus:border-accent-500" />
