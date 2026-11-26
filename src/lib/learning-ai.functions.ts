@@ -131,6 +131,7 @@ export const respondToTutor = createServerFn({ method: 'POST' })
         supabase.from('flashcards')
           .select('question, subject, topic, interval_days, lapses, last_reviewed_at')
           .or('interval_days.lte.1,lapses.gt.0')
+          .not('last_reviewed_at', 'is', null)
           .order('last_reviewed_at', { ascending: false, nullsFirst: false })
           .limit(2),
       ]);
