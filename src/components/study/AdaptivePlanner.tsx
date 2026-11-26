@@ -155,10 +155,7 @@ export default function AdaptivePlanner() {
       if (!Number.isFinite(sessionDate.getTime()) || sessionDate.getTime() < Date.now()) return;
       // Week 1 is the current Monday-Sunday week; later weeks are numbered forward.
       const weekNumber = Math.floor((startOfWeek(sessionDate) - currentWeekStart) / 604800000) + 1;
-      const topic = topics.find(item => item.id === session.topic_id);
-      const rawHours = session.estimated_hours ?? session.estimatedHours ?? topic?.estimated_hours ?? topic?.estimatedHours ?? 1;
-      const parsedHours = Number(rawHours);
-      const sessionHours = Number.isFinite(parsedHours) && parsedHours > 0 ? parsedHours : 1;
+      const sessionHours = Math.max(0, session.duration_minutes / 60);
       totals.set(weekNumber, (totals.get(weekNumber) ?? 0) + sessionHours);
     });
     return [...totals.entries()].map(([weekNumber, hours]) => ({ weekNumber, hours, highRisk: hours > 15 })).sort((a, b) => a.weekNumber - b.weekNumber);
