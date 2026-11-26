@@ -33,6 +33,14 @@ const safeServerBoundary = createMiddleware({ type: 'function' }).server(async (
 const source = z.object({ name: z.string(), text: z.string(), images: z.array(z.string().startsWith('data:image/')) });
 const input = z.object({ prompt: z.string().min(1).max(100000), sources: z.array(source), consent: z.literal(true) });
 
+const tutorPersonaSchema = z.enum(['socratic', 'explain-simply', 'exam-focus', 'direct-answer']);
+const tutorPersonaInstructions: Record<z.infer<typeof tutorPersonaSchema>, string> = {
+  socratic: 'You are a Socratic tutor. Do not give direct answers. Provide progressive hints and ask guiding questions.',
+  'explain-simply': 'Explain concepts using simple language, real-world analogies, and short sentences, as if speaking to a 10-year-old. You may give the direct answer, but keep it very easy to understand.',
+  'exam-focus': 'Act as an exam grader. Provide the answer directly, but highlight the exact keywords, formulas, and steps that the examiner is looking for to award full marks.',
+  'direct-answer': 'Ignore the Socratic method. Provide the direct, complete solution immediately, clearly formatted.',
+};
+
 const tutorHistoryMessage = z.object({
   role: z.enum(['user', 'assistant']),
   content: z.string().trim().min(1).max(4000),
@@ -54,6 +62,7 @@ const tutorFunctionInput = z.object({
   question: z.string().trim().min(1).max(4000),
   history: z.array(tutorHistoryMessage).max(16),
   accessToken: z.string().min(1),
+  persona: tutorPersonaSchema.default('socratic'),
   attachment: z.discriminatedUnion('type', [
     z.object({
       type: z.literal('image'),
@@ -72,8 +81,7 @@ const tutorFunctionInput = z.object({
 });
 
 const tutorSystemInstruction = `You are StudySmartly, a patient, precise school tutor who teaches for understanding rather than simply completing tasks. When uploaded PDF text appears between the uploaded-PDF delimiters in the user message, you have access to that extracted text: read it and answer the student's question using it. Never say you cannot view or access the PDF when its extracted text is present. For image attachments, inspect the supplied image content in the multimodal message and answer based on what is visible.
-For a direct conceptual question, answer clearly first, then ask one short understanding check.
-For a specific maths or science exercise, give one progressive hint first and ask the student to try the next step; do not reveal the complete solution immediately.
+Adapt the explanation style and level of directness to the selected teaching persona.
 When checking work, identify the first incorrect step and explain why.
 If the student explicitly asks for a hint, give a hint rather than the answer.
 Use concise, age-appropriate Markdown and KaTeX-compatible math. NEVER use square brackets [ ] to wrap math equations. For standalone equations, you MUST use double dollar signs \x24\x24 before and after the equation (for example, \x24\x24 15 - 5 = 10 \x24\x24). For inline math, use single dollar signs $ (for example, $2x = 10$). If a mathematical or chemical equation is too long to fit on a mobile screen, you MUST break it into multiple lines using the aligned environment (for example, \\begin{aligned} ... \\end{aligned}) or split it into multiple separate \x24\x24 ... \x24\x24 blocks. Never output a single block equation that is wider than 30 characters. Ask only one focused follow-up question at a time. Be accurate, do not invent facts, and correct mistakes openly.`;
@@ -143,7 +151,7 @@ export const respondToTutor = createServerFn({ method: 'POST' })
             try {
               const result = streamText({
                 model: provider.model,
-                system: tutorSystemInstruction,
+                system: tutorSystemInstruction + '\n\n' + tutorPersonaInstructions[data.persona],
                 ...(messages ? { messages } : { prompt }),
                 maxRetries: 0,
                 experimental_transform: smoothStream({ chunking: 'word', delayInMs: 12 }),
