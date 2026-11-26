@@ -15,10 +15,31 @@ import { ChatMessage, TutorSession } from '@/types';
 import {
   Send, Bot, User, Plus, Trash2, Sparkles, Image as ImageIcon, Upload, X,
   GraduationCap, BookOpen, Brain, Clock, AlertCircle, FileText,
-  Layers, CalendarDays, Presentation, PanelLeft, Library, Network,
+  Layers, CalendarDays, Presentation, PanelLeft, Library, Network, Volume2, Square,
 } from 'lucide-react';
 
 type TeachingPersona = 'socratic' | 'explain-simply' | 'exam-focus' | 'direct-answer';
+
+/** Convert rendered tutor Markdown/LaTeX into readable plain text for browser speech. */
+function cleanTextForSpeech(text: string): string {
+  return text
+    .replace(/```[\\s\\S]*?```/g, (block) => block.replace(/^```[^\\n]*\\n?/, '').replace(/```$/, ' '))
+    .replace(/\\frac\\s*\\{([^{}]*)\\}\\s*\\{([^{}]*)\\}/g, '$1 divided by $2')
+    .replace(/\\sqrt\\s*\\{([^{}]*)\\}/g, 'square root of $1')
+    .replace(/\\text\\s*\\{([^{}]*)\\}/g, '$1')
+    .replace(/\\\\[a-zA-Z]+/g, ' ')
+    .replace(/\\\\[()[\\]{}]/g, ' ')
+    .replace(/\\\\[,;!]/g, ' ')
+    .replace(/\\$\\$?|\\\\\\(|\\\\\\)|\\\\\\[|\\\\\\]/g, ' ')
+    .replace(/!\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1')
+    .replace(/\\[([^\\]]+)\\]\\([^)]*\\)/g, '$1')
+    .replace(/^\\s{0,3}#{1,6}\\s+/gm, '')
+    .replace(/^\\s{0,3}(?:[-*+]\\s+|\\d+[.)]\\s+)/gm, '')
+    .replace(/[*_~`]/g, '')
+    .replace(/[{}]/g, ' ')
+    .replace(/\\s+/g, ' ')
+    .trim();
+}
 
 type TutorAttachment =
   | { type: 'image'; name: string; dataUrl: string }
@@ -105,6 +126,8 @@ export default function Tutor() {
   const [mobilePanel, setMobilePanel] = useState<'chat' | 'history' | 'tools'>('chat');
   const [usageLabel, setUsageLabel] = useState('Checking daily usage…');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const activeSpeechMessageIdRef = useRef<string | null>(null);
 
   const refreshUsage = useCallback(async () => {
     try {
@@ -132,6 +155,47 @@ export default function Tutor() {
   useEffect(() => {
     void refreshUsage();
   }, [refreshUsage]);
+
+  const handleReadAloud = useCallback((messageId: string, text: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    const speech = window.speechSynthesis;
+
+    if (activeSpeechMessageIdRef.current === messageId && speech.speaking) {
+      activeSpeechMessageIdRef.current = null;
+      setSpeakingMessageId(null);
+      speech.cancel();
+      return;
+    }
+
+    const cleanText = cleanTextForSpeech(text);
+    if (!cleanText) return;
+
+    speech.cancel();
+    activeSpeechMessageIdRef.current = messageId;
+    setSpeakingMessageId(messageId);
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.onend = () => {
+      if (activeSpeechMessageIdRef.current === messageId) {
+        activeSpeechMessageIdRef.current = null;
+        setSpeakingMessageId(null);
+      }
+    };
+    utterance.onerror = () => {
+      if (activeSpeechMessageIdRef.current === messageId) {
+        activeSpeechMessageIdRef.current = null;
+        setSpeakingMessageId(null);
+      }
+    };
+    speech.speak(utterance);
+  }, []);
+
+  useEffect(() => () => {
+    activeSpeechMessageIdRef.current = null;
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+  }, []);
 
   useEffect(() => {
     try {
@@ -440,7 +504,14 @@ export default function Tutor() {
                 })}
               </div>
             </div>
-          ) : activeSession.messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)}
+          ) : activeSession.messages.map((msg) => (
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              isSpeaking={speakingMessageId === msg.id}
+              onReadAloud={handleReadAloud}
+            />
+          ))}
           {(isThinking || isGeneratingMap) && <div className="flex items-center gap-2 text-sm text-text-muted"><Bot size={17} className="text-accent-500" /> {isGeneratingMap ? 'Building your visual map…' : 'Thinking…'}</div>}
           <div ref={messagesEndRef} />
         </div>
@@ -516,8 +587,17 @@ const MarkdownMessage = memo(function MarkdownMessage({ content }: { content: st
   );
 });
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({
+  message,
+  isSpeaking,
+  onReadAloud,
+}: {
+  message: ChatMessage;
+  isSpeaking: boolean;
+  onReadAloud: (messageId: string, text: string) => void;
+}) {
   const isUser = message.role === 'user';
+  const canReadAloud = !isUser && !message.conceptMap && Boolean(message.content.trim());
   return (
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : ''} animate-fadeIn`}>
       <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${isUser ? 'bg-study-blue-600' : 'bg-accent-600/15'}`}>
@@ -531,6 +611,20 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         {!message.conceptMap && <div className={`min-w-0 max-w-full overflow-x-auto rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${isUser ? 'rounded-tr-sm bg-study-blue-600 text-white' : 'rounded-tl-sm bg-surface-hover text-text'}`}>
           <MarkdownMessage content={message.content} />
         </div>}
+        {canReadAloud && (
+          <div className="mt-1 flex items-center">
+            <button
+              type="button"
+              onClick={() => onReadAloud(message.id, message.content)}
+              aria-label={isSpeaking ? 'Stop reading aloud' : 'Read message aloud'}
+              aria-pressed={isSpeaking}
+              title={isSpeaking ? 'Stop reading' : 'Read aloud'}
+              className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-hover hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+            >
+              {isSpeaking ? <Square size={15} fill="currentColor" /> : <Volume2 size={17} />}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
