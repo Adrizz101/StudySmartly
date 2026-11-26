@@ -24,12 +24,10 @@ interface SidebarProps {
   onNavigate: (v: ViewKey) => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
-  collapsed: boolean;
-  onToggleCollapse: () => void;
 }
 
-export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile, collapsed, onToggleCollapse }: SidebarProps) {
-  const compact = collapsed && !mobileOpen;
+export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile }: SidebarProps) {
+  const compact = false;
   const { settings } = useApp();
 
   const content = (
@@ -125,15 +123,8 @@ export function Sidebar({ current, onNavigate, mobileOpen, onCloseMobile, collap
   return (
     <>
       {/* Desktop */}
-      <aside className={`hidden lg:flex shrink-0 glass border-r border-border h-screen sticky top-0 sidebar-shell ${collapsed ? 'w-[4.5rem]' : 'w-64'}`}>
-        <div className="flex flex-col w-full min-w-0">
-          <div className={`flex ${collapsed ? 'justify-center' : 'justify-end'} px-2 pt-2`}>
-            <Button variant="source" size="icon" aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={onToggleCollapse}>
-              <Menu size={19} />
-            </Button>
-          </div>
-          <div className="min-h-0 flex-1">{content}</div>
-        </div>
+      <aside className="hidden lg:flex w-64 shrink-0 glass border-r border-border h-screen sticky top-0 sidebar-shell">
+        <div className="flex min-h-0 flex-1 flex-col w-full min-w-0">{content}</div>
       </aside>
 
       {/* Mobile drawer */}

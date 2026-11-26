@@ -10,7 +10,6 @@ export function StudyLayout({ children }: { children: ReactNode }) {
   const pathname = useLocation({ select: (location) => location.pathname });
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [academyOpen, setAcademyOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
 
@@ -45,14 +44,11 @@ export function StudyLayout({ children }: { children: ReactNode }) {
       <div className="flex min-h-screen bg-bg">
         {academyOpen && <StudyAcademy onClose={() => setAcademyOpen(false)} />}
         <div className={focusMode ? 'hidden' : 'contents'}>
-          <Sidebar current={view} onNavigate={(next) => navigate({ to: next === 'dashboard' ? '/' : `/${next}` })} mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((value) => !value)} />
+          <Sidebar current={view} onNavigate={(next) => navigate({ to: next === 'dashboard' ? '/' : `/${next}` })} mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
           <div className={focusMode ? 'hidden' : 'contents'}>
-            <TopBar view={view} onMenuClick={() => {
-              if (window.matchMedia('(min-width: 1024px)').matches) setSidebarCollapsed((value) => !value);
-              else setMobileOpen(true);
-            }} />
+            <TopBar view={view} onMenuClick={() => setMobileOpen(true)} />
           </div>
           <main className={focusMode ? 'study-content study-content--focus mx-auto w-full max-w-7xl flex-1 p-4 lg:p-6' : 'study-content mx-auto w-full max-w-7xl flex-1 p-4 lg:p-6'}><AnimatedRoute>{children}</AnimatedRoute></main>
         </div>

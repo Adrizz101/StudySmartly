@@ -8,7 +8,7 @@ import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useApp } from '@/store';
 import { supabase } from '@/integrations/supabase/client';
-import { getTutorUsage, respondToTutor, generateConceptMap } from '@/lib/learning-ai.functions';
+import { getTutorUsage, respondToTutor, generateConceptMap, generateChatTitle } from '@/lib/learning-ai.functions';
 import ConceptMap from '@/components/learning/ConceptMap';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChatMessage, TutorSession } from '@/types';
@@ -87,6 +87,8 @@ const TOOL_LINKS = [
 
 export default function Tutor() {
   const { tutorSessions, setTutorSessions } = useApp();
+  const tutorSessionsRef = useRef(tutorSessions);
+  tutorSessionsRef.current = tutorSessions;
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [pendingAttachment, setPendingAttachment] = useState<TutorAttachment | null>(null);
@@ -246,6 +248,27 @@ export default function Tutor() {
       if (!assistantContent.trim()) throw new Error('The tutor returned an empty response.');
       if (!receivedDone) throw new Error('The tutor stream ended before completion. Please try again.');
 
+      const currentSession = tutorSessionsRef.current.find((session) => session.id === sessionId);
+      if (currentSession?.subject === 'General') {
+        const fallbackTitle = questionText.trim().split(/\\s+/).slice(0, 4).join(' ') || 'New conversation';
+        const titleMessages = [
+          { role: 'user' as const, content: questionText.slice(0, 4000) },
+          { role: 'assistant' as const, content: assistantContent.slice(0, 4000) },
+        ];
+        let nextTitle = fallbackTitle;
+        try {
+          const titleResult = await generateChatTitle({ data: { messages: titleMessages } });
+          if (titleResult.success && titleResult.data.title.trim()) {
+            nextTitle = titleResult.data.title.trim();
+          }
+        } catch {
+          // Keep the first-four-words fallback if title generation is unavailable.
+        }
+        updateSession(sessionId, (session) => session.subject === 'General'
+          ? { ...session, subject: nextTitle }
+          : session);
+      }
+
     } catch (error) {
       const errMsg: ChatMessage = {
         id: crypto.randomUUID(),
@@ -364,7 +387,13 @@ export default function Tutor() {
             <div className="truncate whitespace-nowrap text-xs font-semibold text-text sm:text-sm">StudySmartly AI Tutor</div>
             <div className="text-[10px] leading-tight text-text-dim sm:text-xs" aria-live="polite">{usageLabel}</div>
           </div>
-          <input value={subject} onChange={(e) => setSubject(e.target.value)} aria-label="Subject" placeholder="Subject" className="w-20 shrink-0 rounded-lg border border-border bg-surface-hover px-2 py-2 text-xs text-text outline-none focus:border-accent-500 sm:w-28 lg:w-36" />
+          <input value={subject} onChange={(e) => {
+            const nextSubject = e.target.value;
+            setSubject(nextSubject);
+            if (activeSessionId) {
+              updateSession(activeSessionId, (session) => ({ ...session, subject: nextSubject }));
+            }
+          }} aria-label="Subject" placeholder="Subject" className="w-20 shrink-0 rounded-lg border border-border bg-surface-hover px-2 py-2 text-xs text-text outline-none focus:border-accent-500 sm:w-28 lg:w-36" />
         </header>
 
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3 lg:space-y-4 lg:px-4 lg:py-4">

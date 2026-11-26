@@ -375,3 +375,26 @@ export const generateConceptMap = createServerFn({ method: 'POST' })
     );
     return result.output;
   }));
+
+
+const chatTitleSchema = z.object({
+  title: z.string().trim().min(1).max(60),
+});
+
+export const generateChatTitle = createServerFn({ method: 'POST' })
+  .middleware([safeServerBoundary, requireSupabaseAuth])
+  .inputValidator(z.object({
+    messages: z.array(tutorHistoryMessage).min(2).max(16),
+  }))
+  .handler(async ({ data }) => safeResult('generateChatTitle', 'Could not generate a chat title.', async () => {
+    const { structuredAI } = await import('./learning-ai.server');
+    const result = await structuredAI(
+      chatTitleSchema,
+      'Summarize this conversation into a 3 to 5 word descriptive title. Do not use punctuation or quotes.',
+      'Conversation:\n' + data.messages.map((message) => (message.role === 'user' ? 'Student: ' : 'Tutor: ') + message.content).join('\n\n'),
+      [],
+      undefined,
+      { charge: 'skip' },
+    );
+    return result.output;
+  }));
