@@ -168,10 +168,10 @@ export default function FlashcardStudio(){
    }catch(e){setError(e instanceof Error?e.message:'Could not save review.');}
    finally{setBusy(false);}
  }
- function explainOnWhiteboard(){
+ function explainWithAITutor(){
    if(!current)return;
-   const prompt=`Explain this flashcard clearly, step by step, using a visual whiteboard.\nQuestion: ${current.question}\nAnswer: ${current.answer}\nAdditional explanation: ${current.explanation}\nSubject: ${current.subject}\nTopic: ${current.topic}`;
-   try{window.sessionStorage.setItem('studysmartly_whiteboard_prompt',prompt);}catch{/* Navigation still works; user can paste the prompt manually. */}
+   const prompt=`Explain this flashcard clearly, step by step, clearly, step by step.\nQuestion: ${current.question}\nAnswer: ${current.answer}\nAdditional explanation: ${current.explanation}\nSubject: ${current.subject}\nTopic: ${current.topic}`;
+   try{window.sessionStorage.setItem('studysmartly_tutor_prompt',prompt);}catch{/* Navigation still works; user can paste the prompt manually. */}
    void navigate({to:'/tutor'});
  }
  const totalDue=cards.filter(c=>new Date(c.due_at)<=new Date()).length;
@@ -193,7 +193,7 @@ export default function FlashcardStudio(){
        {revealed && current.explanation && <p className="text-sm text-text-muted mt-4 whitespace-pre-wrap break-words">{current.explanation}</p>}
       </div>
       {!revealed?<></>:<div className="space-y-3">
-        <Button variant="outline" className="w-full" onClick={explainOnWhiteboard}><PencilRuler size={16}/>Explain this on Whiteboard</Button>
+        <Button variant="outline" className="w-full" onClick={explainWithAITutor}><PencilRuler size={16}/>Explain with AI Tutor</Button>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Button variant="outline" disabled={busy} onClick={()=>void review('again')} className="min-w-0">Again</Button>
           <Button variant="outline" disabled={busy} onClick={()=>void review('hard')} className="min-w-0">Hard</Button>
