@@ -183,13 +183,13 @@ export default function DrawingBoard() {
 
   useEffect(() => {
     try {
-      const handoff = window.sessionStorage.getItem('studysmartly_whiteboard_prompt');
+      const handoff = window.sessionStorage.getItem('studysmartly_tutor_prompt');
       if (handoff) {
         setPrompt(handoff);
         window.sessionStorage.removeItem('studysmartly_whiteboard_prompt');
       }
     } catch (error) {
-      console.warn('Could not read the flashcard Whiteboard handoff:', error);
+      console.warn('Could not read the study prompt handoff:', error);
     }
   }, []);
 
@@ -586,7 +586,7 @@ export default function DrawingBoard() {
         const imageHeight = imageWidth * sourceHeight / sourceWidth;
         const fileId = createBoardElementId();
         const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-        if (!api) throw new Error('Whiteboard is not ready yet.');
+        if (!api) throw new Error('The visual workspace is not ready yet.');
         api.addFiles([{
           id: fileId,
           mimeType: 'image/svg+xml',
@@ -666,7 +666,7 @@ export default function DrawingBoard() {
       }
 
       if (run !== runRef.current) return;
-      if (!api) throw new Error('Whiteboard is no longer available. Please reopen the tutor.');
+      if (!api) throw new Error('The visual workspace is no longer available. Please reopen the Tutor.');
       drawingFinished = true;
       animatingRef.current = false;
 
@@ -706,7 +706,7 @@ export default function DrawingBoard() {
     save('board-discussion', session.messages);
     setError('');
     try {
-      if (!api) throw new Error('Whiteboard is still loading. Please wait a moment, then select the session again.');
+      if (!api) throw new Error('The visual workspace is still loading. Please wait a moment, then select the session again.');
       const safeElements = sanitizeBoardElements(session.board_elements);
       if (session.board_files && Object.keys(session.board_files).length) api.addFiles(Object.values(session.board_files) as any);
       api.updateScene({ elements: safeElements as any });
@@ -722,20 +722,20 @@ export default function DrawingBoard() {
     <>
     <div className={focusMode ? 'learning-workspace learning-workspace--focus' : 'learning-workspace'}>
       <header className="learning-heading">
-        <div><span className="workspace-eyebrow">EXPLORE / WHITEBOARD</span><h1>Visual Whiteboard</h1></div>
+        <div><span className="workspace-eyebrow">EXPLORE / VISUAL LEARNING</span><h1>Visual Learning Workspace</h1></div>
         <div className="flex gap-2">
           <Button ref={enterButtonRef} variant="outline" size="icon" aria-label="Enter Zen Focus Mode" title="Zen Focus Mode: full-screen canvas" onClick={enterFocusMode}><Maximize2 /></Button>
           <Button variant="outline" size="icon" aria-label="Toggle board theme" onClick={() => setDark(!dark)}>{dark ? <Sun /> : <Moon />}</Button>
           <Button variant="outline" size="icon" aria-label="Download board" onClick={async () => {
-            if (!api) { setError('Whiteboard is still loading. Please try again in a moment.'); return; }
+            if (!api) { setError('The visual workspace is still loading. Please try again in a moment.'); return; }
             try {
             const blob = await exportToBlob({ elements: api.getSceneElements(), appState: api.getAppState(), files: api.getFiles(), mimeType: 'image/png' });
             const url = URL.createObjectURL(blob);
             const anchor = document.createElement('a');
-            anchor.href = url; anchor.download = 'StudySmart-whiteboard.png'; anchor.click();
+            anchor.href = url; anchor.download = 'StudySmart-visual-lesson.png'; anchor.click();
             URL.revokeObjectURL(url);
             } catch (downloadError) {
-              setError(downloadError instanceof Error ? downloadError.message : 'Could not export the whiteboard.');
+              setError(downloadError instanceof Error ? downloadError.message : 'Could not export the visual lesson.');
             }
           }}><Download /></Button>
           <Button variant="outline" size="icon" aria-label="New session" title="New session" onClick={() => {
@@ -753,7 +753,7 @@ export default function DrawingBoard() {
         </div>
       </header>
       <div className={focusMode ? 'whiteboard-workspace whiteboard-workspace--focus' : 'whiteboard-workspace'}>
-        <section className="drawing-surface" aria-label="Interactive whiteboard">
+        <section className="drawing-surface" aria-label="Interactive visual learning workspace">
           <Excalidraw excalidrawAPI={setApi} initialData={initial.current} theme={dark ? 'dark' : 'light'}
             onChange={(elements, _state, files) => {
               // Keep this callback free of React state setters. Excalidraw calls onChange
@@ -807,7 +807,7 @@ export default function DrawingBoard() {
             {busy && <InteractiveLoader />}
           </div>
           <div className="board-composer">
-            <textarea className="learning-input board-chat-input" rows={2} aria-label="Whiteboard question"
+            <textarea className="learning-input board-chat-input" rows={2} aria-label="Visual lesson question"
               placeholder="Ask a follow-up question…" value={prompt}
               onChange={(event) => { if (busy) stopPlayback(); setPrompt(event.target.value); }}
               onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void ask(); } }} />
@@ -819,7 +819,7 @@ export default function DrawingBoard() {
                 {isListening ? <MicOff size={16} /> : <Mic size={16} />} {isListening ? 'Listening…' : 'Mic'}
               </Button>
               <Button className="board-send" disabled={!prompt.trim()} onClick={() => void ask()}>
-                <Sparkles size={16} /> {busy ? 'Ask this doubt' : 'Explain on board'}
+                <Sparkles size={16} /> {busy ? 'Ask this doubt' : 'Explain this concept'}
               </Button>
               {isSpeaking && !isPaused && (
                 <Button variant="outline" className="board-voice" onClick={pausePlayback} aria-label="Pause voice">
