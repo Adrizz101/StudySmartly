@@ -10,6 +10,7 @@ import { extractSyllabusTopics } from '@/lib/learning-ai.functions';
 import { buildStudySchedule } from '@/lib/smart-scheduling';
 
 type Priority = 'low' | 'normal' | 'high';
+type ExtractedTopic = { subject: string; chapter: string; concept: string; priority: 'High' | 'Normal' | 'Low'; mastery: number; estimatedHours: number };
 type Topic = { id: string; user_id: string; course_id: string | null; subject: string; chapter: string; concept: string; mastery_score: number; estimated_hours?: number | null; estimatedHours?: number | null; priority: Priority; last_practiced_at: string | null };
 type StudySession = { id: string; topic_id: string | null; title: string; subject: string; chapter: string | null; concept: string | null; scheduled_start: string; scheduled_end: string; duration_minutes: number; estimated_hours?: number | null; estimatedHours?: number | null; status: 'planned' | 'completed' | 'missed' | 'skipped'; priority: Priority; rationale: string | null };
 type Preferences = { weekday_available_minutes: number; weekend_available_minutes: number; preferred_start_time: string; preferred_end_time: string; session_duration_minutes: number; break_duration_minutes: number; study_days: number[]; timezone: string };
@@ -41,6 +42,7 @@ export default function AdaptivePlanner() {
   const [syllabusText, setSyllabusText] = useState('');
   const [syllabusFile, setSyllabusFile] = useState<File | null>(null);
   const [extracting, setExtracting] = useState(false);
+  const [previewTopics, setPreviewTopics] = useState<ExtractedTopic[]>([]);
   const [completingSessionIds, setCompletingSessionIds] = useState<string[]>([]);
   const [deletingSessionIds, setDeletingSessionIds] = useState<string[]>([]);
   const [clearingSchedule, setClearingSchedule] = useState(false);
@@ -101,19 +103,32 @@ export default function AdaptivePlanner() {
       if (importMode === 'file' && !syllabusFile) throw new Error('Choose a PDF, text file or image first.');
       if (importMode === 'file' && syllabusFile) source = await readSource(syllabusFile);
       const text = importMode === 'paste' ? syllabusText.trim() : source?.text ?? '';
-      const result = await extractSyllabusTopics({
-        data: { text, images: source?.images ?? [] },
-      });
+      const result = await extractSyllabusTopics({ data: { text, images: source?.images ?? [] } });
       if (result.success === false) { setError(result.error); return; }
       const extracted = result.data;
       if (!extracted.topics.length) throw new Error('No syllabus topics could be identified. Try a clearer or more complete source.');
-      const rows = extracted.topics.slice(0, 300).map(topic => ({
+      setPreviewTopics(extracted.topics.slice(0, 300).map(topic => ({
+        ...topic,
+        estimatedHours: Math.min(40, Math.max(0.25, topic.estimatedHours)),
+      })));
+      setNotice('Review the extracted topics below, then confirm to add them to your planner.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not extract syllabus topics.');
+    } finally { setExtracting(false); }
+  }
+
+  async function confirmSyllabusImport() {
+    if (!previewTopics.length || !userId) return;
+    setSaving(true); setError(''); setNotice('');
+    try {
+      const rows = previewTopics.map(topic => ({
         user_id: userId,
         subject: topic.subject.trim(),
         chapter: topic.chapter.trim(),
         concept: topic.concept.trim(),
         priority: topic.priority.toLowerCase() as Priority,
         mastery_score: topic.mastery,
+        estimated_hours: topic.estimatedHours,
         course_id: courses.find(course => course.name.toLowerCase() === topic.subject.trim().toLowerCase())?.id ?? null,
         evidence: { source: 'bulk_syllabus_import' },
       })).filter(topic => topic.subject && topic.chapter && topic.concept);
@@ -124,11 +139,11 @@ export default function AdaptivePlanner() {
       if (insertError) throw insertError;
       const added = (data || []) as Topic[];
       setTopics(prev => [...added, ...prev]);
-      setNotice(`Successfully added ${added.length} topics to your planner!${extracted.topics.length > 300 ? ' (First 300 imported.)' : ''}`);
-      setSyllabusText(''); setSyllabusFile(null); setShowBulkImport(false);
+      setNotice(`Successfully added ${added.length} topics to your planner. Existing duplicates were kept unchanged.`);
+      setSyllabusText(''); setSyllabusFile(null); setPreviewTopics([]); setShowBulkImport(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not import syllabus topics.');
-    } finally { setExtracting(false); }
+      setError(e instanceof Error ? e.message : 'Could not save syllabus topics.');
+    } finally { setSaving(false); }
   }
 
 
@@ -372,7 +387,7 @@ export default function AdaptivePlanner() {
 
   return <div className="learning-workspace space-y-6 motion-stagger">
     <header className="learning-heading"><div><span className="workspace-eyebrow">PLAN / ADAPTIVE STUDY PLANNER</span><h1>Adaptive Study Planner</h1><p className="text-sm text-text-muted mt-1">A realistic revision plan built around your weak topics, available time and existing commitments.</p></div>
-      <div className="flex flex-wrap gap-2"><Button onClick={() => void autoAdjustSchedule()} disabled={saving || busy || !topics.some(topic => topic.mastery_score < 100)} className="bg-accent-600 hover:bg-accent-700 text-white"><Sparkles size={16}/> Auto-Adjust Schedule</Button><Button variant="outline" onClick={() => setShowSettings(v => !v)}><Settings2 size={16}/> Preferences</Button><Button onClick={() => void generatePlan()} disabled={saving || busy || !topics.length}><RefreshCw size={16}/>{saving ? 'Working…' : 'Generate plan'}</Button><Button type="button" variant="ghost" onClick={() => void clearSchedule()} disabled={busy || clearingSchedule || upcoming.length === 0 || deletingSessionIds.length > 0} className="text-text-muted hover:text-destructive">{clearingSchedule ? <RefreshCw size={15} className="animate-spin"/> : <Trash2 size={15}/>} {clearingSchedule ? 'Clearing…' : 'Clear schedule'}</Button></div>
+      <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={() => { setShowBulkImport(true); setImportMode('paste'); setPreviewTopics([]); setError(''); setNotice(''); }} disabled={busy || extracting}><Sparkles size={16}/> Import Syllabus</Button><Button onClick={() => void autoAdjustSchedule()} disabled={saving || busy || !topics.some(topic => topic.mastery_score < 100)} className="bg-accent-600 hover:bg-accent-700 text-white"><Sparkles size={16}/> Auto-Adjust Schedule</Button><Button variant="outline" onClick={() => setShowSettings(v => !v)}><Settings2 size={16}/> Preferences</Button><Button onClick={() => void generatePlan()} disabled={saving || busy || !topics.length}><RefreshCw size={16}/>{saving ? 'Working…' : 'Generate plan'}</Button><Button type="button" variant="ghost" onClick={() => void clearSchedule()} disabled={busy || clearingSchedule || upcoming.length === 0 || deletingSessionIds.length > 0} className="text-text-muted hover:text-destructive">{clearingSchedule ? <RefreshCw size={15} className="animate-spin"/> : <Trash2 size={15}/>} {clearingSchedule ? 'Clearing…' : 'Clear schedule'}</Button></div>
     </header>
     {highRiskWeeks.length > 0 && <div role="alert" className="rounded-xl border-2 border-red-500 bg-red-500/10 p-4 text-red-700 dark:text-red-300"><div className="flex items-start gap-3"><AlertCircle size={20} className="mt-0.5 shrink-0"/><div><p className="font-bold">High workload detected</p>{highRiskWeeks.map(week => <p key={week.weekNumber} className="mt-1 text-sm">Warning: You have a heavy workload in Week {week.weekNumber}. Consider reallocating time. <span className="font-semibold">({week.hours.toFixed(1)} estimated hours · High Risk)</span></p>)}</div></div></div>}
     {error && <p role="alert" className="learning-error">{error}</p>}
@@ -395,13 +410,7 @@ export default function AdaptivePlanner() {
     </div>
     <div className="grid lg:grid-cols-[1fr_1.2fr] gap-4">
       <section className="glass rounded-xl p-5 space-y-4">
-        {showBulkImport && <div className="rounded-lg border border-border p-4 space-y-3">
-          <div className="flex gap-2"><Button type="button" size="sm" variant={importMode === 'paste' ? 'default' : 'outline'} onClick={() => setImportMode('paste')}>Paste Text</Button><Button type="button" size="sm" variant={importMode === 'file' ? 'default' : 'outline'} onClick={() => setImportMode('file')}>Upload File</Button></div>
-          {importMode === 'paste' ? <label className="block text-sm text-text-muted">Paste syllabus or chapter list<textarea className="learning-input mt-1 min-h-40 w-full resize-y" value={syllabusText} onChange={e => setSyllabusText(e.target.value)} placeholder="Paste your syllabus here. Include subject and chapter headings where possible." rows={7}/></label> :
-            <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border p-5 text-center text-sm text-text-muted"><Upload size={22}/><span>{syllabusFile ? syllabusFile.name : 'Choose a PDF, TXT file or image'}</span><span className="text-xs">PDF, TXT, PNG, JPG or WEBP · Max 20 MB</span><input className="sr-only" type="file" accept=".pdf,.txt,.md,.csv,image/*" onChange={e => setSyllabusFile(e.target.files?.[0] ?? null)}/></label>}
-          {extracting ? <InteractiveLoader/> : <Button type="button" onClick={() => void bulkImportTopics()} disabled={saving || busy || extracting}><FileText size={16}/> Extract &amp; Add Topics</Button>}
-          <p className="text-xs text-text-muted">Existing topics are kept; duplicate subject/chapter/concept entries are skipped.</p>
-        </div>}
+
         <div className="border-t border-border pt-4"><h2 className="font-semibold text-text">Add a learning topic manually</h2><p className="text-xs text-text-muted mt-1">Use this form for individual topics.</p></div>
         <form onSubmit={addTopic} className="space-y-3">
           <label className="block text-sm text-text-muted">Subject<input className="learning-input mt-1" value={subject} onChange={e=>setSubject(e.target.value)} placeholder="e.g. Mathematics" required/></label>
@@ -411,9 +420,7 @@ export default function AdaptivePlanner() {
           <div className="grid grid-cols-2 gap-3"><label className="text-sm text-text-muted">Priority<select className="learning-input mt-1" value={priority} onChange={e=>setPriority(e.target.value as Priority)}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option></select></label><label className="text-sm text-text-muted">Current mastery: {mastery}%<input className="learning-input mt-1" type="range" min="0" max="100" step="5" value={mastery} onChange={e=>setMastery(Number(e.target.value))}/></label></div>
           <div className="flex flex-wrap items-center gap-2">
             <Button type="submit" disabled={saving || busy}><Plus size={16}/> Add topic</Button>
-            <Button type="button" variant="outline" onClick={() => { setShowBulkImport(v => !v); setError(''); setNotice(''); }} disabled={extracting}>
-              <Upload size={16}/> {showBulkImport ? 'Close Bulk Import' : 'Bulk Import'}
-            </Button>
+            
           </div>
         </form>
       </section>
@@ -425,6 +432,42 @@ export default function AdaptivePlanner() {
       {weeklyWorkload.length > 0 && <div className="mb-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-2">{weeklyWorkload.map(week => <div key={week.weekNumber} className={`rounded-lg border p-3 ${week.highRisk ? 'border-red-500 bg-red-500/10' : 'border-border bg-surface-hover/40'}`}><div className="flex items-center justify-between gap-2"><span className="text-sm font-semibold text-text">Week {week.weekNumber}</span>{week.highRisk ? <span className="text-xs font-bold text-red-600 dark:text-red-300">High Risk</span> : <span className="text-xs text-text-muted">Within limit</span>}</div><p className="mt-1 text-lg font-bold tabular-nums text-text">{week.hours.toFixed(1)} <span className="text-xs font-normal text-text-muted">estimated hours</span></p></div>)}</div>}
       {busy ? <div className="space-y-2" aria-busy="true" aria-label="Loading sessions"><div className="skeleton-glass h-16"/><div className="skeleton-glass h-16"/><div className="skeleton-glass h-16"/></div> : upcoming.length ? <div className="space-y-2">{upcoming.map((s,index)=><motion.article key={s.id} initial={reduceMotion?false:{opacity:0,y:16}} animate={{opacity:1,y:0}} transition={{duration:reduceMotion?0:0.3,delay:reduceMotion?0:index*0.07}} whileHover={reduceMotion?undefined:{scale:1.01}} whileTap={reduceMotion?undefined:{scale:0.99}} className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3"><div className="min-w-0 flex-1"><div className="text-sm font-medium text-text">{s.title}</div><div className="text-xs text-text-muted">{s.subject}{s.chapter? ` · ${s.chapter}`:''} · {dayLabel(new Date(s.scheduled_start))} · {new Date(s.scheduled_start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}–{new Date(s.scheduled_end).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div><div className="text-xs text-text-muted mt-1">{s.rationale}</div></div><span className="text-xs text-text-muted">{s.duration_minutes} min</span><Button variant="outline" size="sm" onClick={()=>void completeStudySession(s)} disabled={completingSessionIds.includes(s.id)}><CheckCircle2 size={14}/>{completingSessionIds.includes(s.id) ? 'Saving…' : 'Done'}</Button><Button variant="ghost" size="icon" aria-label="Mark session missed" onClick={()=>void updateSessionStatus(s,'missed')}><Clock3 size={14}/></Button><Button variant="ghost" size="icon" aria-label={`Delete session: ${s.title}`} title="Delete session" onClick={()=>void deleteStudySession(s)} disabled={deletingSessionIds.includes(s.id) || clearingSchedule || completingSessionIds.includes(s.id)} className="text-text-muted hover:text-destructive">{deletingSessionIds.includes(s.id) ? <RefreshCw size={14} className="animate-spin"/> : <Trash2 size={14}/>}</Button></motion.article>)}</div> : <div className="text-center py-8"><CalendarDays className="mx-auto text-text-dim mb-2" size={30}/><p className="text-sm text-text-muted">No sessions planned yet.</p><p className="text-xs text-text-dim mt-1">Add topics, then generate your first revision plan.</p></div>}
     </section>
+    {showBulkImport && <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/65 p-0 backdrop-blur-sm sm:items-center sm:p-4" onMouseDown={event => { if (event.target === event.currentTarget && !extracting && !saving) { setShowBulkImport(false); setPreviewTopics([]); } }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="syllabus-import-title" className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-border bg-surface-elevated shadow-2xl sm:rounded-2xl">
+        <header className="flex items-start justify-between gap-3 border-b border-border p-4 sm:p-5">
+          <div><p className="text-xs font-semibold uppercase tracking-wider text-accent-500">Magic Import</p><h2 id="syllabus-import-title" className="mt-1 text-lg font-bold text-text">Import your syllabus</h2><p className="mt-1 text-sm text-text-muted">Turn a textbook index, syllabus or chapter list into trackable learning topics.</p></div>
+          <Button type="button" variant="ghost" size="icon" aria-label="Close syllabus import" disabled={extracting || saving} onClick={() => { setShowBulkImport(false); setPreviewTopics([]); }}><span aria-hidden="true">×</span></Button>
+        </header>
+        <div className="min-h-0 space-y-4 overflow-y-auto p-4 sm:p-5">
+          {!previewTopics.length && <>
+            <div className="grid grid-cols-2 gap-2">
+              <Button type="button" variant={importMode === 'paste' ? 'default' : 'outline'} onClick={() => setImportMode('paste')} disabled={extracting}>Paste text</Button>
+              <Button type="button" variant={importMode === 'file' ? 'default' : 'outline'} onClick={() => setImportMode('file')} disabled={extracting}>Upload file</Button>
+            </div>
+            {importMode === 'paste' ? <label className="block text-sm font-medium text-text">Paste your syllabus or textbook index<textarea className="learning-input mt-2 min-h-40 w-full resize-y" value={syllabusText} onChange={e => setSyllabusText(e.target.value)} placeholder="Paste your syllabus, textbook index, or chapter list here. Include subject and chapter headings where possible." rows={7} disabled={extracting}/></label> :
+              <label className="flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border p-5 text-center text-sm text-text-muted"><Upload size={26}/><span className="font-medium text-text">{syllabusFile ? syllabusFile.name : 'Tap to choose a syllabus or textbook index'}</span><span className="text-xs">PDF, TXT, Markdown, CSV, PNG, JPG or WEBP · Max 20 MB</span><input className="sr-only" type="file" accept=".pdf,.txt,.md,.csv,image/png,image/jpeg,image/webp" onChange={e => setSyllabusFile(e.target.files?.[0] ?? null)} disabled={extracting}/></label>}
+            {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
+            {extracting ? <div aria-live="polite"><p className="mb-2 text-center text-sm font-medium text-text">Reading your syllabus and identifying topics…</p><InteractiveLoader/></div> :
+              <Button type="button" block onClick={() => void bulkImportTopics()} disabled={busy || saving || (!syllabusText.trim() && importMode === 'paste') || (!syllabusFile && importMode === 'file')}><Sparkles size={16}/> Magic Import</Button>}
+            <p className="text-xs text-text-muted">Nothing is saved until you review and confirm the extracted topics.</p>
+          </>}
+          {previewTopics.length > 0 && <>
+            <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-semibold text-text">Review extracted topics</h3><p className="text-xs text-text-muted">{previewTopics.length} topics found · Check the details before saving</p></div><Button type="button" size="sm" variant="outline" onClick={() => setPreviewTopics([])} disabled={saving}>Back to source</Button></div>
+            <div className="space-y-2">
+              {previewTopics.map((topic,index) => <article key={index} className="rounded-lg border border-border p-3">
+                <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><p className="text-sm font-semibold text-text">{topic.concept}</p><p className="mt-0.5 text-xs text-text-muted">{topic.subject} · {topic.chapter}</p></div><span className="rounded-full bg-surface-hover px-2 py-1 text-xs text-text-muted">{topic.priority} priority</span></div>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted"><span><Clock3 size={12} className="mr-1 inline"/> {topic.estimatedHours} estimated hours</span><span><Target size={12} className="mr-1 inline"/> {topic.mastery}% mastery</span></div>
+              </article>)}
+            </div>
+            {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
+            <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-border bg-surface-elevated pt-3 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => { setPreviewTopics([]); setShowBulkImport(false); }} disabled={saving}>Cancel</Button>
+              <Button type="button" block onClick={() => void confirmSyllabusImport()} disabled={saving || !previewTopics.length}>{saving ? <><RefreshCw size={15} className="animate-spin"/> Saving topics…</> : <><CheckCircle2 size={15}/> Confirm &amp; Add {previewTopics.length} Topics</>}</Button>
+            </div>
+          </>}
+        </div>
+      </section>
+    </div>}
     {autoAdjustToast && <div role="status" aria-live="polite" className="fixed bottom-5 right-5 z-[100] max-w-sm rounded-xl border border-emerald-500/30 bg-surface-elevated px-4 py-3 text-sm font-semibold text-text shadow-xl">{autoAdjustToast}</div>}
   </div>;
 }
