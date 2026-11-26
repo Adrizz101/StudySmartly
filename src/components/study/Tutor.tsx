@@ -133,6 +133,19 @@ export default function Tutor() {
     void refreshUsage();
   }, [refreshUsage]);
 
+  useEffect(() => {
+    try {
+      const handoff = window.sessionStorage.getItem('studysmartly_tutor_prompt');
+      if (handoff?.trim()) {
+        setInput(handoff);
+        setMobilePanel('chat');
+        window.sessionStorage.removeItem('studysmartly_tutor_prompt');
+      }
+    } catch (error) {
+      console.warn('[Tutor] Could not read the study prompt handoff:', error);
+    }
+  }, []);
+
   const activeSession = tutorSessions.find((s) => s.id === activeSessionId) || null;
 
   useEffect(() => {
@@ -464,10 +477,9 @@ export default function Tutor() {
             </Link>;
           })}
         </div>
-        <div className="mt-4 hidden rounded-lg bg-surface-hover p-3 text-xs text-text-muted lg:block">
-          <div className="mb-1 font-semibold text-text">Coming next</div>
-          Upload PDFs, textbook photos and lecture transcripts directly into a chat.
-        </div>
+        <p className="mt-4 rounded-lg bg-surface-hover p-3 text-xs leading-relaxed text-text-muted">
+          Tip: Tap the Visualize button in a chat to generate an interactive concept map of the topic!
+        </p>
       </aside>
     </div>
   );
