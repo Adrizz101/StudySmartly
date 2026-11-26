@@ -18,6 +18,8 @@ import {
   Layers, CalendarDays, Presentation, PanelLeft, Library, Network,
 } from 'lucide-react';
 
+type TeachingPersona = 'socratic' | 'explain-simply' | 'exam-focus' | 'direct-answer';
+
 type TutorAttachment =
   | { type: 'image'; name: string; dataUrl: string }
   | { type: 'pdf'; name: string; text: string };
@@ -99,6 +101,7 @@ export default function Tutor() {
   const [isThinking, setIsThinking] = useState(false);
   const [isGeneratingMap, setIsGeneratingMap] = useState(false);
   const [subject, setSubject] = useState('');
+  const [persona, setPersona] = useState<TeachingPersona>('socratic');
   const [mobilePanel, setMobilePanel] = useState<'chat' | 'history' | 'tools'>('chat');
   const [usageLabel, setUsageLabel] = useState('Checking daily usage…');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -197,7 +200,7 @@ export default function Tutor() {
       if (!accessToken) throw new Error('Your session expired. Please sign in again.');
 
       const stream = await respondToTutor({
-        data: { subject: ctxSubject, question, history, accessToken, attachment: attachment || undefined },
+        data: { subject: ctxSubject, question, history, accessToken, persona, attachment: attachment || undefined },
       });
       if (!stream) throw new Error('The tutor did not return a response stream.');
 
@@ -282,7 +285,7 @@ export default function Tutor() {
     } finally {
       setIsThinking(false);
     }
-  }, [input, pendingAttachment, isThinking, isPreparingAttachment, activeSessionId, activeSession, subject, createSession, updateSession, setTutorSessions, refreshUsage]);
+  }, [input, pendingAttachment, isThinking, isPreparingAttachment, activeSessionId, activeSession, subject, persona, createSession, updateSession, setTutorSessions, refreshUsage]);
 
   const visualizeTopic = useCallback(async () => {
     const topic = input.trim() || [...(activeSession?.messages ?? [])].reverse().find((message) => message.role === 'user')?.content.trim() || subject.trim();
@@ -387,6 +390,18 @@ export default function Tutor() {
             <div className="truncate whitespace-nowrap text-xs font-semibold text-text sm:text-sm">StudySmartly AI Tutor</div>
             <div className="text-[10px] leading-tight text-text-dim sm:text-xs" aria-live="polite">{usageLabel}</div>
           </div>
+          <select
+            value={persona}
+            onChange={(event) => setPersona(event.target.value as TeachingPersona)}
+            aria-label="Teaching persona"
+            title="Choose how your tutor teaches"
+            className="w-[126px] shrink-0 rounded-lg border border-border bg-surface-hover px-2 py-2 text-xs text-text outline-none focus:border-accent-500 sm:w-[150px]"
+          >
+            <option value="socratic">Socratic (Default)</option>
+            <option value="explain-simply">Explain Simply (ELI5)</option>
+            <option value="exam-focus">Exam Focus</option>
+            <option value="direct-answer">Direct Answer</option>
+          </select>
           <input value={subject} onChange={(e) => {
             const nextSubject = e.target.value;
             setSubject(nextSubject);
