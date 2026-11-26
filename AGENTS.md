@@ -25,7 +25,7 @@
 
 ### 5. AI Tutor (Teaching Personas)
 - The Tutor supports four teaching personas (Socratic, ELI5, Exam Focus, Direct Answer). Socratic is the default, but the AI dynamically injects the selected persona's instructions. Do not remove this selector.
-- Preserve Markdown formatting (bullet points, bold) and KaTeX (`$...$` for block math). No square brackets `[ ]` around equations.
+- Preserve Markdown formatting (bullet points, bold) and KaTeX (`$$...$$` for block math). No square brackets `[ ]` around equations.
 
 ## Development Workflow
 - Commit to `main` only when the code is verified to work.
