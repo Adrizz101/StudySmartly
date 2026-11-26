@@ -128,3 +128,25 @@ export function diagnose(attempts: Attempt[]) {
   });
   return [...rows.values()].sort((a,b) => a.correct/a.total - b.correct/b.total);
 }
+
+
+export const conceptMapSchema = z.object({
+  title: z.string().trim().min(1).max(100),
+  nodes: z.array(z.object({
+    id: z.string().trim().min(1).max(80),
+    label: z.string().trim().min(1).max(80),
+    type: z.enum(['topic', 'subtopic', 'detail']),
+  })).min(1).max(40),
+  edges: z.array(z.object({
+    source: z.string().trim().min(1).max(80),
+    target: z.string().trim().min(1).max(80),
+    label: z.string().trim().max(80).optional(),
+  })).max(80),
+}).superRefine((value, ctx) => {
+  const ids = new Set(value.nodes.map((node) => node.id));
+  if (ids.size !== value.nodes.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Node IDs must be unique.' });
+  value.edges.forEach((edge, index) => {
+    if (!ids.has(edge.source) || !ids.has(edge.target)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['edges', index], message: 'Every edge must reference existing nodes.' });
+  });
+});
+export type ConceptMapData = z.infer<typeof conceptMapSchema>;
