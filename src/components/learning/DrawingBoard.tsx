@@ -186,7 +186,7 @@ export default function DrawingBoard() {
       const handoff = window.sessionStorage.getItem('studysmartly_tutor_prompt');
       if (handoff) {
         setPrompt(handoff);
-        window.sessionStorage.removeItem('studysmartly_whiteboard_prompt');
+        window.sessionStorage.removeItem('studysmartly_tutor_prompt');
       }
     } catch (error) {
       console.warn('Could not read the study prompt handoff:', error);
@@ -305,7 +305,7 @@ export default function DrawingBoard() {
     try {
       window.localStorage.setItem(SESSIONS_KEY, JSON.stringify(next));
     } catch (storageError) {
-      console.error('Unable to persist whiteboard session snapshot:', storageError);
+      console.error('Unable to persist visual lesson session snapshot:', storageError);
     }
   }
 
@@ -557,7 +557,7 @@ export default function DrawingBoard() {
           board: JSON.stringify(selection.length ? selection : elements),
           messages: messagesRef.current,
           sources: [...sources, {
-            name: 'Student whiteboard',
+            name: 'Student visual lesson',
             text: 'Student drawing; inspect selected objects and image.',
             images: [image],
           }],
@@ -678,7 +678,7 @@ export default function DrawingBoard() {
       messagesRef.current = nextMessages;
       setMessages(nextMessages);
       save('board-discussion', nextMessages);
-      if (!api) throw new Error('Whiteboard is no longer available. Please reopen the tutor.');
+      if (!api) throw new Error('The visual workspace is no longer available. Please reopen the Tutor.');
       const finalElements = api.getSceneElements();
       save('whiteboard', { elements: finalElements, files: api.getFiles() });
       persistSession(nextMessages, finalElements, activeSessionRef.current, result.session_title, api.getFiles() as Record<string, any>);
