@@ -65,7 +65,9 @@ export function buildStudySchedule(input: { topics: SchedulingTopic[]; existingS
     for (const item of pending) {
       if (usedMinutes >= dayBudget || item.remaining <= 0) continue;
       const chunkLimit = item.remaining > 60 ? Math.min(45, configuredDuration) : configuredDuration;
-      const duration = Math.min(item.remaining, chunkLimit, dayBudget - usedMinutes); if (duration < 15) continue;
+      const chunkCount = Math.ceil(item.remaining / chunkLimit);
+      const balancedChunk = Math.ceil(item.remaining / chunkCount);
+      const duration = Math.min(balancedChunk, dayBudget - usedMinutes); if (duration <= 0) continue;
       let chosenStart = 0;
       for (let candidate = usableStart; candidate + duration * 60_000 <= dayEnd; candidate += 5 * 60_000) {
         const candidateEnd = candidate + duration * 60_000;
