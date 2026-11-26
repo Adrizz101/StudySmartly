@@ -10,7 +10,7 @@ import { useApp } from '@/store';
 import { supabase } from '@/integrations/supabase/client';
 import { getTutorUsage, respondToTutor, generateConceptMap, generateChatTitle } from '@/lib/learning-ai.functions';
 import ConceptMap from '@/components/learning/ConceptMap';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { ChatMessage, TutorSession } from '@/types';
 import {
   Send, Bot, User, Plus, Trash2, Sparkles, Image as ImageIcon, Upload, X,
@@ -499,8 +499,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       <div className={`min-w-0 ${message.conceptMap ? 'w-full max-w-full' : 'max-w-[85%]'} ${isUser ? 'items-end' : ''}`}>
         {message.image && <img src={message.image} alt="Selected attachment preview" className="mb-2 max-h-48 rounded-xl border border-border object-cover" />}
         {message.conceptMap && <Card className="w-full min-w-0 max-w-full overflow-hidden border-border bg-surface-hover shadow-none">
-          <CardHeader className="p-3 pb-2"><CardTitle className="text-sm">{message.conceptMap.title}</CardTitle></CardHeader>
-          <CardContent className="min-w-0 max-w-full overflow-hidden px-3 pb-3 pt-0"><ConceptMap map={message.conceptMap} /></CardContent>
+          <CardContent className="min-w-0 max-w-full overflow-hidden p-3"><ConceptMap map={message.conceptMap} /></CardContent>
         </Card>}
         {!message.conceptMap && <div className={`min-w-0 max-w-full overflow-x-auto rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${isUser ? 'rounded-tr-sm bg-study-blue-600 text-white' : 'rounded-tl-sm bg-surface-hover text-text'}`}>
           <MarkdownMessage content={message.content} />
