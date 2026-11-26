@@ -26,7 +26,7 @@ export default function Settings() {
   const [showImageKey, setShowImageKey] = useState(false);
   const [requestedFeature, setRequestedFeature] = useState('');
   const [requestCategory, setRequestCategory] = useState('Study Tools');
-  const [feedbackFeature, setFeedbackFeature] = useState('AI Whiteboard');
+  const [feedbackFeature, setFeedbackFeature] = useState('AI Tutor');
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackType, setFeedbackType] = useState('Suggestion');
   const [submissionNotice, setSubmissionNotice] = useState('');
