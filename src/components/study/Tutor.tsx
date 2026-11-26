@@ -463,7 +463,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${isUser ? 'bg-study-blue-600' : 'bg-accent-600/15'}`}>
         {isUser ? <User size={16} className="text-white" /> : <Bot size={16} className="text-accent-500" />}
       </div>
-      <div className={`min-w-0 max-w-[85%] ${isUser ? 'items-end' : ''}`}>
+      <div className={`min-w-0 ${message.conceptMap ? 'w-full max-w-full' : 'max-w-[85%]'} ${isUser ? 'items-end' : ''}`}>
         {message.image && <img src={message.image} alt="Selected attachment preview" className="mb-2 max-h-48 rounded-xl border border-border object-cover" />}
         {message.conceptMap && <Card className="w-full min-w-0 max-w-full overflow-hidden border-border bg-surface-hover shadow-none">
           <CardHeader className="p-3 pb-2"><CardTitle className="text-sm">{message.conceptMap.title}</CardTitle></CardHeader>
