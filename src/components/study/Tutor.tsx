@@ -191,34 +191,59 @@ export default function Tutor() {
       const accessToken = authData.session?.access_token;
       if (!accessToken) throw new Error('Your session expired. Please sign in again.');
 
-      const result = await respondToTutor({
+      const stream = await respondToTutor({
         data: { subject: ctxSubject, question, history, accessToken, attachment: attachment || undefined },
       });
-      if (!result.success) throw new Error(result.error);
-      if (!result.text.trim()) throw new Error('The tutor returned an empty response.');
+      if (!stream) throw new Error('The tutor did not return a response stream.');
 
-      const aiMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: result.text,
-        timestamp: Date.now(),
-      };
-      updateSession(sessionId, (s) => ({ ...s, messages: [...s.messages, aiMsg] }));
-      if (result.unlimited) {
-        setUsageLabel('Unlimited AI');
-      } else if (typeof result.remaining === 'number' && typeof result.limit === 'number') {
-        setUsageLabel(`${result.remaining} / ${result.limit} AI actions remaining`);
-      } else {
-        // Keep the display moving even if the usage read/write response is unavailable.
-        setUsageLabel((current) => {
-          const [remainingText, limitText] = current.split(' / ');
-          const remaining = Number.parseInt(remainingText, 10);
-          const limit = Number.parseInt(limitText, 10);
-          if (!Number.isFinite(remaining) || !Number.isFinite(limit)) return '14 / 15 AI actions remaining';
-          return `${Math.max(0, remaining - 1)} / ${limit} AI actions remaining`;
-        });
+      const assistantMessageId = crypto.randomUUID();
+      let assistantContent = '';
+      let receivedDone = false;
+      const reader = stream.getReader();
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value.type === 'text') {
+            assistantContent += value.text;
+            updateSession(sessionId, (s) => {
+              const existing = s.messages.find((message) => message.id === assistantMessageId);
+              if (existing) {
+                return {
+                  ...s,
+                  messages: s.messages.map((message) => message.id === assistantMessageId
+                    ? { ...message, content: assistantContent }
+                    : message),
+                };
+              }
+              return {
+                ...s,
+                messages: [...s.messages, {
+                  id: assistantMessageId,
+                  role: 'assistant' as const,
+                  content: assistantContent,
+                  timestamp: Date.now(),
+                }],
+              };
+            });
+            setIsThinking(false);
+          } else if (value.type === 'done') {
+            receivedDone = true;
+            if (value.unlimited) setUsageLabel('Unlimited AI');
+            else if (typeof value.remaining === 'number' && typeof value.limit === 'number') {
+              setUsageLabel(value.remaining + ' / ' + value.limit + ' AI actions remaining');
+            }
+            void refreshUsage();
+          } else if (value.type === 'error') {
+            throw new Error(value.error);
+          }
+        }
+      } finally {
+        reader.releaseLock();
       }
-      void refreshUsage();
+      if (!assistantContent.trim()) throw new Error('The tutor returned an empty response.');
+      if (!receivedDone) throw new Error('The tutor stream ended before completion. Please try again.');
+
     } catch (error) {
       const errMsg: ChatMessage = {
         id: crypto.randomUUID(),
