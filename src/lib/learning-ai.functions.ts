@@ -360,14 +360,18 @@ export const parseScheduleWithAI = createServerFn({ method: 'POST' })
 
 export const generateConceptMap = createServerFn({ method: 'POST' })
   .middleware([safeServerBoundary, requireSupabaseAuth])
-  .inputValidator(z.object({ topic: z.string().trim().min(2).max(300) }))
+  .inputValidator(z.object({
+    topic: z.string().trim().min(2).max(300),
+    context: z.string().trim().max(20000).optional(),
+  }))
   .handler(async ({ data }) => safeResult('generateConceptMap', 'Could not generate this concept map. Please try again.', async () => {
     const { structuredAI } = await import('./learning-ai.server');
+    const context = data.context?.trim() ?? '';
     const result = await structuredAI(
       conceptMapSchema,
-      'You are an expert visual-learning designer. Build a clear hierarchical concept map for the student topic. Return clean JSON matching the schema. Every node label and edge label must be no more than 5 words. Use one topic root, meaningful subtopics, and concise supporting details. Use unique simple node IDs. Connect every non-root node to a relevant parent. Avoid duplicate concepts, long explanations, and decorative filler.',
-      'Create a concise concept map for this topic: ' + data.topic + '. Keep the structure useful for a school student and labels to at most five words.',
-      [{ name: 'Requested topic', text: data.topic, images: [] }],
+      'You are an expert visual-learning designer. Generate a comprehensive, content-rich hierarchical concept map with at least 10–15 meaningful nodes whenever the source material supports that depth. Do not just list top-level topics: include the important sub-details, named structures, components, stages, functions, examples, and relationships explicitly mentioned in the conversation or source. For example, when mapping the human brain, include relevant structures such as Thalamus, Hypothalamus, Pons, and Medulla rather than stopping at broad divisions. Use the supplied conversation context as the primary evidence and preserve its specific details. Never invent subtopics merely to reach a node count; if the topic genuinely has less detail, represent all supported concepts. Use one clear topic root, several subtopics, and multiple detail nodes. Every node label and optional edge label MUST contain no more than 5 words. Return clean structured JSON only, with unique simple node IDs, meaningful edges, and every non-root node connected to a relevant parent. Avoid duplicate concepts, vague filler, and long explanations.',
+      'Create a comprehensive concept map for: ' + data.topic + '. Include 10–15 or more distinct nodes when supported by the material, including specific sub-details rather than only broad headings. Use this conversation context to capture the details the student has already been taught:\\n\\n' + (context || 'No earlier conversation context was supplied.') + '\\n\\nKeep every label to at most five words.',
+      [{ name: 'Requested topic and tutor conversation', text: data.topic + (context ? '\\n\\nTutor conversation:\\n' + context : ''), images: [] }],
     );
     return result.output;
   }));
