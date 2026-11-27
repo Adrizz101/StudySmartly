@@ -63,7 +63,7 @@ function recordFor<T extends z.ZodTypeAny>(payloadSchema: T) {
     id: z.string().trim().min(1).max(200),
     payload: payloadSchema,
   }).superRefine((value, ctx) => {
-    if (value.payload.id !== value.id) {
+    if ((value.payload as { id?: unknown }).id !== value.id) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['payload', 'id'], message: 'Record ID must match its payload ID.' });
     }
   });
