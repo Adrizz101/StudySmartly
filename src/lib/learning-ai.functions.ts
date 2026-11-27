@@ -295,7 +295,7 @@ export const explainBoard = createServerFn({ method: 'POST' }).middleware([safeS
     const result = await structuredAI(
       boardSchema,
       tutorPrompt,
-      `${data.prompt}\nSelected/current board: `${data.board}\nFull messages array (oldest to newest): `${JSON.stringify(data.messages)}`,
+      `${data.prompt}\nSelected/current board: ${data.board}\nFull messages array (oldest to newest): ${JSON.stringify(data.messages)}`,
       data.sources,
     );
     return { ...result.output, cached: result.cached };
