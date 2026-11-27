@@ -72,13 +72,14 @@ function validatePayload(resource: Resource, payload: Record<string, unknown>) {
 const recordSchema = z.object({
   id: z.string().trim().min(1).max(200),
   payload: z.record(z.string(), z.unknown()),
+  position: z.number().int().min(0).optional(),
 }).superRefine((value, ctx) => {
   if (value.payload.id !== value.id) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['payload', 'id'], message: 'Record ID must match its payload ID.' });
   }
 });
 
-function validateRecords(resource: Resource, records: Array<{ id: string; payload: Record<string, unknown> }>, ctx: z.RefinementCtx, path: Array<string | number>) {
+function validateRecords(resource: Resource, records: Array<{ id: string; payload: Record<string, unknown>; position?: number }>, ctx: z.RefinementCtx, path: Array<string | number>) {
   records.forEach((record, index) => {
     const parsed = validatePayload(resource, record.payload);
     if (!parsed.success) {
@@ -124,8 +125,9 @@ async function loadCollections(db: DbClient, userId: string) {
   const names = Object.keys(tableNames) as Resource[];
   const entries = await Promise.all(names.map(async (resource) => {
     const { data, error } = await db.from(tableNames[resource])
-      .select('id,payload')
+      .select('id,payload,position')
       .eq('user_id', userId)
+      .order('position', { ascending: true })
       .order('created_at', { ascending: true });
     if (error) throw new Error('Could not load ' + resource.replaceAll('_', ' ') + '.');
     return [resource, mapRows(data)] as const;
@@ -156,10 +158,11 @@ export const migrateLegacyCollections = createServerFn({ method: 'POST' })
       for (const resource of Object.keys(tableNames) as Resource[]) {
         const items = data.collections[resource];
         if (!items.length) continue;
-        const rows = items.map((item) => ({
+        const rows = items.map((item, index) => ({
           id: item.id,
           user_id: userId,
           payload: item.payload,
+          position: item.position ?? index,
         }));
         const { error } = await db.from(tableNames[resource])
           .upsert(rows, { onConflict: 'user_id,id', ignoreDuplicates: true });
@@ -194,6 +197,7 @@ export const syncPersistedCollection = createServerFn({ method: 'POST' })
           id: item.id,
           user_id: userId,
           payload: item.payload,
+          position: item.position ?? 0,
           updated_at: new Date().toISOString(),
         }));
         const { error } = await db.from(table).upsert(rows, { onConflict: 'user_id,id' });
