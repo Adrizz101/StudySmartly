@@ -262,15 +262,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     pendingSaves.current[resource] = { before: baseline, timer };
   }, [persistenceMutation, queryClient, userId]);
 
-  const updateCollection = useCallback(<T extends { id: string },>(
-    resource: PersistedResource,
-    updater: UpdateValue<T[]>,
+  const updateCollection = useCallback(<K extends PersistedResource,>(
+    resource: K,
+    updater: UpdateValue<PersistedCollections[K]>,
   ) => {
     if (!userId) return;
     const previousState = queryClient.getQueryData<PersistedCollections>(['app-persistence', userId]) ?? emptyCollections;
-    const previous = previousState[resource] as unknown as T[];
+    const previous = previousState[resource];
     const next = typeof updater === 'function'
-      ? (updater as (value: T[]) => T[])(previous)
+      ? (updater as (value: PersistedCollections[K]) => PersistedCollections[K])(previous)
       : updater;
     queryClient.setQueryData<PersistedCollections>(['app-persistence', userId], {
       ...previousState,
