@@ -60,13 +60,6 @@ const presentationPayload = z.object({
   format: z.enum(['slides', 'guide']),
 }).passthrough();
 
-const payloadSchemas = {
-  tutor_sessions: tutorSessionPayload,
-  presentation_documents: presentationPayload,
-  courses: coursePayload,
-  schedule_events: scheduleEventPayload,
-} satisfies Record<Resource, z.ZodTypeAny>;
-
 function validatePayload(resource: Resource, payload: Record<string, unknown>) {
   switch (resource) {
     case 'tutor_sessions': return tutorSessionPayload.safeParse(payload);
