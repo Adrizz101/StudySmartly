@@ -240,8 +240,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       delete pendingSaves.current[resource];
       const latestState = queryClient.getQueryData<PersistedCollections>(['app-persistence', userId]);
       const latest = (latestState?.[resource] ?? after) as unknown as PersistedItem[];
-      const beforeIndex = new Map(baseline.map((item, index) => [item.id, index]));
-      const afterIndex = new Map(latest.map((item, index) => [item.id, index]));
+      const beforeIndex = new Map<string, number>(baseline.map((item, index): [string, number] => [item.id, index]));
+      const afterIndex = new Map<string, number>(latest.map((item, index): [string, number] => [item.id, index]));
       const deletedIds = baseline.filter((item) => !afterIndex.has(item.id)).map((item) => item.id);
       const changedItems = latest.filter((item, index) => {
         const previous = baseline.find((candidate) => candidate.id === item.id);
