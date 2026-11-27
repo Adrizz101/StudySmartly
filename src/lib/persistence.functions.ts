@@ -2,6 +2,8 @@ import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 
 const accessInput = z.object({ accessToken: z.string().min(1).max(5000) });
+const resourceSchema = z.enum(['tutor_sessions', 'presentation_documents', 'courses', 'schedule_events']);
+type Resource = z.infer<typeof resourceSchema>;
 
 const coursePayload = z.object({
   id: z.string().trim().min(1).max(200),
@@ -58,36 +60,62 @@ const presentationPayload = z.object({
   format: z.enum(['slides', 'guide']),
 }).passthrough();
 
-function recordFor<T extends z.ZodTypeAny>(payloadSchema: T) {
-  return z.object({
-    id: z.string().trim().min(1).max(200),
-    payload: payloadSchema,
-  }).superRefine((value, ctx) => {
-    if ((value.payload as { id?: unknown }).id !== value.id) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['payload', 'id'], message: 'Record ID must match its payload ID.' });
+const payloadSchemas = {
+  tutor_sessions: tutorSessionPayload,
+  presentation_documents: presentationPayload,
+  courses: coursePayload,
+  schedule_events: scheduleEventPayload,
+} satisfies Record<Resource, z.ZodTypeAny>;
+
+function validatePayload(resource: Resource, payload: Record<string, unknown>) {
+  switch (resource) {
+    case 'tutor_sessions': return tutorSessionPayload.safeParse(payload);
+    case 'presentation_documents': return presentationPayload.safeParse(payload);
+    case 'courses': return coursePayload.safeParse(payload);
+    case 'schedule_events': return scheduleEventPayload.safeParse(payload);
+  }
+}
+
+const recordSchema = z.object({
+  id: z.string().trim().min(1).max(200),
+  payload: z.record(z.string(), z.unknown()),
+}).superRefine((value, ctx) => {
+  if (value.payload.id !== value.id) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['payload', 'id'], message: 'Record ID must match its payload ID.' });
+  }
+});
+
+function validateRecords(resource: Resource, records: Array<{ id: string; payload: Record<string, unknown> }>, ctx: z.RefinementCtx, path: Array<string | number>) {
+  records.forEach((record, index) => {
+    const parsed = validatePayload(resource, record.payload);
+    if (!parsed.success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, index, 'payload'],
+        message: 'A ' + resource.replaceAll('_', ' ') + ' record has an invalid shape.',
+      });
     }
   });
 }
 
-const courseRecord = recordFor(coursePayload);
-const scheduleRecord = recordFor(scheduleEventPayload);
-const tutorRecord = recordFor(tutorSessionPayload);
-const presentationRecord = recordFor(presentationPayload);
-
 const collectionsSchema = z.object({
-  tutor_sessions: z.array(tutorRecord).max(500),
-  presentation_documents: z.array(presentationRecord).max(200),
-  courses: z.array(courseRecord).max(500),
-  schedule_events: z.array(scheduleRecord).max(2000),
+  tutor_sessions: z.array(recordSchema).max(500),
+  presentation_documents: z.array(recordSchema).max(200),
+  courses: z.array(recordSchema).max(500),
+  schedule_events: z.array(recordSchema).max(2000),
+}).superRefine((collections, ctx) => {
+  validateRecords('tutor_sessions', collections.tutor_sessions, ctx, ['tutor_sessions']);
+  validateRecords('presentation_documents', collections.presentation_documents, ctx, ['presentation_documents']);
+  validateRecords('courses', collections.courses, ctx, ['courses']);
+  validateRecords('schedule_events', collections.schedule_events, ctx, ['schedule_events']);
 });
 
-const tableNames = {
+const tableNames: Record<Resource, string> = {
   tutor_sessions: 'tutor_sessions',
   presentation_documents: 'presentation_documents',
   courses: 'courses',
   schedule_events: 'schedule_events',
-} as const;
-type Resource = keyof typeof tableNames;
+};
 type DbClient = { from: (table: string) => any };
 
 async function getUserContext(accessToken: string) {
@@ -152,12 +180,14 @@ export const migrateLegacyCollections = createServerFn({ method: 'POST' })
     }
   });
 
-const syncInput = z.discriminatedUnion('resource', [
-  z.object({ accessToken: accessInput.shape.accessToken, resource: z.literal('courses'), items: z.array(courseRecord).max(500), deletedIds: z.array(z.string().min(1).max(200)).max(500) }),
-  z.object({ accessToken: accessInput.shape.accessToken, resource: z.literal('schedule_events'), items: z.array(scheduleRecord).max(2000), deletedIds: z.array(z.string().min(1).max(200)).max(2000) }),
-  z.object({ accessToken: accessInput.shape.accessToken, resource: z.literal('tutor_sessions'), items: z.array(tutorRecord).max(500), deletedIds: z.array(z.string().min(1).max(200)).max(500) }),
-  z.object({ accessToken: accessInput.shape.accessToken, resource: z.literal('presentation_documents'), items: z.array(presentationRecord).max(200), deletedIds: z.array(z.string().min(1).max(200)).max(200) }),
-]);
+const syncInput = z.object({
+  accessToken: accessInput.shape.accessToken,
+  resource: resourceSchema,
+  items: z.array(recordSchema).max(2000),
+  deletedIds: z.array(z.string().min(1).max(200)).max(2000),
+}).superRefine((value, ctx) => {
+  validateRecords(value.resource, value.items, ctx, ['items']);
+});
 
 export const syncPersistedCollection = createServerFn({ method: 'POST' })
   .inputValidator(syncInput)
