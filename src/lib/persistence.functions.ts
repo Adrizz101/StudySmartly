@@ -74,7 +74,7 @@ const recordSchema = z.object({
   payload: z.record(z.string(), z.unknown()),
   position: z.number().int().min(0).optional(),
 }).superRefine((value, ctx) => {
-  if (value.payload.id !== value.id) {
+  if (value.payload['id'] !== value.id) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['payload', 'id'], message: 'Record ID must match its payload ID.' });
   }
 });
