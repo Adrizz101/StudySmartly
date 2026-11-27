@@ -6,7 +6,8 @@ import { applyTheme } from '@/lib/theme';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchPersistedCollections, migrateLegacyCollections, syncPersistedCollection } from '@/lib/persistence.functions';
 
-type Updater<T> = (value: T | ((prev: T) => T)) => void;
+type UpdateValue<T> = T | ((prev: T) => T);
+type Updater<T> = (value: UpdateValue<T>) => void;
 type PersistedResource = 'courses' | 'schedule_events' | 'tutor_sessions' | 'presentation_documents';
 type PersistedCollections = {
   courses: Course[];
@@ -71,10 +72,10 @@ async function currentAccessToken(expectedUserId: string): Promise<string> {
   return data.session.access_token;
 }
 
-function toPersistedRecords(items: PersistedItem[]) {
+function toPersistedRecords<T extends { id: string }>(items: T[]) {
   return items.map((item) => ({
     id: item.id,
-    payload: item as Record<string, unknown>,
+    payload: item as unknown as Record<string, unknown>,
   }));
 }
 
@@ -142,10 +143,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
               data: {
                 accessToken,
                 collections: {
-                  tutor_sessions: toPersistedRecords(legacy.tutor_sessions as PersistedItem[]),
-                  presentation_documents: toPersistedRecords(legacy.presentation_documents as PersistedItem[]),
-                  courses: toPersistedRecords(legacy.courses as PersistedItem[]),
-                  schedule_events: toPersistedRecords(legacy.schedule_events as PersistedItem[]),
+                  tutor_sessions: toPersistedRecords(legacy.tutor_sessions),
+                  presentation_documents: toPersistedRecords(legacy.presentation_documents),
+                  courses: toPersistedRecords(legacy.courses),
+                  schedule_events: toPersistedRecords(legacy.schedule_events),
                 },
               },
             });
@@ -231,7 +232,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const timer = setTimeout(() => {
       delete pendingSaves.current[resource];
       const latestState = queryClient.getQueryData<PersistedCollections>(['app-persistence', userId]);
-      const latest = (latestState?.[resource] ?? after) as PersistedItem[];
+      const latest = (latestState?.[resource] ?? after) as unknown as PersistedItem[];
       const beforeIds = new Set(baseline.map((item) => item.id));
       const afterIds = new Set(latest.map((item) => item.id));
       const deletedIds = baseline.filter((item) => !afterIds.has(item.id)).map((item) => item.id);
@@ -253,7 +254,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateCollection = useCallback((
     resource: PersistedResource,
-    updater: Updater<PersistedItem[]>,
+    updater: UpdateValue<PersistedItem[]>,
   ) => {
     if (!userId) return;
     const previousState = queryClient.getQueryData<PersistedCollections>(['app-persistence', userId]) ?? emptyCollections;
@@ -268,13 +269,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     scheduleSave(resource, previous, next);
   }, [queryClient, scheduleSave, userId]);
 
-  const setSettings = useCallback<Updater<Settings>>((value) => setSettingsState(value as Settings), []);
+  const setSettings = useCallback<Updater<Settings>>((value) => setSettingsState(value as Settings | ((previous: Settings) => Settings)), []);
   const updateSettings = useCallback((partial: Partial<Settings>) =>
     setSettingsState((previous) => ({ ...previous, ...partial })), []);
   const setMode = useCallback((mode: Mode) => setSettingsState((previous) => ({ ...previous, mode })), []);
   const setAccent = useCallback((accent: AccentKey) => setSettingsState((previous) => ({ ...previous, accent })), []);
 
-  const setCourses = useCallback<Updater<Course[]>>((value) => updateCollection('courses', value as Updater<PersistedItem[]>), [updateCollection]);
+  const setCourses = useCallback<Updater<Course[]>>((value) => updateCollection('courses', value as unknown as UpdateValue<PersistedItem[]>), [updateCollection]);
   const addCourse = useCallback((course: Course) => updateCollection('courses', (previous) => [...previous, course]), [updateCollection]);
   const updateCourse = useCallback((id: string, partial: Partial<Course>) =>
     updateCollection('courses', (previous) => previous.map((course) => course.id === id ? { ...course, ...partial } : course)), [updateCollection]);
@@ -283,16 +284,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateCollection('schedule_events', (previous) => previous.filter((event) => event.courseId !== id));
   }, [updateCollection]);
 
-  const setEvents = useCallback<Updater<ScheduleEvent[]>>((value) => updateCollection('schedule_events', value as Updater<PersistedItem[]>), [updateCollection]);
+  const setEvents = useCallback<Updater<ScheduleEvent[]>>((value) => updateCollection('schedule_events', value as unknown as UpdateValue<PersistedItem[]>), [updateCollection]);
   const addEvents = useCallback((events: ScheduleEvent[]) => updateCollection('schedule_events', (previous) => [...previous, ...events]), [updateCollection]);
   const updateEvent = useCallback((id: string, partial: Partial<ScheduleEvent>) =>
     updateCollection('schedule_events', (previous) => previous.map((event) => event.id === id ? { ...event, ...partial } : event)), [updateCollection]);
   const deleteEvent = useCallback((id: string) =>
     updateCollection('schedule_events', (previous) => previous.filter((event) => event.id !== id)), [updateCollection]);
 
-  const setTutorSessions = useCallback<Updater<TutorSession[]>>((value) => updateCollection('tutor_sessions', value as Updater<PersistedItem[]>), [updateCollection]);
-  const setDocuments = useCallback<Updater<SlideDocument[]>>((value) => updateCollection('presentation_documents', value as Updater<PersistedItem[]>), [updateCollection]);
-  const setTranscriptions = useCallback<Updater<Transcription[]>>((value) => setTranscriptionsState(value as Transcription[]), []);
+  const setTutorSessions = useCallback<Updater<TutorSession[]>>((value) => updateCollection('tutor_sessions', value as unknown as UpdateValue<PersistedItem[]>), [updateCollection]);
+  const setDocuments = useCallback<Updater<SlideDocument[]>>((value) => updateCollection('presentation_documents', value as unknown as UpdateValue<PersistedItem[]>), [updateCollection]);
+  const setTranscriptions = useCallback<Updater<Transcription[]>>((value) => setTranscriptionsState(value as Transcription[] | ((previous: Transcription[]) => Transcription[])), []);
 
   if (!storageLoaded || !userId || (collectionsQuery.isLoading && !collectionsQuery.data)) {
     return <div className="flex min-h-screen items-center justify-center bg-bg text-text">Loading your StudySmartly workspace…</div>;
