@@ -47,23 +47,23 @@ grant select, insert, update, delete on public.tutor_sessions, public.presentati
 
 create policy "Users manage their own tutor sessions"
   on public.tutor_sessions for all to authenticated
-  using ((select auth.uid()) = user_id)
-  with check ((select auth.uid()) = user_id);
+  using ((select auth.uid()) is not null and (select auth.uid()) = user_id)
+  with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);
 
 create policy "Users manage their own presentation documents"
   on public.presentation_documents for all to authenticated
-  using ((select auth.uid()) = user_id)
-  with check ((select auth.uid()) = user_id);
+  using ((select auth.uid()) is not null and (select auth.uid()) = user_id)
+  with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);
 
 create policy "Users manage their own courses"
   on public.courses for all to authenticated
-  using ((select auth.uid()) = user_id)
-  with check ((select auth.uid()) = user_id);
+  using ((select auth.uid()) is not null and (select auth.uid()) = user_id)
+  with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);
 
 create policy "Users manage their own schedule events"
   on public.schedule_events for all to authenticated
-  using ((select auth.uid()) = user_id)
-  with check ((select auth.uid()) = user_id);
+  using ((select auth.uid()) is not null and (select auth.uid()) = user_id)
+  with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);
 
 create index if not exists tutor_sessions_user_created_idx on public.tutor_sessions (user_id, created_at);
 create index if not exists presentation_documents_user_updated_idx on public.presentation_documents (user_id, updated_at desc);
