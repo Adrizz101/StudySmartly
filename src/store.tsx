@@ -117,8 +117,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const collectionsQuery = useQuery<PersistedCollections>({
     queryKey,
     enabled: Boolean(userId),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
     gcTime: 24 * 60 * 60 * 1000,
+    refetchOnMount: 'always',
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
     retry: 2,
     networkMode: 'online',
     queryFn: async () => {
