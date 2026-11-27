@@ -1,0 +1,126 @@
+import { createServerFn } from '@tanstack/react-start';
+import { z } from 'zod';
+
+const resourceSchema = z.enum(['tutor_sessions', 'presentation_documents', 'courses', 'schedule_events']);
+type Resource = z.infer<typeof resourceSchema>;
+
+const accessInput = z.object({ accessToken: z.string().min(1).max(5000) });
+const recordSchema = z.object({
+  id: z.string().trim().min(1).max(200),
+  payload: z.record(z.string(), z.unknown()),
+}).superRefine((value, ctx) => {
+  if (value.payload.id !== value.id) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['payload', 'id'], message: 'Record ID must match its payload ID.' });
+  }
+});
+const collectionsSchema = z.object({
+  tutor_sessions: z.array(recordSchema).max(500),
+  presentation_documents: z.array(recordSchema).max(200),
+  courses: z.array(recordSchema).max(500),
+  schedule_events: z.array(recordSchema).max(2000),
+});
+const tableNames: Record<Resource, string> = {
+  tutor_sessions: 'tutor_sessions',
+  presentation_documents: 'presentation_documents',
+  courses: 'courses',
+  schedule_events: 'schedule_events',
+};
+type DbClient = { from: (table: string) => any };
+
+async function getUserContext(accessToken: string) {
+  const { getAuthenticatedAIContext } = await import('@/lib/user-ai-keys.server');
+  return getAuthenticatedAIContext(accessToken);
+}
+
+function mapRows(rows: Array<{ id: string; payload: Record<string, unknown> }> | null) {
+  return (rows ?? []).map((row) => row.payload);
+}
+
+async function loadCollections(db: DbClient, userId: string) {
+  const names = Object.keys(tableNames) as Resource[];
+  const entries = await Promise.all(names.map(async (resource) => {
+    const { data, error } = await db.from(tableNames[resource])
+      .select('id,payload')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true });
+    if (error) throw new Error('Could not load ' + resource.replaceAll('_', ' ') + '.');
+    return [resource, mapRows(data)] as const;
+  }));
+  return Object.fromEntries(entries) as Record<Resource, Record<string, unknown>[]>;
+}
+
+export const fetchPersistedCollections = createServerFn({ method: 'POST' })
+  .inputValidator(accessInput)
+  .handler(async ({ data }) => {
+    try {
+      const { userId, supabase } = await getUserContext(data.accessToken);
+      const collections = await loadCollections(supabase as DbClient, userId);
+      return { success: true as const, data: collections };
+    } catch (error) {
+      console.error('[Persistence] Fetch failed:', error);
+      return { success: false as const, error: error instanceof Error ? error.message : 'Could not load your saved data.' };
+    }
+  });
+
+export const migrateLegacyCollections = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ accessToken: accessInput.shape.accessToken, collections: collectionsSchema }))
+  .handler(async ({ data }) => {
+    try {
+      const { userId, supabase } = await getUserContext(data.accessToken);
+      const db = supabase as DbClient;
+      const counts: Partial<Record<Resource, number>> = {};
+      for (const resource of Object.keys(tableNames) as Resource[]) {
+        const items = data.collections[resource];
+        if (!items.length) continue;
+        const rows = items.map((item) => ({
+          id: item.id,
+          user_id: userId,
+          payload: item.payload,
+        }));
+        const { error } = await db.from(tableNames[resource])
+          .upsert(rows, { onConflict: 'user_id,id', ignoreDuplicates: true });
+        if (error) throw new Error('Could not migrate ' + resource.replaceAll('_', ' ') + '.');
+        counts[resource] = items.length;
+      }
+      return { success: true as const, data: counts };
+    } catch (error) {
+      console.error('[Persistence] Legacy migration failed:', error);
+      return { success: false as const, error: error instanceof Error ? error.message : 'Could not migrate your saved data.' };
+    }
+  });
+
+export const syncPersistedCollection = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({
+    accessToken: accessInput.shape.accessToken,
+    resource: resourceSchema,
+    items: z.array(recordSchema).max(2000),
+    deletedIds: z.array(z.string().min(1).max(200)).max(2000),
+  }))
+  .handler(async ({ data }) => {
+    try {
+      const { userId, supabase } = await getUserContext(data.accessToken);
+      const db = supabase as DbClient;
+      const table = tableNames[data.resource];
+      if (data.items.length) {
+        const rows = data.items.map((item) => ({
+          id: item.id,
+          user_id: userId,
+          payload: item.payload,
+          updated_at: new Date().toISOString(),
+        }));
+        const { error } = await db.from(table).upsert(rows, { onConflict: 'user_id,id' });
+        if (error) throw new Error('Could not save ' + data.resource.replaceAll('_', ' ') + '.');
+      }
+      if (data.deletedIds.length) {
+        const { error } = await db.from(table)
+          .delete()
+          .eq('user_id', userId)
+          .in('id', data.deletedIds);
+        if (error) throw new Error('Could not delete saved ' + data.resource.replaceAll('_', ' ') + '.');
+      }
+      return { success: true as const };
+    } catch (error) {
+      console.error('[Persistence] Sync failed:', error);
+      return { success: false as const, error: error instanceof Error ? error.message : 'Could not save your changes.' };
+    }
+  });
