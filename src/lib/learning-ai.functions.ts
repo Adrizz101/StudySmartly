@@ -236,7 +236,7 @@ export const generateDeck = createServerFn({ method: 'POST' }).middleware([safeS
     const count = validateSlideCount(data.count);
     const { structuredAI, refundCurrentUserAIUsage } = await import('./learning-ai.server');
     const slides: z.infer<typeof deckSchema>['slides'] = [];
-    let title = '', subject = '', runId: string | undefined, quotaCharged = false;
+    let title = '', subject = '', runId: string | undefined, quotaCharged = false, cached = true;
     try {
       // One deck-generation click is one quota unit, regardless of batch count.
       for (let start = 0; start < count; start += 6) {
@@ -246,6 +246,7 @@ export const generateDeck = createServerFn({ method: 'POST' }).middleware([safeS
           `${data.prompt}\nStudent cover: ${data.metadata}\nApproved outline: ${data.outline}\nTotal slides ${count}. Generate slides ${start+1}-${start+length}. Previous headings: ${slides.map(s => s.heading).join('; ')}. First overall slide is a title cover; last is a meaningful conclusion.`, data.sources, runId,
           { charge: start === 0 ? 'charge' : 'skip' });
         quotaCharged ||= result.quotaCharged;
+        cached = cached && result.cached;
         if (result.output.slides.length !== length) throw new Error('The generated slide count did not match. No partial deck has been saved.');
 
         // Resolve keyless stock imagery server-side: Openverse -> Wikimedia Commons -> null.
@@ -262,7 +263,7 @@ export const generateDeck = createServerFn({ method: 'POST' }).middleware([safeS
 
         slides.push(...slidesWithImages); title ||= result.output.title; subject ||= result.output.subject; runId = result.runId;
       }
-      return { title, subject, slides };
+      return { title, subject, slides, cached };
     } catch (error) {
       if (quotaCharged) {
         try { await refundCurrentUserAIUsage(); }
@@ -298,7 +299,7 @@ export const explainBoard = createServerFn({ method: 'POST' }).middleware([safeS
       `${data.prompt}\nSelected/current board: ${data.board}\nFull messages array (oldest to newest): ${JSON.stringify(data.messages)}`,
       data.sources,
     );
-    return { ...result.output, cached: result.cached };
+    return result.output;
   }));
 export const prepareExam = createServerFn({ method: 'POST' }).middleware([safeServerBoundary, requireSupabaseAuth])
   .inputValidator(input.extend({ key: z.string() })).handler(async ({ data }) => safeResult('prepareExam', 'Could not prepare the exam. Check the source and try again.', async () => {
@@ -432,7 +433,7 @@ export const generateConceptMap = createServerFn({ method: 'POST' })
       'Create a comprehensive concept map for: ' + data.topic + '. Include 10–15 or more distinct nodes when supported by the material, including specific sub-details rather than only broad headings. Use this conversation context to capture the details the student has already been taught:\n\n' + (context || 'No earlier conversation context was supplied.') + '\n\nKeep every label to at most five words.',
       [{ name: 'Requested topic and tutor conversation', text: data.topic + (context ? '\n\nTutor conversation:\n' + context : ''), images: [] }],
     );
-    return result.output;
+    return { ...result.output, cached: result.cached };
   }));
 
 
