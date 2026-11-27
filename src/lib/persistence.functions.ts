@@ -1,30 +1,93 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 
-const resourceSchema = z.enum(['tutor_sessions', 'presentation_documents', 'courses', 'schedule_events']);
-type Resource = z.infer<typeof resourceSchema>;
-
 const accessInput = z.object({ accessToken: z.string().min(1).max(5000) });
-const recordSchema = z.object({
+
+const coursePayload = z.object({
   id: z.string().trim().min(1).max(200),
-  payload: z.record(z.string(), z.unknown()),
-}).superRefine((value, ctx) => {
-  if (value.payload.id !== value.id) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['payload', 'id'], message: 'Record ID must match its payload ID.' });
-  }
-});
+  name: z.string().max(200),
+  code: z.string().max(80),
+  color: z.string().max(80),
+  active: z.boolean(),
+  progress: z.number().min(0).max(100),
+  examDate: z.string().optional(),
+}).passthrough();
+
+const scheduleEventPayload = z.object({
+  id: z.string().trim().min(1).max(200),
+  title: z.string().min(1).max(300),
+  courseId: z.string().nullable(),
+  date: z.string().max(100),
+  startTime: z.string().max(50),
+  endTime: z.string().max(50),
+  type: z.enum(['lecture', 'exam', 'assignment', 'study', 'other']),
+  recurrence: z.enum(['none', 'weekly']).optional(),
+  notes: z.string().max(5000).optional(),
+}).passthrough();
+
+const tutorMessage = z.object({
+  id: z.string().min(1).max(200),
+  role: z.enum(['user', 'assistant', 'system']),
+  content: z.string().max(100000),
+  timestamp: z.number(),
+  image: z.string().optional(),
+  conceptMap: z.unknown().optional(),
+}).passthrough();
+
+const tutorSessionPayload = z.object({
+  id: z.string().trim().min(1).max(200),
+  subject: z.string().max(300),
+  messages: z.array(tutorMessage).max(1000),
+  createdAt: z.number(),
+}).passthrough();
+
+const slidePayload = z.object({
+  id: z.string().min(1).max(200),
+  heading: z.string().max(1000),
+  body: z.string().max(100000),
+  bullets: z.array(z.string().max(5000)),
+  layout: z.string().max(80),
+}).passthrough();
+
+const presentationPayload = z.object({
+  id: z.string().trim().min(1).max(200),
+  title: z.string().max(500),
+  subject: z.string().max(300),
+  slides: z.array(slidePayload).max(300),
+  updatedAt: z.number(),
+  format: z.enum(['slides', 'guide']),
+}).passthrough();
+
+function recordFor<T extends z.ZodTypeAny>(payloadSchema: T) {
+  return z.object({
+    id: z.string().trim().min(1).max(200),
+    payload: payloadSchema,
+  }).superRefine((value, ctx) => {
+    if (value.payload.id !== value.id) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['payload', 'id'], message: 'Record ID must match its payload ID.' });
+    }
+  });
+}
+
+const courseRecord = recordFor(coursePayload);
+const scheduleRecord = recordFor(scheduleEventPayload);
+const tutorRecord = recordFor(tutorSessionPayload);
+const presentationRecord = recordFor(presentationPayload);
+
 const collectionsSchema = z.object({
-  tutor_sessions: z.array(recordSchema).max(500),
-  presentation_documents: z.array(recordSchema).max(200),
-  courses: z.array(recordSchema).max(500),
-  schedule_events: z.array(recordSchema).max(2000),
+  tutor_sessions: z.array(tutorRecord).max(500),
+  presentation_documents: z.array(presentationRecord).max(200),
+  courses: z.array(courseRecord).max(500),
+  schedule_events: z.array(scheduleRecord).max(2000),
 });
-const tableNames: Record<Resource, string> = {
+
+const tableNames = {
   tutor_sessions: 'tutor_sessions',
   presentation_documents: 'presentation_documents',
   courses: 'courses',
   schedule_events: 'schedule_events',
-};
+} as const;
+type Resource = keyof typeof tableNames;
 type DbClient = { from: (table: string) => any };
 
 async function getUserContext(accessToken: string) {
@@ -89,13 +152,15 @@ export const migrateLegacyCollections = createServerFn({ method: 'POST' })
     }
   });
 
+const syncInput = z.discriminatedUnion('resource', [
+  z.object({ accessToken: accessInput.shape.accessToken, resource: z.literal('courses'), items: z.array(courseRecord).max(500), deletedIds: z.array(z.string().min(1).max(200)).max(500) }),
+  z.object({ accessToken: accessInput.shape.accessToken, resource: z.literal('schedule_events'), items: z.array(scheduleRecord).max(2000), deletedIds: z.array(z.string().min(1).max(200)).max(2000) }),
+  z.object({ accessToken: accessInput.shape.accessToken, resource: z.literal('tutor_sessions'), items: z.array(tutorRecord).max(500), deletedIds: z.array(z.string().min(1).max(200)).max(500) }),
+  z.object({ accessToken: accessInput.shape.accessToken, resource: z.literal('presentation_documents'), items: z.array(presentationRecord).max(200), deletedIds: z.array(z.string().min(1).max(200)).max(200) }),
+]);
+
 export const syncPersistedCollection = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({
-    accessToken: accessInput.shape.accessToken,
-    resource: resourceSchema,
-    items: z.array(recordSchema).max(2000),
-    deletedIds: z.array(z.string().min(1).max(200)).max(2000),
-  }))
+  .inputValidator(syncInput)
   .handler(async ({ data }) => {
     try {
       const { userId, supabase } = await getUserContext(data.accessToken);
