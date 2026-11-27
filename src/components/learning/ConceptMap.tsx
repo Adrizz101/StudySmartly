@@ -106,7 +106,7 @@ export default function ConceptMap({ map }: { map: ConceptMapData & { cached?: b
 
   return (
     <div className="relative w-full min-w-0 max-w-full overflow-hidden">
-      {map.cached && <span className="absolute right-2 top-2 z-10 rounded-full border border-emerald-400/30 bg-emerald-950/90 px-2.5 py-1 text-[11px] font-medium text-emerald-300 shadow-sm" role="status">⚡ Loaded from cache</span>}
+      {map.cached && <span className="absolute right-2 top-12 z-10 rounded-full border border-emerald-400/30 bg-emerald-950/90 px-2.5 py-1 text-[11px] font-medium text-emerald-300 shadow-sm" role="status">⚡ Loaded from cache</span>}
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="min-w-0 truncate text-sm font-semibold text-foreground">{map.title}</p>
         <Button type="button" variant="outline" size="sm" onClick={() => setFullScreen(true)} className="h-8 shrink-0 gap-1.5 px-2 text-xs">
