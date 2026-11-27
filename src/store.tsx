@@ -118,6 +118,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     queryKey,
     enabled: Boolean(userId),
     staleTime: 5 * 60 * 1000,
+    gcTime: 24 * 60 * 60 * 1000,
     retry: 2,
     networkMode: 'online',
     queryFn: async () => {
@@ -168,6 +169,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     mutationKey: ['app-persistence-sync', userId],
     scope: { id: 'app-persistence-' + (userId ?? 'signed-out') },
     networkMode: 'online',
+    gcTime: 24 * 60 * 60 * 1000,
     retry: (failureCount, error) => {
       if (error instanceof Error && error.message.includes('session changed')) return false;
       return failureCount < 3;
@@ -202,7 +204,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // value. Later edits to the same record are preserved.
       const beforeById = new Map(variables.before.map((item) => [item.id, item]));
       const afterById = new Map(variables.items.map((item) => [item.id, item]));
-      const currentById = new Map(state[variables.resource].map((item) => [item.id, item]));
+      const currentById = new Map((state[variables.resource] as unknown as PersistedItem[]).map((item) => [item.id, item]));
       const allIds = new Set([...beforeById.keys(), ...afterById.keys()]);
       for (const id of allIds) {
         const before = beforeById.get(id);
@@ -216,7 +218,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData<PersistedCollections>(key, {
         ...state,
         [variables.resource]: [...currentById.values()],
-      });
+      } as PersistedCollections);
     },
   });
 
@@ -265,7 +267,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     queryClient.setQueryData<PersistedCollections>(['app-persistence', userId], {
       ...previousState,
       [resource]: next,
-    });
+    } as PersistedCollections);
     scheduleSave(resource, previous, next);
   }, [queryClient, scheduleSave, userId]);
 
