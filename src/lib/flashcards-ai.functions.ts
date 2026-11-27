@@ -49,10 +49,12 @@ const flashcardSchema = z.object({
     }
   })).min(1).max(40),
 });
+type FlashcardGenerationResult = z.infer<typeof flashcardSchema> & { cached: boolean };
+
 export const generateFlashcards = createServerFn({ method: 'POST' })
   .middleware([safeServerBoundary, requireSupabaseAuth])
   .inputValidator(input)
-  .handler(async ({ data }): Promise<ServerResult<z.infer<typeof flashcardSchema>>> => {
+  .handler(async ({ data }): Promise<ServerResult<FlashcardGenerationResult>> => {
     try {
     const { structuredAI } = await import('./learning-ai.server');
     const sources: SourceInput[] = [
@@ -67,7 +69,7 @@ export const generateFlashcards = createServerFn({ method: 'POST' })
       sources,
     );
     if (!result.output.cards.length) throw new Error('The AI did not produce any flashcards.');
-    return { success: true, data: result.output };
+    return { success: true, data: { ...result.output, cached: result.cached } };
     } catch (error) {
       console.error('[Flashcards] Generation failed:', error);
       return { success: false, error: 'Could not generate flashcards. Check your source material and try again.' };
