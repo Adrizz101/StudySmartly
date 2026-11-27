@@ -205,9 +205,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // Roll back only records that still contain this mutation's optimistic
       // value. Later edits to the same record are preserved.
-      const beforeById = new Map(variables.before.map((item) => [item.id, item]));
-      const afterById = new Map(variables.items.map((item) => [item.id, item]));
-      const currentById = new Map((state[variables.resource] as unknown as PersistedItem[]).map((item) => [item.id, item]));
+      const beforeById = new Map<string, PersistedItem>(variables.before.map((item): [string, PersistedItem] => [item.id, item]));
+      const afterById = new Map<string, PersistedItem>(variables.items.map((item): [string, PersistedItem] => [item.id, item]));
+      const currentById = new Map<string, PersistedItem>((state[variables.resource] as unknown as PersistedItem[]).map((item): [string, PersistedItem] => [item.id, item]));
       const allIds = new Set([...beforeById.keys(), ...afterById.keys()]);
       for (const id of allIds) {
         const before = beforeById.get(id);
@@ -257,21 +257,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     pendingSaves.current[resource] = { before: baseline, timer };
   }, [persistenceMutation, queryClient, userId]);
 
-  const updateCollection = useCallback((
+  const updateCollection = useCallback(<T extends { id: string },>(
     resource: PersistedResource,
-    updater: UpdateValue<PersistedItem[]>,
+    updater: UpdateValue<T[]>,
   ) => {
     if (!userId) return;
     const previousState = queryClient.getQueryData<PersistedCollections>(['app-persistence', userId]) ?? emptyCollections;
-    const previous = previousState[resource] as PersistedItem[];
+    const previous = previousState[resource] as unknown as T[];
     const next = typeof updater === 'function'
-      ? (updater as (value: PersistedItem[]) => PersistedItem[])(previous)
+      ? (updater as (value: T[]) => T[])(previous)
       : updater;
     queryClient.setQueryData<PersistedCollections>(['app-persistence', userId], {
       ...previousState,
       [resource]: next,
     } as PersistedCollections);
-    scheduleSave(resource, previous, next);
+    scheduleSave(resource, previous as unknown as PersistedItem[], next as unknown as PersistedItem[]);
   }, [queryClient, scheduleSave, userId]);
 
   const setSettings = useCallback<Updater<Settings>>((value) => setSettingsState(value as Settings | ((previous: Settings) => Settings)), []);
@@ -280,7 +280,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setMode = useCallback((mode: Mode) => setSettingsState((previous) => ({ ...previous, mode })), []);
   const setAccent = useCallback((accent: AccentKey) => setSettingsState((previous) => ({ ...previous, accent })), []);
 
-  const setCourses = useCallback<Updater<Course[]>>((value) => updateCollection('courses', value as unknown as UpdateValue<PersistedItem[]>), [updateCollection]);
+  const setCourses = useCallback<Updater<Course[]>>((value) => updateCollection('courses', value), [updateCollection]);
   const addCourse = useCallback((course: Course) => updateCollection('courses', (previous) => [...previous, course]), [updateCollection]);
   const updateCourse = useCallback((id: string, partial: Partial<Course>) =>
     updateCollection('courses', (previous) => previous.map((course) => course.id === id ? { ...course, ...partial } : course)), [updateCollection]);
@@ -289,15 +289,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateCollection('schedule_events', (previous) => previous.filter((event) => event.courseId !== id));
   }, [updateCollection]);
 
-  const setEvents = useCallback<Updater<ScheduleEvent[]>>((value) => updateCollection('schedule_events', value as unknown as UpdateValue<PersistedItem[]>), [updateCollection]);
+  const setEvents = useCallback<Updater<ScheduleEvent[]>>((value) => updateCollection('schedule_events', value), [updateCollection]);
   const addEvents = useCallback((events: ScheduleEvent[]) => updateCollection('schedule_events', (previous) => [...previous, ...events]), [updateCollection]);
   const updateEvent = useCallback((id: string, partial: Partial<ScheduleEvent>) =>
     updateCollection('schedule_events', (previous) => previous.map((event) => event.id === id ? { ...event, ...partial } : event)), [updateCollection]);
   const deleteEvent = useCallback((id: string) =>
     updateCollection('schedule_events', (previous) => previous.filter((event) => event.id !== id)), [updateCollection]);
 
-  const setTutorSessions = useCallback<Updater<TutorSession[]>>((value) => updateCollection('tutor_sessions', value as unknown as UpdateValue<PersistedItem[]>), [updateCollection]);
-  const setDocuments = useCallback<Updater<SlideDocument[]>>((value) => updateCollection('presentation_documents', value as unknown as UpdateValue<PersistedItem[]>), [updateCollection]);
+  const setTutorSessions = useCallback<Updater<TutorSession[]>>((value) => updateCollection('tutor_sessions', value), [updateCollection]);
+  const setDocuments = useCallback<Updater<SlideDocument[]>>((value) => updateCollection('presentation_documents', value), [updateCollection]);
   const setTranscriptions = useCallback<Updater<Transcription[]>>((value) => setTranscriptionsState(value as Transcription[] | ((previous: Transcription[]) => Transcription[])), []);
 
   if (!storageLoaded || !userId || (collectionsQuery.isLoading && !collectionsQuery.data)) {
