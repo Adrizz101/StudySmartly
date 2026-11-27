@@ -72,10 +72,11 @@ async function currentAccessToken(expectedUserId: string): Promise<string> {
   return data.session.access_token;
 }
 
-function toPersistedRecords<T extends { id: string }>(items: T[]) {
-  return items.map((item) => ({
+function toPersistedRecords<T extends { id: string }>(items: T[], positions?: Record<string, number>) {
+  return items.map((item, index) => ({
     id: item.id,
     payload: item as unknown as Record<string, unknown>,
+    position: positions?.[item.id] ?? index,
   }));
 }
 
@@ -184,13 +185,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       items: PersistedItem[];
       before: PersistedItem[];
       deletedIds: string[];
+      positions: Record<string, number>;
     }) => {
       const accessToken = await currentAccessToken(variables.userId);
       const result = await syncPersistedCollection({
         data: {
           accessToken,
           resource: variables.resource,
-          items: toPersistedRecords(variables.items),
+          items: toPersistedRecords(variables.items, variables.positions),
           deletedIds: variables.deletedIds,
         },
       });
@@ -238,20 +240,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       delete pendingSaves.current[resource];
       const latestState = queryClient.getQueryData<PersistedCollections>(['app-persistence', userId]);
       const latest = (latestState?.[resource] ?? after) as unknown as PersistedItem[];
-      const beforeIds = new Set(baseline.map((item) => item.id));
-      const afterIds = new Set(latest.map((item) => item.id));
-      const deletedIds = baseline.filter((item) => !afterIds.has(item.id)).map((item) => item.id);
-      const hasChanges = deletedIds.length > 0 || latest.some((item) => {
+      const beforeIndex = new Map(baseline.map((item, index) => [item.id, index]));
+      const afterIndex = new Map(latest.map((item, index) => [item.id, index]));
+      const deletedIds = baseline.filter((item) => !afterIndex.has(item.id)).map((item) => item.id);
+      const changedItems = latest.filter((item, index) => {
         const previous = baseline.find((candidate) => candidate.id === item.id);
-        return JSON.stringify(previous) !== JSON.stringify(item);
+        return JSON.stringify(previous) !== JSON.stringify(item) || beforeIndex.get(item.id) !== index;
       });
-      if (!hasChanges) return;
+      const changedIds = new Set([...changedItems.map((item) => item.id), ...deletedIds]);
+      const beforeChanged = baseline.filter((item) => changedIds.has(item.id));
+      if (!changedItems.length && !deletedIds.length) return;
       persistenceMutation.mutate({
         userId,
         resource,
-        items: latest,
-        before: baseline,
+        items: changedItems,
+        before: beforeChanged,
         deletedIds,
+        positions: Object.fromEntries(changedItems.map((item) => [item.id, afterIndex.get(item.id) ?? 0])),
       });
     }, 450);
     pendingSaves.current[resource] = { before: baseline, timer };
