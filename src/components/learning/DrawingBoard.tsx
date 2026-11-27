@@ -151,7 +151,6 @@ export default function DrawingBoard() {
   const [sources, setSources] = useState<SourceInput[]>([]);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [cacheNotice, setCacheNotice] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -537,7 +536,6 @@ export default function DrawingBoard() {
     busyRef.current = true;
     const run = runRef.current;
     setError('');
-    setCacheNotice(false);
     setBusy(true);
     try {
       if (!consent) throw new Error('Consent to AI processing before continuing.');
@@ -568,7 +566,6 @@ export default function DrawingBoard() {
       });
       if (result.success === false) throw new Error(result.error);
       const boardResult = result.data;
-      setCacheNotice(Boolean(boardResult.cached));
       if (run !== runRef.current) return;
 
       const currentBottom = elements.reduce((bottom, element) => Math.max(bottom, element.y + element.height), 0);
@@ -774,7 +771,6 @@ export default function DrawingBoard() {
         <aside className="board-copilot" aria-hidden={focusMode}>
           <div className="board-copilot-heading"><Sparkles size={17} /><span>Visual tutor</span>
             {busy && <span className="board-speaking">{isPaused ? 'Voice paused' : isSpeaking ? 'Speaking' : 'Drawing lesson'}</span>}
-            {cacheNotice && <span className="text-xs text-emerald-400" role="status">Loaded from cache instantly.</span>}
           </div>
 
           <div className="board-history-toggle">
