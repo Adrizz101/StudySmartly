@@ -8,13 +8,13 @@ import {
   useRouter,
   HeadContent,
   Scripts,
-  ClientOnly,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthScreen } from "@/components/AuthScreen";
+import { e2eTestLogin } from "@/lib/e2e-auth.functions";
 
 import appCss from "../styles.css?url";
 import { AppProvider } from '@/store';
@@ -128,21 +128,84 @@ function useSupabaseAuthRedirect() {
   }, []);
 }
 
+function takeE2ESecretFromUrl(): string | null {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has("e2e_secret")) return null;
+
+  const suppliedValues = url.searchParams.getAll("e2e_secret");
+  // Remove the bearer secret from the address bar before any network request is made.
+  url.searchParams.delete("e2e_secret");
+  window.history.replaceState(
+    window.history.state,
+    "",
+    url.pathname + url.search + url.hash,
+  );
+
+  // Ambiguous or empty values are rejected locally without calling the server.
+  return suppliedValues.length === 1 && suppliedValues[0] ? suppliedValues[0] : null;
+}
+
 function AuthGate({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      setSession(data.session);
-      setLoading(false);
-    });
+    let initializing = true;
+
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!active || initializing) return;
       setSession(nextSession);
       setLoading(false);
     });
+
+    async function initializeAuth() {
+      // Consume and scrub the query parameter immediately, before making requests.
+      const e2eSecret = takeE2ESecretFromUrl();
+
+      try {
+        const { data: authData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        if (!active) return;
+
+        // Never replace an already-authenticated student's existing session.
+        if (authData.session) {
+          setSession(authData.session);
+          return;
+        }
+
+        if (e2eSecret) {
+          try {
+            const result = await e2eTestLogin({ data: { secret: e2eSecret } });
+            if (result.success) {
+              const { data: loginData, error: loginError } = await supabase.auth.setSession({
+                access_token: result.accessToken,
+                refresh_token: result.refreshToken,
+              });
+
+              if (!loginError && loginData.session) {
+                if (active) setSession(loginData.session);
+                return;
+              }
+            }
+          } catch {
+            // Invalid, disabled, or misconfigured E2E credentials fail closed.
+            // Do not log the supplied secret or expose details to normal users.
+          }
+        }
+
+        if (active) setSession(null);
+      } catch (error) {
+        console.error("[auth] Session initialization failed:", error);
+        if (active) setSession(null);
+      } finally {
+        initializing = false;
+        if (active) setLoading(false);
+      }
+    }
+
+    void initializeAuth();
+
     return () => {
       active = false;
       data.subscription.unsubscribe();
